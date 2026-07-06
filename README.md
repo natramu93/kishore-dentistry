@@ -28,17 +28,21 @@ npm install
 npm run dev
 ```
 
-### Test accounts (seeded)
+### Accounts
 
 | Email | Password | Role | Branches |
 |---|---|---|---|
-| admin@kishore.dev | Admin@12345 | Admin | all |
-| manager.north@kishore.dev | Manager@12345 | Manager | Anna Nagar, T. Nagar |
-| manager.south@kishore.dev | Manager@12345 | Manager | Velachery, Adyar, Porur |
-| agent.ann@kishore.dev | Agent@12345 | Agent | Anna Nagar |
-| agent.multi@kishore.dev | Agent@12345 | Agent | T. Nagar, Velachery |
+| admin@kishor.dev | Admin@12345 | Admin | all |
+| che.head@kishor.dev | Kishor@2026 | Manager | all Chennai branches |
+| blr.head@kishor.dev | Kishor@2026 | Manager | Bengaluru |
+| reception1@kishor.dev | Kishor@2026 | Agent | all Chennai branches |
+| reception2@kishor.dev | Kishor@2026 | Agent | all Chennai branches |
+| manager.north@kishor.dev | Manager@12345 | Manager | Anna Nagar, T. Nagar |
+| manager.south@kishor.dev | Manager@12345 | Manager | Velachery, Adyar, Porur |
+| agent.ann@kishor.dev | Agent@12345 | Agent | Anna Nagar |
+| agent.multi@kishor.dev | Agent@12345 | Agent | T. Nagar, Velachery |
 
-> Change these passwords (or delete the test users) before going live.
+> Change these passwords before going live. New users' temp password is `Kishor@2026`.
 
 ## Architecture
 
