@@ -41,7 +41,10 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && isAuthRoute) {
+  // Skip the convenience redirect when an error is being surfaced (e.g. a
+  // mid-session deactivation lands on /login?error=inactive) — otherwise the
+  // authenticated-but-inactive user would loop between /login and /dashboard.
+  if (user && isAuthRoute && !request.nextUrl.searchParams.has("error")) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);

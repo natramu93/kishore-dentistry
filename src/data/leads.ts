@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { db } from "./db";
 import type { AuthContext } from "@/lib/auth/context";
 import { AuthorizationError } from "@/lib/auth/context";
@@ -71,18 +72,22 @@ export async function listLeads(ctx: AuthContext, filters: LeadFilters = {}) {
   return { leads: (data ?? []) as LeadWithRefs[], total: count ?? 0, page, pageSize };
 }
 
-export async function getLead(ctx: AuthContext, id: string): Promise<LeadWithRefs | null> {
-  const { data, error } = await db
-    .from("leads")
-    .select(
-      "*, branch:branches(name, code), source:lead_sources(name), assignee:profiles!leads_assignee_id_fkey(full_name), interest:treatment_types!leads_interest_id_fkey(name, category)"
-    )
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data || !canReadLead(ctx, data)) return null;
-  return data as LeadWithRefs;
-}
+// Cached per request: the lead detail page reads the same lead through several
+// helpers — cache() collapses those into a single DB round-trip.
+export const getLead = cache(
+  async (ctx: AuthContext, id: string): Promise<LeadWithRefs | null> => {
+    const { data, error } = await db
+      .from("leads")
+      .select(
+        "*, branch:branches(name, code), source:lead_sources(name), assignee:profiles!leads_assignee_id_fkey(full_name), interest:treatment_types!leads_interest_id_fkey(name, category)"
+      )
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data || !canReadLead(ctx, data)) return null;
+    return data as LeadWithRefs;
+  }
+);
 
 /** Duplicate check for the new-lead form. */
 export async function findLeadsByMobile(ctx: AuthContext, mobile: string) {

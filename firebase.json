@@ -4,7 +4,10 @@
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "supabase/**"],
     "frameworksBackend": {
       "region": "asia-south1",
+      "minInstances": 1,
       "maxInstances": 4,
+      "memory": "512MiB",
+      "concurrency": 80,
       "secrets": ["SUPABASE_SERVICE_ROLE_KEY"]
     }
   }
