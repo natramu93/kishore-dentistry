@@ -73,6 +73,7 @@ export type Doctor = Timestamps & {
 export type TreatmentType = Timestamps & {
   id: string;
   name: string;
+  category: string | null;
   default_cost: number | null;
   is_active: boolean;
 };
@@ -88,6 +89,7 @@ export type Lead = Timestamps & {
   dob: string | null;
   status: LeadStatus;
   assignee_id: string | null;
+  interest_id: string | null;
   notes: string | null;
   created_by: string | null;
   status_changed_at: string;
@@ -234,6 +236,7 @@ export type Database = {
           FK<"leads_branch_id_fkey", "branch_id", "branches">,
           FK<"leads_source_id_fkey", "source_id", "lead_sources">,
           FK<"leads_assignee_id_fkey", "assignee_id", "profiles">,
+          FK<"leads_interest_id_fkey", "interest_id", "treatment_types">,
           FK<"leads_created_by_fkey", "created_by", "profiles">
         ]
       >;

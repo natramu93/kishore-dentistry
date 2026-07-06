@@ -16,6 +16,7 @@ export type DashboardData = {
   statusCounts: Record<string, number>;
   branchCounts: { branch: string; count: number }[];
   sourceCounts: { source: string; count: number }[];
+  interestCounts: { interest: string; count: number }[];
   todaysAppointments: number;
   dueFollowUps: number;
   totalLeads: number;
@@ -26,7 +27,7 @@ export async function getDashboardData(ctx: AuthContext): Promise<DashboardData>
   const today = clinicToday();
   const { start, end } = clinicDayRange(today);
 
-  let leadsQ = db.from("leads").select("status, branch_id, source_id");
+  let leadsQ = db.from("leads").select("status, branch_id, source_id, interest_id");
   if (scope) leadsQ = leadsQ.in("branch_id", scope);
   if (ctx.role === "agent") {
     leadsQ = leadsQ.or(`assignee_id.eq.${ctx.userId},assignee_id.is.null`);
@@ -47,26 +48,30 @@ export async function getDashboardData(ctx: AuthContext): Promise<DashboardData>
     .lt("due_at", end);
   if (scope) fuQ = fuQ.in("branch_id", scope);
 
-  const [leadsRes, apptRes, fuRes, branchesRes, sourcesRes] = await Promise.all([
+  const [leadsRes, apptRes, fuRes, branchesRes, sourcesRes, treatmentsRes] = await Promise.all([
     leadsQ,
     apptQ,
     fuQ,
     db.from("branches").select("id, name"),
     db.from("lead_sources").select("id, name"),
+    db.from("treatment_types").select("id, name"),
   ]);
 
   const leads = leadsRes.data ?? [];
   const branchNames = new Map((branchesRes.data ?? []).map((b) => [b.id, b.name]));
   const sourceNames = new Map((sourcesRes.data ?? []).map((s) => [s.id, s.name]));
+  const treatmentNames = new Map((treatmentsRes.data ?? []).map((t) => [t.id, t.name]));
 
   const statusCounts: Record<string, number> = {};
   const byBranch = new Map<string, number>();
   const bySource = new Map<string, number>();
+  const byInterest = new Map<string, number>();
   for (const l of leads) {
     statusCounts[l.status] = (statusCounts[l.status] ?? 0) + 1;
     byBranch.set(l.branch_id, (byBranch.get(l.branch_id) ?? 0) + 1);
     const src = l.source_id ?? "unknown";
     bySource.set(src, (bySource.get(src) ?? 0) + 1);
+    if (l.interest_id) byInterest.set(l.interest_id, (byInterest.get(l.interest_id) ?? 0) + 1);
   }
 
   return {
@@ -77,6 +82,10 @@ export async function getDashboardData(ctx: AuthContext): Promise<DashboardData>
     sourceCounts: [...bySource.entries()]
       .map(([id, count]) => ({ source: sourceNames.get(id) ?? "Unknown", count }))
       .sort((a, b) => b.count - a.count),
+    interestCounts: [...byInterest.entries()]
+      .map(([id, count]) => ({ interest: treatmentNames.get(id) ?? "Unknown", count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6),
     todaysAppointments: apptRes.count ?? 0,
     dueFollowUps: fuRes.count ?? 0,
     totalLeads: leads.length,

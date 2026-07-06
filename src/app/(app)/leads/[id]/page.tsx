@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { STATUS_LABELS } from "@/lib/leads/transitions";
+import { groupByCategory } from "@/lib/dental";
 import { fmt, fmtDate, formatINR } from "@/lib/tz";
 import { ReceiptText } from "lucide-react";
 
@@ -44,6 +45,10 @@ export default async function LeadDetailPage({
   const canManage = ctx.role !== "agent";
 
   const activeAppointment = appointments.find((a) => a.status === "scheduled") ?? null;
+  const interestGroups = groupByCategory(treatmentTypes).map((g) => ({
+    category: g.category,
+    items: g.items.map((t) => ({ id: t.id, name: t.name })),
+  }));
   const canModerate = ctx.role !== "agent";
   const commentProps = {
     leadId: lead.id,
@@ -81,6 +86,7 @@ export default async function LeadDetailPage({
             }))}
             role={ctx.role}
             userId={ctx.userId}
+            defaultTreatmentTypeId={lead.interest_id}
           />
           <div className="flex items-center gap-1">
             <RowEditDialog title="Edit lead details" action={updateLeadAction.bind(null, lead.id)}>
@@ -108,6 +114,24 @@ export default async function LeadDetailPage({
                     <option value="">— None —</option>
                     {sources.map((s) => (
                       <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-interest">Treatment interest</Label>
+                  <select
+                    id="edit-interest"
+                    name="interest_id"
+                    defaultValue={lead.interest_id ?? ""}
+                    className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+                  >
+                    <option value="">— None —</option>
+                    {interestGroups.map((g) => (
+                      <optgroup key={g.category} label={g.category}>
+                        {g.items.map((t) => (
+                          <option key={t.id} value={t.id}>{t.name}</option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                 </div>
@@ -147,6 +171,8 @@ export default async function LeadDetailPage({
                 <Field label="Date of birth" value={lead.dob ? fmtDate(lead.dob) : null} />
                 <Field label="Assignee" value={lead.assignee?.full_name ?? "Unassigned"} />
                 <Field label="Center" value={lead.branch?.name} />
+                <Field label="Treatment interest" value={lead.interest?.name} />
+                <Field label="Source" value={lead.source?.name} />
               </dl>
               {lead.notes && (
                 <p className="mt-4 text-sm whitespace-pre-wrap border-t pt-3 text-muted-foreground">

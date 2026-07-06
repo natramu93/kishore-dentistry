@@ -49,7 +49,7 @@ export async function listTreatmentTypes(
 
 export async function createTreatmentType(
   ctx: AuthContext,
-  input: { name: string; default_cost?: number }
+  input: { name: string; category?: string | null; default_cost?: number }
 ) {
   requireAdmin(ctx);
   const { error } = await db.from("treatment_types").insert(input);
@@ -59,7 +59,7 @@ export async function createTreatmentType(
 export async function updateTreatmentType(
   ctx: AuthContext,
   id: string,
-  input: { name?: string; default_cost?: number | null; is_active?: boolean }
+  input: { name?: string; category?: string | null; default_cost?: number | null; is_active?: boolean }
 ) {
   requireAdmin(ctx);
   const { error } = await db.from("treatment_types").update(input).eq("id", id);

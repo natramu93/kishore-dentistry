@@ -121,6 +121,7 @@ export default async function LeadsPage({
             <TableHead>Name</TableHead>
             <TableHead>Mobile</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead>Interest</TableHead>
             <TableHead>Branch</TableHead>
             <TableHead>Source</TableHead>
             <TableHead>Assignee</TableHead>
@@ -130,7 +131,7 @@ export default async function LeadsPage({
         <TableBody>
           {leads.length === 0 && (
             <TableRow>
-              <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                 No leads match these filters
               </TableCell>
             </TableRow>
@@ -144,6 +145,7 @@ export default async function LeadsPage({
               </TableCell>
               <TableCell className="text-muted-foreground">{l.mobile}</TableCell>
               <TableCell><LeadStatusBadge status={l.status} /></TableCell>
+              <TableCell className="text-muted-foreground">{l.interest?.name ?? "—"}</TableCell>
               <TableCell>{l.branch?.name ?? "—"}</TableCell>
               <TableCell className="text-muted-foreground">{l.source?.name ?? "—"}</TableCell>
               <TableCell className="text-muted-foreground">

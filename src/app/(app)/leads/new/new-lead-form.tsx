@@ -11,12 +11,16 @@ import { Textarea } from "@/components/ui/textarea";
 import type { Branch, LeadSource } from "@/lib/database.types";
 import Link from "next/link";
 
+type InterestGroup = { category: string; items: { id: string; name: string }[] };
+
 export function NewLeadForm({
   branches,
   sources,
+  interestGroups,
 }: {
   branches: Branch[];
   sources: LeadSource[];
+  interestGroups: InterestGroup[];
 }) {
   const [pending, startTransition] = useTransition();
   const [dupes, setDupes] = useState<{ id: string; name: string; status: string }[]>([]);
@@ -89,6 +93,25 @@ export function NewLeadForm({
                 ))}
               </select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="interest_id">Treatment interest</Label>
+            <select
+              id="interest_id"
+              name="interest_id"
+              className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+              defaultValue=""
+            >
+              <option value="">— What are they enquiring about? —</option>
+              {interestGroups.map((g) => (
+                <optgroup key={g.category} label={g.category}>
+                  {g.items.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">

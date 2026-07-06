@@ -12,21 +12,39 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { formatINR } from "@/lib/tz";
+import { CATEGORY_ORDER, categoryRank } from "@/lib/dental";
 
 export const metadata = { title: "Treatment Types — Admin" };
+
+// Reused datalist of known categories (admins can also type a new one)
+function CategoryField({ id, defaultValue }: { id: string; defaultValue?: string | null }) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>Category</Label>
+      <Input id={id} name="category" list="treatment-categories" defaultValue={defaultValue ?? ""} placeholder="e.g. Orthodontics" />
+      <datalist id="treatment-categories">
+        {CATEGORY_ORDER.map((c) => (
+          <option key={c} value={c} />
+        ))}
+      </datalist>
+    </div>
+  );
+}
 
 export default async function TreatmentTypesPage() {
   const ctx = await getAuthContext();
   if (ctx.role !== "admin") redirect("/dashboard");
-  const types = await listTreatmentTypes(ctx, { includeInactive: true });
+  const types = (await listTreatmentTypes(ctx, { includeInactive: true })).sort(
+    (a, b) => categoryRank(a.category) - categoryRank(b.category) || a.name.localeCompare(b.name)
+  );
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Treatment types</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Treatment catalog</h1>
           <p className="text-sm text-muted-foreground">
-            The treatment catalog used in treatment records and invoice line items.
+            {types.length} treatments. Prices auto-fill invoices and treatment records.
           </p>
         </div>
         <FormDialog triggerLabel="New treatment" title="Add treatment type" action={createTreatmentTypeAction}>
@@ -34,6 +52,7 @@ export default async function TreatmentTypesPage() {
             <Label htmlFor="name">Name</Label>
             <Input id="name" name="name" required />
           </div>
+          <CategoryField id="new-cat" />
           <div className="space-y-2">
             <Label htmlFor="default_cost">Default cost (₹)</Label>
             <Input id="default_cost" name="default_cost" type="number" min="0" step="0.01" />
@@ -45,6 +64,7 @@ export default async function TreatmentTypesPage() {
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
+            <TableHead>Category</TableHead>
             <TableHead>Default cost</TableHead>
             <TableHead>Status</TableHead>
             <TableHead />
@@ -54,7 +74,10 @@ export default async function TreatmentTypesPage() {
           {types.map((t) => (
             <TableRow key={t.id}>
               <TableCell className="font-medium">{t.name}</TableCell>
-              <TableCell>{t.default_cost != null ? formatINR(t.default_cost) : "—"}</TableCell>
+              <TableCell className="text-muted-foreground">{t.category ?? "—"}</TableCell>
+              <TableCell className="whitespace-nowrap">
+                {t.default_cost != null ? formatINR(t.default_cost) : "—"}
+              </TableCell>
               <TableCell>
                 <Badge variant={t.is_active ? "default" : "secondary"}>
                   {t.is_active ? "Active" : "Inactive"}
@@ -67,6 +90,7 @@ export default async function TreatmentTypesPage() {
                       <Label htmlFor={`tname-${t.id}`}>Name</Label>
                       <Input id={`tname-${t.id}`} name="name" defaultValue={t.name} required />
                     </div>
+                    <CategoryField id={`tcat-${t.id}`} defaultValue={t.category} />
                     <div className="space-y-2">
                       <Label htmlFor={`tcost-${t.id}`}>Default cost (₹)</Label>
                       <Input

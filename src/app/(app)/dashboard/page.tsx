@@ -117,6 +117,26 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
+        {/* Top treatment interests */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Top treatment interests</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {data.interestCounts.length === 0 && (
+              <p className="text-sm text-muted-foreground">No treatment interest captured yet</p>
+            )}
+            {data.interestCounts.map((t) => (
+              <BarRow
+                key={t.interest}
+                label={t.interest}
+                count={t.count}
+                max={data.interestCounts[0]?.count ?? 1}
+              />
+            ))}
+          </CardContent>
+        </Card>
+
         {/* Recent activity */}
         <Card>
           <CardHeader>

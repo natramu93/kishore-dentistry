@@ -32,6 +32,7 @@ export function TransitionActions({
   treatmentTypes,
   role,
   userId,
+  defaultTreatmentTypeId,
 }: {
   lead: { id: string; status: LeadStatus };
   activeAppointmentId: string | null;
@@ -40,10 +41,15 @@ export function TransitionActions({
   treatmentTypes: TreatmentOption[];
   role: UserRole;
   userId: string;
+  defaultTreatmentTypeId?: string | null;
 }) {
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [pending, startTransition] = useTransition();
-  const [treatCost, setTreatCost] = useState("");
+  // Default the treatment stage to the lead's captured interest.
+  const defaultTreatment = treatmentTypes.find((t) => t.id === defaultTreatmentTypeId);
+  const [treatCost, setTreatCost] = useState(
+    defaultTreatment?.cost != null ? String(defaultTreatment.cost) : ""
+  );
 
   function run(to: LeadStatus, formData: FormData) {
     startTransition(async () => {
@@ -230,7 +236,7 @@ export function TransitionActions({
                 id="treatment_type_id"
                 name="treatment_type_id"
                 className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
-                defaultValue=""
+                defaultValue={defaultTreatmentTypeId ?? ""}
                 onChange={(e) => {
                   const t = treatmentTypes.find((x) => x.id === e.target.value);
                   if (t && t.cost != null) setTreatCost(String(t.cost));

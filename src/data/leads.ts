@@ -17,6 +17,7 @@ export type LeadWithRefs = Lead & {
   branch: { name: string; code: string } | null;
   source: { name: string } | null;
   assignee: { full_name: string } | null;
+  interest: { name: string; category: string | null } | null;
 };
 
 export type LeadFilters = {
@@ -32,9 +33,10 @@ export type LeadFilters = {
 function scopedQuery(ctx: AuthContext) {
   let q = db
     .from("leads")
-    .select("*, branch:branches(name, code), source:lead_sources(name), assignee:profiles!leads_assignee_id_fkey(full_name)", {
-      count: "exact",
-    });
+    .select(
+      "*, branch:branches(name, code), source:lead_sources(name), assignee:profiles!leads_assignee_id_fkey(full_name), interest:treatment_types!leads_interest_id_fkey(name, category)",
+      { count: "exact" }
+    );
   if (ctx.role !== "admin") {
     q = q.in("branch_id", ctx.branchIds.length ? ctx.branchIds : [EMPTY_UUID]);
   }
@@ -72,7 +74,9 @@ export async function listLeads(ctx: AuthContext, filters: LeadFilters = {}) {
 export async function getLead(ctx: AuthContext, id: string): Promise<LeadWithRefs | null> {
   const { data, error } = await db
     .from("leads")
-    .select("*, branch:branches(name, code), source:lead_sources(name), assignee:profiles!leads_assignee_id_fkey(full_name)")
+    .select(
+      "*, branch:branches(name, code), source:lead_sources(name), assignee:profiles!leads_assignee_id_fkey(full_name), interest:treatment_types!leads_interest_id_fkey(name, category)"
+    )
     .eq("id", id)
     .maybeSingle();
   if (error) throw error;
@@ -94,6 +98,7 @@ export async function createLead(
     mobile: string;
     email?: string | null;
     source_id?: string | null;
+    interest_id?: string | null;
     age?: number | null;
     dob?: string | null;
     notes?: string | null;
@@ -124,6 +129,7 @@ export async function updateLeadDetails(
     mobile?: string;
     email?: string | null;
     source_id?: string | null;
+    interest_id?: string | null;
     age?: number | null;
     dob?: string | null;
     notes?: string | null;

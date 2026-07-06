@@ -169,11 +169,13 @@ export async function toggleLeadSourceActive(id: string, isActive: boolean): Pro
 export async function createTreatmentTypeAction(formData: FormData): Promise<ActionResult> {
   const ctx = await getAuthContext();
   const name = String(formData.get("name") ?? "").trim();
+  const category = String(formData.get("category") ?? "").trim();
   const cost = formData.get("default_cost");
   if (!name) return { ok: false, error: "Name is required" };
   return runAction(async () => {
     await catalogs.createTreatmentType(ctx, {
       name,
+      category: category || null,
       default_cost: cost ? Number(cost) : undefined,
     });
     revalidatePath("/admin/treatments");
@@ -183,11 +185,13 @@ export async function createTreatmentTypeAction(formData: FormData): Promise<Act
 export async function updateTreatmentTypeAction(id: string, formData: FormData): Promise<ActionResult> {
   const ctx = await getAuthContext();
   const name = String(formData.get("name") ?? "").trim();
+  const category = String(formData.get("category") ?? "").trim();
   const cost = formData.get("default_cost");
   if (!name) return { ok: false, error: "Name is required" };
   return runAction(async () => {
     await catalogs.updateTreatmentType(ctx, id, {
       name,
+      category: category || null,
       default_cost: cost ? Number(cost) : null,
     });
     revalidatePath("/admin/treatments");
