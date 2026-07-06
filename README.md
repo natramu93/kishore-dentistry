@@ -1,36 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Kishore Dentistry CRM
 
-## Getting Started
+Multi-branch dental clinic CRM: lead pipeline, appointments, treatments, invoicing (print-to-PDF), follow-ups, per-stage comments, and a role-scoped dashboard.
 
-First, run the development server:
+**Stack:** Next.js 16 (App Router, TypeScript) · Supabase (Postgres + Auth, dedicated `crm` schema, **no RLS** — authorization is enforced in the server data layer) · Tailwind + shadcn/ui · Firebase App Hosting.
+
+---
+
+## ⚠️ Two one-time setup steps (required before the app works)
+
+1. **Expose the `crm` schema to the API**
+   Supabase Dashboard → Project Settings → **Data API** → *Exposed schemas* → add `crm`.
+   Without this, every page fails with `PGRST106: Invalid schema: crm`.
+   (Safe: `anon`/`authenticated` roles have zero grants on `crm` — only the service-role key can read it. Verified: anon requests return permission errors.)
+
+2. **Set the service-role key**
+   Supabase Dashboard → Project Settings → **API Keys** → copy the `service_role` secret into `.env.local`:
+   ```
+   SUPABASE_SERVICE_ROLE_KEY=eyJ...
+   ```
+
+Also recommended: Supabase Dashboard → Authentication → Sign In / Up → **disable public sign-ups** (this is an internal tool; admins create users in-app).
+
+## Run locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Test accounts (seeded)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Email | Password | Role | Branches |
+|---|---|---|---|
+| admin@kishore.dev | Admin@12345 | Admin | all |
+| manager.north@kishore.dev | Manager@12345 | Manager | Anna Nagar, T. Nagar |
+| manager.south@kishore.dev | Manager@12345 | Manager | Velachery, Adyar, Porur |
+| agent.ann@kishore.dev | Agent@12345 | Agent | Anna Nagar |
+| agent.multi@kishore.dev | Agent@12345 | Agent | T. Nagar, Velachery |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+> Change these passwords (or delete the test users) before going live.
 
-## Learn More
+## Architecture
 
-To learn more about Next.js, take a look at the following resources:
+### Authorization — API level, no RLS
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- The `crm.*` schema is granted **only** to `service_role`; browser clients hold just the anon key for auth sessions and can read nothing.
+- All reads/writes go through `src/data/` — the only place allowed to import the service-role client (`src/data/db.ts`, fenced by an ESLint `no-restricted-imports` rule).
+- Every data function takes an `AuthContext` (`{ userId, role, branchIds }` from `src/lib/auth/context.ts`) and applies scoping unconditionally:
+  - **Admin** — everything, all branches
+  - **Manager** — full lead access at allocated branches; manages doctors there
+  - **Agent** — own leads + the unassigned pool at allocated branches
+- Mutations re-fetch the target row and authorize against it — client-supplied IDs are never trusted.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Lead pipeline
 
-## Deploy on Vercel
+`open → assigned → appointment_booked → visited_treated → follow_up → closed`, with terminal `dropped` (from any active state) and `missed` (no-show). The transition map lives in `src/lib/leads/transitions.ts` and is mirrored by a DB trigger (defense in depth). Compound moves (book appointment + change status) run atomically via the `crm.transition_lead` RPC.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Booking an appointment captures date/time (IST), doctor, duration.
+- Marking visited/treated records the treatment (type, doctor, cost) and completes the appointment.
+- "Raise invoice" on a treatment prefills the invoice editor; numbers are per-branch (`ANN-2026-0001`) via the `crm.next_invoice_number` RPC. Print/PDF at `/invoices/[id]/print`.
+- Comments can be added at the bottom of the lead page **and** on every appointment / treatment / follow-up / invoice card.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Scaling branches
+
+Admin → Branches → *New branch*. Users, doctors, and leads attach to it immediately; nothing else to configure.
+
+### Migrations
+
+SQL sources live in `supabase/migrations/` and have been applied to the hosted project (`mgjdpszrjbkmxfvzzoqp`). Keep future schema changes as new numbered files.
+
+## Deploy (Firebase App Hosting)
+
+1. Push this repo to GitHub.
+2. Firebase console → App Hosting → *Create backend* → connect the repo, live branch `main`. `apphosting.yaml` is already configured.
+3. Store the secret and grant access:
+   ```bash
+   firebase apphosting:secrets:set supabase-service-role-key
+   firebase apphosting:secrets:grantaccess supabase-service-role-key --backend <backend-id>
+   ```
+4. Add the App Hosting domain in Supabase → Authentication → URL Configuration (Site URL + redirect URLs).

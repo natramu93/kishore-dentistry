@@ -1,0 +1,23 @@
+# Firebase App Hosting configuration
+# Docs: https://firebase.google.com/docs/app-hosting/configure
+runConfig:
+  minInstances: 0 # cost control — scale to zero when idle
+  maxInstances: 4
+
+env:
+  # NEXT_PUBLIC_* values are inlined at build time — BUILD availability is required
+  - variable: NEXT_PUBLIC_SUPABASE_URL
+    value: https://mgjdpszrjbkmxfvzzoqp.supabase.co
+    availability: [BUILD, RUNTIME]
+
+  - variable: NEXT_PUBLIC_SUPABASE_ANON_KEY
+    value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1namRwc3pyamJrbXhmdnp6b3FwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzMzM5NzksImV4cCI6MjA5ODkwOTk3OX0.0q4OkyI_5x9p6EifnhLd94OTTYSX0OuJYOIE9V6K29Q
+    availability: [BUILD, RUNTIME]
+
+  # Secret via Cloud Secret Manager — NEVER a plain value, runtime only.
+  # Setup:
+  #   firebase apphosting:secrets:set supabase-service-role-key
+  #   firebase apphosting:secrets:grantaccess supabase-service-role-key --backend <backend-id>
+  - variable: SUPABASE_SERVICE_ROLE_KEY
+    secret: supabase-service-role-key
+    availability: [RUNTIME]
