@@ -1,8 +1,10 @@
 # Firebase App Hosting configuration
 # Docs: https://firebase.google.com/docs/app-hosting/configure
 runConfig:
-  minInstances: 0 # cost control — scale to zero when idle
+  minInstances: 1 # keep one instance warm — no cold starts
   maxInstances: 4
+  concurrency: 80
+  memoryMiB: 512
 
 env:
   # NEXT_PUBLIC_* values are inlined at build time — BUILD availability is required
