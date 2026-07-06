@@ -58,6 +58,45 @@ export async function updateInvoiceStatusAction(
   });
 }
 
+const invoiceEditSchema = z.object({
+  tax_rate: z.coerce.number().min(0).max(100).default(0),
+  notes: z.string().optional(),
+  items: z
+    .array(
+      z.object({
+        description: z.string().min(1),
+        quantity: z.coerce.number().positive(),
+        unit_price: z.coerce.number().min(0),
+      })
+    )
+    .min(1, "At least one line item is required"),
+});
+
+export async function updateInvoiceAction(id: string, input: unknown): Promise<ActionResult> {
+  const ctx = await getAuthContext();
+  const parsed = invoiceEditSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid invoice" };
+  }
+  return runAction(async () => {
+    await invoices.updateInvoice(ctx, id, {
+      tax_rate: parsed.data.tax_rate,
+      notes: parsed.data.notes || null,
+      items: parsed.data.items,
+    });
+    revalidatePath(`/invoices/${id}`);
+    revalidatePath("/invoices");
+  });
+}
+
+export async function deleteInvoiceAction(id: string): Promise<ActionResult> {
+  const ctx = await getAuthContext();
+  return runAction(async () => {
+    await invoices.deleteInvoice(ctx, id);
+    revalidatePath("/invoices");
+  });
+}
+
 export async function createInvoiceAndRedirect(input: unknown) {
   const result = await createInvoiceAction(input);
   if (result.ok && result.id) redirect(`/invoices/${result.id}`);

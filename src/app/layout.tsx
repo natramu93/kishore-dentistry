@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Kishore Dentistry CRM",
+  title: "Dr. Kishor's Dentistry CRM",
   description: "Multi-branch dental clinic CRM",
 };
 

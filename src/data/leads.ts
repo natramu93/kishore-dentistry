@@ -183,6 +183,16 @@ export async function transitionLead(
   return data as unknown as Lead;
 }
 
+/** Delete a lead and all its child records (cascade). Managers/admins only. */
+export async function deleteLead(ctx: AuthContext, id: string) {
+  const { data: lead } = await db.from("leads").select("branch_id").eq("id", id).maybeSingle();
+  if (!lead) return;
+  if (ctx.role === "agent") throw new AuthorizationError("Only managers or admins can delete leads");
+  assertBranchAccess(ctx, lead.branch_id);
+  const { error } = await db.from("leads").delete().eq("id", id);
+  if (error) throw error;
+}
+
 export async function getLeadActivity(ctx: AuthContext, leadId: string) {
   const lead = await getLead(ctx, leadId);
   if (!lead) return [];

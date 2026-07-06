@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/auth/context";
 import { listBranches } from "@/data/branches";
-import { createBranchAction, toggleBranchActive } from "@/actions/admin";
+import { createBranchAction, toggleBranchActive, updateBranchAction } from "@/actions/admin";
 import { FormDialog } from "@/components/admin/form-dialog";
+import { RowEditDialog } from "@/components/admin/row-edit-dialog";
 import { ToggleActiveButton } from "@/components/admin/toggle-active-button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -71,10 +72,30 @@ export default async function BranchesPage() {
                 </Badge>
               </TableCell>
               <TableCell className="text-right">
-                <ToggleActiveButton
-                  isActive={b.is_active}
-                  action={toggleBranchActive.bind(null, b.id, !b.is_active)}
-                />
+                <div className="flex justify-end gap-1">
+                  <RowEditDialog title="Edit branch" action={updateBranchAction.bind(null, b.id)}>
+                    <div className="space-y-2">
+                      <Label htmlFor={`bname-${b.id}`}>Name</Label>
+                      <Input id={`bname-${b.id}`} name="name" defaultValue={b.name} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`bcode-${b.id}`}>Code</Label>
+                      <Input id={`bcode-${b.id}`} name="code" defaultValue={b.code} maxLength={6} required className="uppercase" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`baddr-${b.id}`}>Address</Label>
+                      <Input id={`baddr-${b.id}`} name="address" defaultValue={b.address ?? ""} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`bphone-${b.id}`}>Phone</Label>
+                      <Input id={`bphone-${b.id}`} name="phone" defaultValue={b.phone ?? ""} />
+                    </div>
+                  </RowEditDialog>
+                  <ToggleActiveButton
+                    isActive={b.is_active}
+                    action={toggleBranchActive.bind(null, b.id, !b.is_active)}
+                  />
+                </div>
               </TableCell>
             </TableRow>
           ))}

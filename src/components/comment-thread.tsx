@@ -2,10 +2,10 @@
 
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { addCommentAction, deleteCommentAction } from "@/actions/leads";
+import { addCommentAction, deleteCommentAction, updateCommentAction } from "@/actions/leads";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { MessageSquare, Trash2 } from "lucide-react";
+import { MessageSquare, Pencil, Trash2 } from "lucide-react";
 import type { CommentWithAuthor } from "@/data/comments";
 import type { CommentEntity } from "@/lib/database.types";
 import { fmt } from "@/lib/tz";
@@ -31,6 +31,8 @@ export function CommentThread({
 }) {
   const [pending, startTransition] = useTransition();
   const [expanded, setExpanded] = useState(!compact);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
 
   const scoped = comments.filter(
@@ -52,6 +54,17 @@ export function CommentThread({
     startTransition(async () => {
       const result = await deleteCommentAction(commentId, leadId);
       if (!result.ok) toast.error(result.error);
+    });
+  }
+
+  function saveEdit(commentId: string) {
+    startTransition(async () => {
+      const result = await updateCommentAction(commentId, leadId, editBody);
+      if (result.ok) {
+        setEditingId(null);
+      } else {
+        toast.error(result.error);
+      }
     });
   }
 
@@ -81,19 +94,54 @@ export function CommentThread({
                     {fmt(c.created_at)}
                   </span>
                 </span>
-                {(c.author_id === currentUserId || canModerate) && (
-                  <button
-                    type="button"
-                    onClick={() => remove(c.id)}
-                    disabled={pending}
-                    className="text-muted-foreground hover:text-destructive"
-                    aria-label="Delete comment"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  {c.author_id === currentUserId && editingId !== c.id && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingId(c.id);
+                        setEditBody(c.body);
+                      }}
+                      disabled={pending}
+                      className="text-muted-foreground hover:text-foreground"
+                      aria-label="Edit comment"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  {(c.author_id === currentUserId || canModerate) && (
+                    <button
+                      type="button"
+                      onClick={() => remove(c.id)}
+                      disabled={pending}
+                      className="text-muted-foreground hover:text-destructive"
+                      aria-label="Delete comment"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
-              <p className="mt-1 whitespace-pre-wrap">{c.body}</p>
+              {editingId === c.id ? (
+                <div className="mt-2 space-y-2">
+                  <Textarea
+                    value={editBody}
+                    onChange={(e) => setEditBody(e.target.value)}
+                    rows={2}
+                    className="text-sm"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" size="sm" variant="ghost" onClick={() => setEditingId(null)}>
+                      Cancel
+                    </Button>
+                    <Button type="button" size="sm" disabled={pending} onClick={() => saveEdit(c.id)}>
+                      Save
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-1 whitespace-pre-wrap">{c.body}</p>
+              )}
             </li>
           ))}
         </ul>

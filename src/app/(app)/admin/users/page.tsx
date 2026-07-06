@@ -2,8 +2,9 @@ import { redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/auth/context";
 import { listUsers } from "@/data/users";
 import { listBranches } from "@/data/branches";
-import { createUserAction, toggleUserActive } from "@/actions/admin";
+import { createUserAction, toggleUserActive, updateUserAction } from "@/actions/admin";
 import { FormDialog } from "@/components/admin/form-dialog";
+import { RowEditDialog } from "@/components/admin/row-edit-dialog";
 import { ToggleActiveButton } from "@/components/admin/toggle-active-button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -110,12 +111,59 @@ export default async function UsersPage() {
                 </Badge>
               </TableCell>
               <TableCell className="text-right">
-                {u.id !== ctx.userId && (
-                  <ToggleActiveButton
-                    isActive={u.is_active}
-                    action={toggleUserActive.bind(null, u.id, !u.is_active)}
-                  />
-                )}
+                <div className="flex justify-end gap-1">
+                  <RowEditDialog title={`Edit ${u.full_name}`} action={updateUserAction.bind(null, u.id)}>
+                    <input type="hidden" name="manage_branches" value="1" />
+                    <div className="space-y-2">
+                      <Label htmlFor={`uname-${u.id}`}>Full name</Label>
+                      <Input id={`uname-${u.id}`} name="full_name" defaultValue={u.full_name} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`uphone-${u.id}`}>Phone</Label>
+                      <Input id={`uphone-${u.id}`} name="phone" defaultValue={u.phone ?? ""} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`urole-${u.id}`}>Role</Label>
+                      <select
+                        id={`urole-${u.id}`}
+                        name="role"
+                        defaultValue={u.role}
+                        disabled={u.id === ctx.userId}
+                        className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm disabled:opacity-60"
+                      >
+                        <option value="agent">Agent</option>
+                        <option value="manager">Branch Manager</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                      {u.id === ctx.userId && (
+                        <p className="text-xs text-muted-foreground">You can&apos;t change your own role.</p>
+                      )}
+                    </div>
+                    <fieldset className="space-y-2">
+                      <Label>Branch allocation</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {branches.map((b) => (
+                          <label key={b.id} className="flex items-center gap-2 text-sm border rounded-md px-3 py-2">
+                            <input
+                              type="checkbox"
+                              name="branch_ids"
+                              value={b.id}
+                              defaultChecked={u.branches.some((ub) => ub.id === b.id)}
+                              className="accent-primary"
+                            />
+                            {b.name}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                  </RowEditDialog>
+                  {u.id !== ctx.userId && (
+                    <ToggleActiveButton
+                      isActive={u.is_active}
+                      action={toggleUserActive.bind(null, u.id, !u.is_active)}
+                    />
+                  )}
+                </div>
               </TableCell>
             </TableRow>
           ))}

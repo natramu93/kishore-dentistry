@@ -113,6 +113,15 @@ export async function transitionLeadAction(
   });
 }
 
+export async function deleteLeadAction(leadId: string): Promise<ActionResult> {
+  const ctx = await getAuthContext();
+  return runAction(async () => {
+    await leads.deleteLead(ctx, leadId);
+    revalidatePath("/leads");
+    revalidatePath("/dashboard");
+  });
+}
+
 export async function checkDuplicateMobile(mobile: string) {
   const ctx = await getAuthContext();
   if (mobile.length < 7) return [];
@@ -144,6 +153,19 @@ export async function addCommentAction(formData: FormData): Promise<ActionResult
       entity_id: v.entity_id || null,
     });
     revalidatePath(`/leads/${v.lead_id}`);
+  });
+}
+
+export async function updateCommentAction(
+  commentId: string,
+  leadId: string,
+  body: string
+): Promise<ActionResult> {
+  const ctx = await getAuthContext();
+  if (!body.trim()) return { ok: false, error: "Comment cannot be empty" };
+  return runAction(async () => {
+    await comments.updateComment(ctx, commentId, body.trim());
+    revalidatePath(`/leads/${leadId}`);
   });
 }
 

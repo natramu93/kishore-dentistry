@@ -79,7 +79,9 @@ export async function updateUserAction(userId: string, formData: FormData): Prom
   return runAction(async () => {
     await users.updateUser(ctx, userId, {
       ...parsed.data,
-      branchIds: formData.has("branch_ids") ? branchIds : undefined,
+      // The edit form always includes the branch fieldset (marker present),
+      // so an empty selection clears allocations rather than being ignored.
+      branchIds: formData.has("manage_branches") ? branchIds : undefined,
     });
     revalidatePath("/admin/users");
   });
@@ -113,6 +115,19 @@ export async function createDoctorAction(formData: FormData): Promise<ActionResu
   });
 }
 
+export async function updateDoctorAction(id: string, formData: FormData): Promise<ActionResult> {
+  const ctx = await getAuthContext();
+  const parsed = doctorSchema.omit({ branch_id: true }).partial().safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  return runAction(async () => {
+    await catalogs.updateDoctor(ctx, id, {
+      ...parsed.data,
+      email: parsed.data.email === "" ? null : parsed.data.email,
+    });
+    revalidatePath("/admin/doctors");
+  });
+}
+
 export async function toggleDoctorActive(id: string, isActive: boolean): Promise<ActionResult> {
   const ctx = await getAuthContext();
   return runAction(async () => {
@@ -129,6 +144,16 @@ export async function createLeadSourceAction(formData: FormData): Promise<Action
   if (!name) return { ok: false, error: "Name is required" };
   return runAction(async () => {
     await catalogs.createLeadSource(ctx, name);
+    revalidatePath("/admin/sources");
+  });
+}
+
+export async function updateLeadSourceAction(id: string, formData: FormData): Promise<ActionResult> {
+  const ctx = await getAuthContext();
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { ok: false, error: "Name is required" };
+  return runAction(async () => {
+    await catalogs.updateLeadSource(ctx, id, { name });
     revalidatePath("/admin/sources");
   });
 }
@@ -150,6 +175,20 @@ export async function createTreatmentTypeAction(formData: FormData): Promise<Act
     await catalogs.createTreatmentType(ctx, {
       name,
       default_cost: cost ? Number(cost) : undefined,
+    });
+    revalidatePath("/admin/treatments");
+  });
+}
+
+export async function updateTreatmentTypeAction(id: string, formData: FormData): Promise<ActionResult> {
+  const ctx = await getAuthContext();
+  const name = String(formData.get("name") ?? "").trim();
+  const cost = formData.get("default_cost");
+  if (!name) return { ok: false, error: "Name is required" };
+  return runAction(async () => {
+    await catalogs.updateTreatmentType(ctx, id, {
+      name,
+      default_cost: cost ? Number(cost) : null,
     });
     revalidatePath("/admin/treatments");
   });

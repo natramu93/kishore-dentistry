@@ -4,10 +4,16 @@ import { getAuthContext } from "@/lib/auth/context";
 import { getLeadRelated, getLeadActivity } from "@/data/leads";
 import { listComments } from "@/data/comments";
 import { listAssignableUsers } from "@/data/users";
-import { listDoctors, listTreatmentTypes } from "@/data/catalogs";
+import { listDoctors, listTreatmentTypes, listLeadSources } from "@/data/catalogs";
 import { LeadStatusBadge } from "@/components/lead-status-badge";
 import { StatusStepper } from "@/components/leads/status-stepper";
 import { TransitionActions } from "@/components/leads/transition-actions";
+import { LeadDeleteButton } from "@/components/leads/lead-delete-button";
+import { RowEditDialog } from "@/components/admin/row-edit-dialog";
+import { updateLeadAction } from "@/actions/leads";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { CommentThread } from "@/components/comment-thread";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,13 +33,15 @@ export default async function LeadDetailPage({
   if (!related) notFound();
   const { lead, appointments, treatments, followUps, invoices } = related;
 
-  const [activity, comments, assignableUsers, doctors, treatmentTypes] = await Promise.all([
+  const [activity, comments, assignableUsers, doctors, treatmentTypes, sources] = await Promise.all([
     getLeadActivity(ctx, id),
     listComments(ctx, id),
     listAssignableUsers(ctx, lead.branch_id),
     listDoctors(ctx, { branchId: lead.branch_id }),
     listTreatmentTypes(ctx),
+    listLeadSources(ctx),
   ]);
+  const canManage = ctx.role !== "agent";
 
   const activeAppointment = appointments.find((a) => a.status === "scheduled") ?? null;
   const canModerate = ctx.role !== "agent";
@@ -57,21 +65,69 @@ export default async function LeadDetailPage({
             {lead.branch?.name} · {lead.source?.name ?? "Unknown source"} · Added {fmtDate(lead.created_at)}
           </p>
         </div>
-        <TransitionActions
-          lead={{ id: lead.id, status: lead.status }}
-          activeAppointmentId={activeAppointment?.id ?? null}
-          assignableUsers={assignableUsers.map((u) => ({
-            id: u.id,
-            label: `${u.full_name || u.email} (${u.role})`,
-          }))}
-          doctors={doctors.map((d) => ({ id: d.id, label: d.full_name }))}
-          treatmentTypes={treatmentTypes.map((t) => ({
-            id: t.id,
-            label: t.default_cost != null ? `${t.name} — ${formatINR(t.default_cost)}` : t.name,
-          }))}
-          role={ctx.role}
-          userId={ctx.userId}
-        />
+        <div className="flex flex-col items-end gap-2">
+          <TransitionActions
+            lead={{ id: lead.id, status: lead.status }}
+            activeAppointmentId={activeAppointment?.id ?? null}
+            assignableUsers={assignableUsers.map((u) => ({
+              id: u.id,
+              label: `${u.full_name || u.email} (${u.role})`,
+            }))}
+            doctors={doctors.map((d) => ({ id: d.id, label: d.full_name }))}
+            treatmentTypes={treatmentTypes.map((t) => ({
+              id: t.id,
+              label: t.default_cost != null ? `${t.name} — ${formatINR(t.default_cost)}` : t.name,
+              cost: t.default_cost,
+            }))}
+            role={ctx.role}
+            userId={ctx.userId}
+          />
+          <div className="flex items-center gap-1">
+            <RowEditDialog title="Edit lead details" action={updateLeadAction.bind(null, lead.id)}>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-name">Name</Label>
+                  <Input id="edit-name" name="name" defaultValue={lead.name} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-mobile">Mobile</Label>
+                  <Input id="edit-mobile" name="mobile" defaultValue={lead.mobile} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-email">Email</Label>
+                  <Input id="edit-email" name="email" type="email" defaultValue={lead.email ?? ""} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-source">Source</Label>
+                  <select
+                    id="edit-source"
+                    name="source_id"
+                    defaultValue={lead.source_id ?? ""}
+                    className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+                  >
+                    <option value="">— None —</option>
+                    {sources.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-age">Age</Label>
+                  <Input id="edit-age" name="age" type="number" min="0" max="120" defaultValue={lead.age ?? ""} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-dob">Date of birth</Label>
+                  <Input id="edit-dob" name="dob" type="date" defaultValue={lead.dob ?? ""} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-notes">Notes</Label>
+                <Textarea id="edit-notes" name="notes" rows={3} defaultValue={lead.notes ?? ""} />
+              </div>
+            </RowEditDialog>
+            {canManage && <LeadDeleteButton leadId={lead.id} />}
+          </div>
+        </div>
       </div>
 
       <StatusStepper status={lead.status} />

@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/auth/context";
 import { listLeadSources } from "@/data/catalogs";
-import { createLeadSourceAction, toggleLeadSourceActive } from "@/actions/admin";
+import { createLeadSourceAction, toggleLeadSourceActive, updateLeadSourceAction } from "@/actions/admin";
 import { FormDialog } from "@/components/admin/form-dialog";
+import { RowEditDialog } from "@/components/admin/row-edit-dialog";
 import { ToggleActiveButton } from "@/components/admin/toggle-active-button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -53,10 +54,18 @@ export default async function SourcesPage() {
                 </Badge>
               </TableCell>
               <TableCell className="text-right">
-                <ToggleActiveButton
-                  isActive={s.is_active}
-                  action={toggleLeadSourceActive.bind(null, s.id, !s.is_active)}
-                />
+                <div className="flex justify-end gap-1">
+                  <RowEditDialog title="Edit lead source" action={updateLeadSourceAction.bind(null, s.id)}>
+                    <div className="space-y-2">
+                      <Label htmlFor={`name-${s.id}`}>Name</Label>
+                      <Input id={`name-${s.id}`} name="name" defaultValue={s.name} required />
+                    </div>
+                  </RowEditDialog>
+                  <ToggleActiveButton
+                    isActive={s.is_active}
+                    action={toggleLeadSourceActive.bind(null, s.id, !s.is_active)}
+                  />
+                </div>
               </TableCell>
             </TableRow>
           ))}

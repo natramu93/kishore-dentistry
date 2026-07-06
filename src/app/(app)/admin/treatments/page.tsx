@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/auth/context";
 import { listTreatmentTypes } from "@/data/catalogs";
-import { createTreatmentTypeAction, toggleTreatmentTypeActive } from "@/actions/admin";
+import { createTreatmentTypeAction, toggleTreatmentTypeActive, updateTreatmentTypeAction } from "@/actions/admin";
 import { FormDialog } from "@/components/admin/form-dialog";
+import { RowEditDialog } from "@/components/admin/row-edit-dialog";
 import { ToggleActiveButton } from "@/components/admin/toggle-active-button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -60,10 +61,29 @@ export default async function TreatmentTypesPage() {
                 </Badge>
               </TableCell>
               <TableCell className="text-right">
-                <ToggleActiveButton
-                  isActive={t.is_active}
-                  action={toggleTreatmentTypeActive.bind(null, t.id, !t.is_active)}
-                />
+                <div className="flex justify-end gap-1">
+                  <RowEditDialog title="Edit treatment type" action={updateTreatmentTypeAction.bind(null, t.id)}>
+                    <div className="space-y-2">
+                      <Label htmlFor={`tname-${t.id}`}>Name</Label>
+                      <Input id={`tname-${t.id}`} name="name" defaultValue={t.name} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`tcost-${t.id}`}>Default cost (₹)</Label>
+                      <Input
+                        id={`tcost-${t.id}`}
+                        name="default_cost"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        defaultValue={t.default_cost ?? ""}
+                      />
+                    </div>
+                  </RowEditDialog>
+                  <ToggleActiveButton
+                    isActive={t.is_active}
+                    action={toggleTreatmentTypeActive.bind(null, t.id, !t.is_active)}
+                  />
+                </div>
               </TableCell>
             </TableRow>
           ))}

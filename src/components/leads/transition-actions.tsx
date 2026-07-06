@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { LeadStatus, UserRole } from "@/lib/database.types";
 
 type Option = { id: string; label: string };
+type TreatmentOption = { id: string; label: string; cost: number | null };
 
 type DialogKind =
   | "assign"
@@ -36,12 +37,13 @@ export function TransitionActions({
   activeAppointmentId: string | null;
   assignableUsers: Option[];
   doctors: Option[];
-  treatmentTypes: Option[];
+  treatmentTypes: TreatmentOption[];
   role: UserRole;
   userId: string;
 }) {
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [pending, startTransition] = useTransition();
+  const [treatCost, setTreatCost] = useState("");
 
   function run(to: LeadStatus, formData: FormData) {
     startTransition(async () => {
@@ -229,6 +231,10 @@ export function TransitionActions({
                 name="treatment_type_id"
                 className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
                 defaultValue=""
+                onChange={(e) => {
+                  const t = treatmentTypes.find((x) => x.id === e.target.value);
+                  if (t && t.cost != null) setTreatCost(String(t.cost));
+                }}
               >
                 <option value="">— Select —</option>
                 {treatmentTypes.map((t) => (
@@ -251,8 +257,16 @@ export function TransitionActions({
               </select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="cost">Cost (₹)</Label>
-              <Input id="cost" name="cost" type="number" min="0" step="0.01" />
+              <Label htmlFor="cost">Cost (₹) — auto-filled from catalog, editable</Label>
+              <Input
+                id="cost"
+                name="cost"
+                type="number"
+                min="0"
+                step="0.01"
+                value={treatCost}
+                onChange={(e) => setTreatCost(e.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="t_notes">Treatment notes</Label>

@@ -23,7 +23,7 @@ export default async function InvoicePrintPage({
 
       <header className="flex justify-between items-start border-b-2 border-black pb-4">
         <div>
-          <h1 className="text-2xl font-bold">Kishore Dentistry</h1>
+          <h1 className="text-2xl font-bold">Dr. Kishor&apos;s Dentistry</h1>
           <p className="mt-1">{invoice.branch?.name} Branch</p>
           {invoice.branch?.address && <p>{invoice.branch.address}</p>}
           {invoice.branch?.phone && <p>Phone: {invoice.branch.phone}</p>}
@@ -86,7 +86,7 @@ export default async function InvoicePrintPage({
       )}
 
       <footer className="mt-12 text-xs text-neutral-500 text-center">
-        Thank you for choosing Kishore Dentistry.
+        Thank you for choosing Dr. Kishor&apos;s Dentistry.
       </footer>
     </div>
   );

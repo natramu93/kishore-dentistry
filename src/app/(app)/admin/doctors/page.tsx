@@ -1,8 +1,9 @@
 import { getAuthContext } from "@/lib/auth/context";
 import { listDoctors } from "@/data/catalogs";
 import { listMyBranches } from "@/data/branches";
-import { createDoctorAction, toggleDoctorActive } from "@/actions/admin";
+import { createDoctorAction, toggleDoctorActive, updateDoctorAction } from "@/actions/admin";
 import { FormDialog } from "@/components/admin/form-dialog";
+import { RowEditDialog } from "@/components/admin/row-edit-dialog";
 import { ToggleActiveButton } from "@/components/admin/toggle-active-button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -86,10 +87,30 @@ export default async function DoctorsPage() {
                 </Badge>
               </TableCell>
               <TableCell className="text-right">
-                <ToggleActiveButton
-                  isActive={d.is_active}
-                  action={toggleDoctorActive.bind(null, d.id, !d.is_active)}
-                />
+                <div className="flex justify-end gap-1">
+                  <RowEditDialog title="Edit doctor" action={updateDoctorAction.bind(null, d.id)}>
+                    <div className="space-y-2">
+                      <Label htmlFor={`dname-${d.id}`}>Full name</Label>
+                      <Input id={`dname-${d.id}`} name="full_name" defaultValue={d.full_name} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`dspec-${d.id}`}>Specialization</Label>
+                      <Input id={`dspec-${d.id}`} name="specialization" defaultValue={d.specialization ?? ""} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`dphone-${d.id}`}>Phone</Label>
+                      <Input id={`dphone-${d.id}`} name="phone" defaultValue={d.phone ?? ""} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`demail-${d.id}`}>Email</Label>
+                      <Input id={`demail-${d.id}`} name="email" type="email" defaultValue={d.email ?? ""} />
+                    </div>
+                  </RowEditDialog>
+                  <ToggleActiveButton
+                    isActive={d.is_active}
+                    action={toggleDoctorActive.bind(null, d.id, !d.is_active)}
+                  />
+                </div>
               </TableCell>
             </TableRow>
           ))}

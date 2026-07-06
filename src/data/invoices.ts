@@ -137,3 +137,58 @@ export async function updateInvoiceStatus(ctx: AuthContext, id: string, status: 
     .eq("id", id);
   if (error) throw error;
 }
+
+/** Edit line items / tax / notes and recompute totals. Invoice number is preserved. */
+export async function updateInvoice(
+  ctx: AuthContext,
+  id: string,
+  input: { tax_rate: number; notes?: string | null; items: InvoiceItemInput[] }
+) {
+  const { data: invoice } = await db.from("invoices").select("branch_id, status").eq("id", id).maybeSingle();
+  if (!invoice) throw new Error("Invoice not found");
+  assertBranchAccess(ctx, invoice.branch_id);
+  if (invoice.status === "paid") throw new Error("A paid invoice cannot be edited");
+  if (!input.items.length) throw new Error("Invoice needs at least one line item");
+
+  const totals = computeTotals(input.items, input.tax_rate);
+  const { error } = await db
+    .from("invoices")
+    .update({ tax_rate: input.tax_rate, notes: input.notes ?? null, ...totals })
+    .eq("id", id);
+  if (error) throw error;
+
+  // Replace line items
+  await db.from("invoice_items").delete().eq("invoice_id", id);
+  const { error: itemsError } = await db.from("invoice_items").insert(
+    input.items.map((i) => ({
+      invoice_id: id,
+      description: i.description,
+      quantity: i.quantity,
+      unit_price: i.unit_price,
+      amount: Math.round(i.quantity * i.unit_price * 100) / 100,
+    }))
+  );
+  if (itemsError) throw itemsError;
+}
+
+/** Delete an invoice (and its items via cascade). Managers/admins only. */
+export async function deleteInvoice(ctx: AuthContext, id: string) {
+  const { data: invoice } = await db
+    .from("invoices")
+    .select("branch_id, lead_id, invoice_number")
+    .eq("id", id)
+    .maybeSingle();
+  if (!invoice) return;
+  if (ctx.role === "agent") throw new Error("Only managers or admins can delete invoices");
+  assertBranchAccess(ctx, invoice.branch_id);
+
+  const { error } = await db.from("invoices").delete().eq("id", id);
+  if (error) throw error;
+
+  await db.from("lead_activity").insert({
+    lead_id: invoice.lead_id,
+    actor_id: ctx.userId,
+    type: "invoice",
+    detail: { event: "invoice_deleted", invoice_number: invoice.invoice_number },
+  });
+}

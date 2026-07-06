@@ -9,7 +9,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { fmtDate, formatINR } from "@/lib/tz";
-import { InvoiceStatusButtons } from "./status-buttons";
+import { InvoiceActions } from "./status-buttons";
 import { Printer } from "lucide-react";
 
 export default async function InvoiceDetailPage({
@@ -48,7 +48,7 @@ export default async function InvoiceDetailPage({
               Print / PDF
             </Link>
           </Button>
-          <InvoiceStatusButtons invoiceId={invoice.id} status={invoice.status} />
+          <InvoiceActions invoiceId={invoice.id} status={invoice.status} role={ctx.role} />
         </div>
       </div>
 

@@ -35,6 +35,8 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-gold: var(--gold);
+  --color-gold-foreground: var(--gold-foreground);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -49,38 +51,41 @@
 }
 
 :root {
+  /* Dr. Kishor's Dentistry — dental teal primary, premium gold accent, clinical neutrals */
   --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --foreground: oklch(0.21 0.02 220);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.21 0.02 220);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.21 0.02 220);
+  --primary: oklch(0.52 0.088 195); /* dental teal */
+  --primary-foreground: oklch(0.99 0.005 190);
+  --secondary: oklch(0.96 0.012 195);
+  --secondary-foreground: oklch(0.37 0.06 197);
+  --muted: oklch(0.968 0.006 210);
+  --muted-foreground: oklch(0.52 0.02 220);
+  --accent: oklch(0.95 0.028 194); /* light teal hover wash */
+  --accent-foreground: oklch(0.38 0.07 197);
+  --gold: oklch(0.74 0.13 84); /* premium gold accent (#daa520 family) */
+  --gold-foreground: oklch(0.28 0.05 80);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --border: oklch(0.9 0.01 210);
+  --input: oklch(0.9 0.01 210);
+  --ring: oklch(0.52 0.088 195);
+  --chart-1: oklch(0.52 0.088 195); /* teal */
+  --chart-2: oklch(0.74 0.13 84); /* gold */
+  --chart-3: oklch(0.62 0.09 210); /* soft blue */
+  --chart-4: oklch(0.68 0.11 160); /* mint */
+  --chart-5: oklch(0.6 0.1 30); /* warm clay */
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: oklch(0.98 0.01 195);
+  --sidebar-foreground: oklch(0.28 0.02 220);
+  --sidebar-primary: oklch(0.52 0.088 195);
+  --sidebar-primary-foreground: oklch(0.99 0.005 190);
+  --sidebar-accent: oklch(0.94 0.03 194);
+  --sidebar-accent-foreground: oklch(0.37 0.07 197);
+  --sidebar-border: oklch(0.9 0.012 205);
+  --sidebar-ring: oklch(0.52 0.088 195);
 }
 
 .dark {
