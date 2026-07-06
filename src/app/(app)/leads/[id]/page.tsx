@@ -8,6 +8,7 @@ import { listDoctors, listTreatmentTypes, listLeadSources } from "@/data/catalog
 import { LeadStatusBadge } from "@/components/lead-status-badge";
 import { StatusStepper } from "@/components/leads/status-stepper";
 import { TransitionActions } from "@/components/leads/transition-actions";
+import { AppointmentReschedule } from "@/components/leads/appointment-reschedule";
 import { LeadDeleteButton } from "@/components/leads/lead-delete-button";
 import { RowEditDialog } from "@/components/admin/row-edit-dialog";
 import { updateLeadAction } from "@/actions/leads";
@@ -20,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { STATUS_LABELS } from "@/lib/leads/transitions";
 import { groupByCategory } from "@/lib/dental";
-import { fmt, fmtDate, formatINR } from "@/lib/tz";
+import { fmt, fmtDate, formatINR, toClinicInputValue } from "@/lib/tz";
 import { ReceiptText } from "lucide-react";
 
 export default async function LeadDetailPage({
@@ -209,6 +210,19 @@ export default async function LeadDetailPage({
                     {a.duration_minutes} min
                     {a.notes ? ` · ${a.notes}` : ""}
                   </p>
+                  {a.status === "scheduled" && (
+                    <div className="mt-2">
+                      <AppointmentReschedule
+                        appointmentId={a.id}
+                        leadId={lead.id}
+                        doctors={doctors.map((d) => ({ id: d.id, label: d.full_name }))}
+                        defaultScheduledAt={toClinicInputValue(a.scheduled_at)}
+                        defaultDoctorId={a.doctor_id}
+                        defaultDuration={a.duration_minutes}
+                        defaultNotes={a.notes}
+                      />
+                    </div>
+                  )}
                   <CommentThread {...commentProps} entityType="appointment" entityId={a.id} compact />
                 </div>
               ))}
