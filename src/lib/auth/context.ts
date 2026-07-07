@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProfileWithBranches } from "@/data/users";
@@ -25,9 +26,25 @@ export class AuthorizationError extends Error {
 // getSession) and loads the profile + branch allocations.
 export const getAuthContext = cache(async (): Promise<AuthContext> => {
   const supabase = await createClient();
-  const {
+  let {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // A session cookie can be present (e.g. just set by the login redirect) while
+  // the first getUser() network validation transiently fails — bouncing a
+  // freshly-logged-in user back to /login. If a session cookie exists but no
+  // user came back, retry once before giving up.
+  if (!user) {
+    const cookieStore = await cookies();
+    const hasSession = cookieStore
+      .getAll()
+      .some((c) => c.name.startsWith("sb-") && c.name.includes("auth-token"));
+    if (hasSession) {
+      ({
+        data: { user },
+      } = await supabase.auth.getUser());
+    }
+  }
 
   if (!user) redirect("/login");
 
