@@ -52,10 +52,10 @@ function NavList({
           "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
           active
             ? "bg-sidebar-accent text-sidebar-accent-foreground"
-            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         )}
       >
-        <Icon className="h-4 w-4 shrink-0" />
+        <Icon className="h-4 w-4 shrink-0 text-gold" />
         {item.label}
       </Link>
     );
@@ -66,7 +66,7 @@ function NavList({
       {nav.map(renderItem)}
       {adminNav.length > 0 && (
         <>
-          <p className="px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
+          <p className="px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-gold">
             Administration
           </p>
           {adminNav.map(renderItem)}

@@ -98,16 +98,17 @@
   --chart-4: oklch(0.72 0.07 110); /* sage-gold */
   --chart-5: oklch(0.55 0.1 35); /* terracotta */
   --radius: 0.625rem;
-  /* Left nav theme — requested hash #4158d0. White text stays legible on it
-     (contrast ~5.9:1); the logo's white wordmark also reads fine here. */
-  --sidebar: #4158d0;
+  /* Left nav theme — based on the requested hash #4158d0, darkened for
+     contrast. Active/hover rows and section labels pick up the logo's gold
+     (--gold) so the two brand colors read together. */
+  --sidebar: color-mix(in srgb, #4158d0 82%, black 18%);
   --sidebar-foreground: #ffffff;
   --sidebar-primary: #4158d0;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: color-mix(in srgb, #4158d0 80%, white 20%);
+  --sidebar-accent: color-mix(in srgb, var(--gold) 38%, #4158d0 62%);
   --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: color-mix(in srgb, #4158d0 75%, black 25%);
-  --sidebar-ring: #4158d0;
+  --sidebar-border: color-mix(in srgb, #4158d0 65%, black 35%);
+  --sidebar-ring: var(--gold);
 }
 
 .dark {
