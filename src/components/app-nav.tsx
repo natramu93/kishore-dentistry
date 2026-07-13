@@ -87,12 +87,17 @@ export function MobileNav({ nav, adminNav }: { nav: NavItem[]; adminNav: NavItem
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger
         render={
-          <Button variant="ghost" size="icon-sm" aria-label="Open menu">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Open menu"
+            className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
             <Menu className="h-5 w-5" />
           </Button>
         }
       />
-      <SheetContent side="left" className="w-64 p-0 flex flex-col bg-sidebar">
+      <SheetContent side="left" className="w-64 p-0 flex flex-col bg-sidebar text-sidebar-foreground border-sidebar-border">
         <div className="border-b p-4">
           <SheetTitle className="sr-only">Navigation</SheetTitle>
           <BrandWordmark />

@@ -51,41 +51,42 @@
 }
 
 :root {
-  /* Dr. Kishor's Dentistry — dental teal primary, premium gold accent, clinical neutrals */
+  /* Dr. Kishor's Dentistry — premium gold + charcoal, matching the brand mark */
   --background: oklch(1 0 0);
-  --foreground: oklch(0.21 0.02 220);
+  --foreground: oklch(0.24 0.006 70);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.21 0.02 220);
+  --card-foreground: oklch(0.24 0.006 70);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.21 0.02 220);
-  --primary: oklch(0.52 0.088 195); /* dental teal */
-  --primary-foreground: oklch(0.99 0.005 190);
-  --secondary: oklch(0.96 0.012 195);
-  --secondary-foreground: oklch(0.37 0.06 197);
-  --muted: oklch(0.968 0.006 210);
-  --muted-foreground: oklch(0.52 0.02 220);
-  --accent: oklch(0.95 0.028 194); /* light teal hover wash */
-  --accent-foreground: oklch(0.38 0.07 197);
-  --gold: oklch(0.74 0.13 84); /* premium gold accent (#daa520 family) */
-  --gold-foreground: oklch(0.28 0.05 80);
+  --popover-foreground: oklch(0.24 0.006 70);
+  --primary: oklch(0.55 0.085 75); /* deep gold/bronze — accessible with white text */
+  --primary-foreground: oklch(0.99 0.005 85);
+  --secondary: oklch(0.96 0.012 80);
+  --secondary-foreground: oklch(0.4 0.06 72);
+  --muted: oklch(0.965 0.006 75);
+  --muted-foreground: oklch(0.5 0.015 70);
+  --accent: oklch(0.95 0.03 84); /* light gold hover wash */
+  --accent-foreground: oklch(0.44 0.075 72);
+  --gold: oklch(0.78 0.12 85); /* bright goldenrod accent (#daa520 family) */
+  --gold-foreground: oklch(0.28 0.05 70);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.9 0.01 210);
-  --input: oklch(0.9 0.01 210);
-  --ring: oklch(0.52 0.088 195);
-  --chart-1: oklch(0.52 0.088 195); /* teal */
-  --chart-2: oklch(0.74 0.13 84); /* gold */
-  --chart-3: oklch(0.62 0.09 210); /* soft blue */
-  --chart-4: oklch(0.68 0.11 160); /* mint */
-  --chart-5: oklch(0.6 0.1 30); /* warm clay */
+  --border: oklch(0.9 0.008 75);
+  --input: oklch(0.9 0.008 75);
+  --ring: oklch(0.55 0.085 75);
+  --chart-1: oklch(0.68 0.11 85); /* gold */
+  --chart-2: oklch(0.45 0.03 70); /* charcoal-bronze */
+  --chart-3: oklch(0.6 0.09 55); /* amber */
+  --chart-4: oklch(0.72 0.07 110); /* sage-gold */
+  --chart-5: oklch(0.55 0.1 35); /* terracotta */
   --radius: 0.625rem;
-  --sidebar: oklch(0.98 0.01 195);
-  --sidebar-foreground: oklch(0.28 0.02 220);
-  --sidebar-primary: oklch(0.52 0.088 195);
-  --sidebar-primary-foreground: oklch(0.99 0.005 190);
-  --sidebar-accent: oklch(0.94 0.03 194);
-  --sidebar-accent-foreground: oklch(0.37 0.07 197);
-  --sidebar-border: oklch(0.9 0.012 205);
-  --sidebar-ring: oklch(0.52 0.088 195);
+  /* Dark sidebar/header so the white "Dr. Kishor's" logo text reads clearly */
+  --sidebar: oklch(0.26 0.008 70);
+  --sidebar-foreground: oklch(0.9 0.012 82);
+  --sidebar-primary: oklch(0.78 0.12 85);
+  --sidebar-primary-foreground: oklch(0.24 0.02 70);
+  --sidebar-accent: oklch(0.34 0.02 75);
+  --sidebar-accent-foreground: oklch(0.85 0.11 85);
+  --sidebar-border: oklch(0.36 0.015 72);
+  --sidebar-ring: oklch(0.78 0.12 85);
 }
 
 .dark {

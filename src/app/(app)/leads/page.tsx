@@ -56,12 +56,12 @@ export default async function LeadsPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Leads</h1>
           <p className="text-sm text-muted-foreground">{total} lead{total === 1 ? "" : "s"}</p>
         </div>
-        <Button asChild>
+        <Button asChild className="shrink-0">
           <Link href="/leads/new">
             <Plus className="h-4 w-4 mr-1" />
             New lead
@@ -70,12 +70,12 @@ export default async function LeadsPage({
       </div>
 
       {/* Filters (GET form — server-rendered, no client state) */}
-      <form className="flex flex-wrap gap-2 items-end" action="/leads" method="get">
+      <form className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:items-end" action="/leads" method="get">
         <Input
           name="q"
           placeholder="Search name / mobile / email"
           defaultValue={params.q}
-          className="w-56"
+          className="col-span-2 sm:w-56"
         />
         <select
           name="status"
@@ -109,8 +109,8 @@ export default async function LeadsPage({
             <option key={s.id} value={s.id}>{s.name}</option>
           ))}
         </select>
-        <Button type="submit" variant="secondary" size="sm">Filter</Button>
-        <Button asChild variant="ghost" size="sm">
+        <Button type="submit" variant="secondary" size="sm" className="flex-1 sm:flex-none">Filter</Button>
+        <Button asChild variant="ghost" size="sm" className="flex-1 sm:flex-none">
           <Link href="/leads">Reset</Link>
         </Button>
       </form>

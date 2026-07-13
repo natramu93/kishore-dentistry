@@ -13,17 +13,24 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen w-full">
-      {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-60 flex-col border-r bg-sidebar">
-        <div className="p-4 border-b">
+      {/* Desktop sidebar (dark, for the gold/white logo) */}
+      <aside className="hidden md:flex w-60 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+        <div className="p-4 border-b border-sidebar-border">
           <BrandWordmark />
         </div>
         <DesktopNav nav={nav} adminNav={adminNav} />
-        <div className="border-t p-4 space-y-2">
+        <div className="border-t border-sidebar-border p-4 space-y-2">
           <div className="text-sm font-medium truncate">{ctx.fullName || ctx.email}</div>
-          <Badge variant="secondary" className="capitalize">{ctx.role}</Badge>
+          <Badge className="capitalize bg-sidebar-accent text-sidebar-accent-foreground border-transparent">
+            {ctx.role}
+          </Badge>
           <form action={logout}>
-            <Button variant="outline" size="sm" className="w-full mt-1" type="submit">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full mt-1 border-sidebar-border bg-transparent text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              type="submit"
+            >
               Sign out
             </Button>
           </form>
@@ -31,14 +38,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </aside>
 
       <div className="flex-1 min-w-0 flex flex-col">
-        {/* Mobile top bar with hamburger drawer */}
-        <header className="md:hidden sticky top-0 z-30 flex items-center justify-between border-b bg-background/95 backdrop-blur px-3 py-2">
-          <div className="flex items-center gap-2">
+        {/* Mobile top bar (dark) with hamburger drawer */}
+        <header className="md:hidden sticky top-0 z-30 flex items-center justify-between border-b border-sidebar-border bg-sidebar text-sidebar-foreground px-3 py-2">
+          <div className="flex items-center gap-2 min-w-0">
             <MobileNav nav={nav} adminNav={adminNav} />
-            <BrandWordmark subtitle={null} />
+            <BrandWordmark className="h-7" />
           </div>
           <form action={logout}>
-            <Button variant="ghost" size="sm" type="submit">Sign out</Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              type="submit"
+              className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            >
+              Sign out
+            </Button>
           </form>
         </header>
 
