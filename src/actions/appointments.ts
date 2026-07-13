@@ -37,3 +37,41 @@ export async function rescheduleAppointmentAction(
     revalidatePath("/dashboard");
   });
 }
+
+const doctorTreatmentSchema = z.object({
+  treatment_type_id: z.string().uuid().optional().or(z.literal("")),
+  cost: z.coerce.number().min(0).optional(),
+  notes: z.string().optional(),
+});
+
+/** Doctor role: complete their own appointment and log what treatment was performed. */
+export async function doctorCompleteAppointmentAction(
+  appointmentId: string,
+  formData: FormData
+): Promise<ActionResult> {
+  const ctx = await getAuthContext();
+  const parsed = doctorTreatmentSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+  const v = parsed.data;
+  return runAction(async () => {
+    await appointments.doctorCompleteAppointment(ctx, appointmentId, {
+      treatment_type_id: v.treatment_type_id || undefined,
+      cost: v.cost,
+      notes: v.notes,
+    });
+    revalidatePath("/appointments");
+    revalidatePath("/dashboard");
+  });
+}
+
+/** Doctor role: mark their own appointment a no-show. */
+export async function doctorMarkNoShowAction(appointmentId: string): Promise<ActionResult> {
+  const ctx = await getAuthContext();
+  return runAction(async () => {
+    await appointments.doctorMarkNoShow(ctx, appointmentId);
+    revalidatePath("/appointments");
+    revalidatePath("/dashboard");
+  });
+}

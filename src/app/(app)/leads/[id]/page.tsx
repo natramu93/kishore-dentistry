@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAuthContext } from "@/lib/auth/context";
+import { canDelete } from "@/lib/auth/guards";
 import { getLeadRelated, getLeadActivity } from "@/data/leads";
 import { listComments } from "@/data/comments";
 import { listAssignableUsers } from "@/data/users";
@@ -43,14 +44,14 @@ export default async function LeadDetailPage({
     listTreatmentTypes(ctx),
     listLeadSources(ctx),
   ]);
-  const canManage = ctx.role !== "agent";
+  const canManage = canDelete(ctx.role);
 
   const activeAppointment = appointments.find((a) => a.status === "scheduled") ?? null;
   const interestGroups = groupByCategory(treatmentTypes).map((g) => ({
     category: g.category,
     items: g.items.map((t) => ({ id: t.id, name: t.name })),
   }));
-  const canModerate = ctx.role !== "agent";
+  const canModerate = ctx.role !== "front_office" && ctx.role !== "doctor";
   const commentProps = {
     leadId: lead.id,
     comments,
@@ -59,7 +60,7 @@ export default async function LeadDetailPage({
   } as const;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -157,10 +158,10 @@ export default async function LeadDetailPage({
 
       <StatusStepper status={lead.status} />
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2 space-y-4">
           {/* Contact details */}
-          <Card>
+          <Card className="border-l-4 border-l-gold">
             <CardHeader>
               <CardTitle className="text-base">Details</CardTitle>
             </CardHeader>
@@ -184,7 +185,7 @@ export default async function LeadDetailPage({
           </Card>
 
           {/* Appointments */}
-          <Card>
+          <Card className="border-l-4 border-l-violet-400">
             <CardHeader>
               <CardTitle className="text-base">Appointments</CardTitle>
             </CardHeader>
@@ -230,7 +231,7 @@ export default async function LeadDetailPage({
           </Card>
 
           {/* Treatments */}
-          <Card>
+          <Card className="border-l-4 border-l-emerald-400">
             <CardHeader>
               <CardTitle className="text-base">Treatments</CardTitle>
             </CardHeader>
@@ -270,7 +271,7 @@ export default async function LeadDetailPage({
           </Card>
 
           {/* Follow-ups */}
-          <Card>
+          <Card className="border-l-4 border-l-amber-400">
             <CardHeader>
               <CardTitle className="text-base">Follow-ups</CardTitle>
             </CardHeader>
@@ -302,7 +303,7 @@ export default async function LeadDetailPage({
           </Card>
 
           {/* Invoices */}
-          <Card>
+          <Card className="border-l-4 border-l-blue-400">
             <CardHeader>
               <CardTitle className="text-base">Invoices</CardTitle>
             </CardHeader>
@@ -332,7 +333,7 @@ export default async function LeadDetailPage({
           </Card>
 
           {/* General comments — bottom of the lead page */}
-          <Card>
+          <Card className="border-l-4 border-l-muted-foreground/30">
             <CardHeader>
               <CardTitle className="text-base">Comments</CardTitle>
             </CardHeader>
@@ -344,7 +345,7 @@ export default async function LeadDetailPage({
 
         {/* Activity timeline */}
         <div>
-          <Card>
+          <Card className="border-l-4 border-l-gold">
             <CardHeader>
               <CardTitle className="text-base">Activity</CardTitle>
             </CardHeader>

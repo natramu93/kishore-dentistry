@@ -51,7 +51,7 @@ export function InvoiceActions({
     });
   }
 
-  const canDelete = role !== "agent";
+  const canDelete = role === "admin" || role === "operations";
 
   return (
     <div className="flex flex-wrap gap-2">

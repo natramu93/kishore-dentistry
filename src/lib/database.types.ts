@@ -10,7 +10,10 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
-export type UserRole = "admin" | "manager" | "agent";
+// "manager"/"agent" remain valid enum values in the DB for backward
+// compatibility (Postgres enum values can't be dropped) but are no longer
+// assigned — all profiles have been migrated to the roles below.
+export type UserRole = "admin" | "operations" | "front_office" | "clinical_head" | "doctor";
 export type LeadStatus =
   | "open"
   | "assigned"
@@ -68,6 +71,8 @@ export type Doctor = Timestamps & {
   email: string | null;
   is_active: boolean;
   updated_at: string;
+  /** Linked login for the 'doctor' role — lets that user self-scope to this record. */
+  profile_id: string | null;
 };
 
 export type TreatmentType = Timestamps & {
@@ -225,7 +230,10 @@ export type Database = {
         Doctor,
         "branch_id" | "full_name",
         "id" | "created_at" | "updated_at",
-        [FK<"doctors_branch_id_fkey", "branch_id", "branches">]
+        [
+          FK<"doctors_branch_id_fkey", "branch_id", "branches">,
+          FK<"doctors_profile_id_fkey", "profile_id", "profiles">
+        ]
       >;
       treatment_types: TableDef<TreatmentType, "name", "id" | "created_at">;
       leads: TableDef<

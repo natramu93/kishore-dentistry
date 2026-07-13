@@ -24,7 +24,7 @@ export default async function FollowUpsPage() {
   const upcoming = pending.filter((f) => f.due_at >= todayEnd);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Follow-ups</h1>
         <p className="text-sm text-muted-foreground">

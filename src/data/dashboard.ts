@@ -29,7 +29,7 @@ export async function getDashboardData(ctx: AuthContext): Promise<DashboardData>
 
   let leadsQ = db.from("leads").select("status, branch_id, source_id, interest_id");
   if (scope) leadsQ = leadsQ.in("branch_id", scope);
-  if (ctx.role === "agent") {
+  if (ctx.role === "front_office") {
     leadsQ = leadsQ.or(`assignee_id.eq.${ctx.userId},assignee_id.is.null`);
   }
 
@@ -106,3 +106,49 @@ export async function getRecentActivity(ctx: AuthContext, limit = 15) {
 }
 
 export type StatusCount = { status: LeadStatus; count: number };
+
+export type DoctorDashboardData = {
+  todaysAppointments: number;
+  weekAppointments: number;
+  patientsTreated: number;
+  revenueGenerated: number;
+};
+
+/** Summary for the "doctor" role — scoped entirely to their own schedule/work. */
+export async function getDoctorDashboardData(ctx: AuthContext): Promise<DoctorDashboardData> {
+  if (!ctx.doctorId) {
+    return { todaysAppointments: 0, weekAppointments: 0, patientsTreated: 0, revenueGenerated: 0 };
+  }
+  const today = clinicToday();
+  const { start, end } = clinicDayRange(today);
+  const weekEnd = new Date(new Date(start).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  const [todayRes, weekRes, treatmentsRes] = await Promise.all([
+    db
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("doctor_id", ctx.doctorId)
+      .eq("status", "scheduled")
+      .gte("scheduled_at", start)
+      .lt("scheduled_at", end),
+    db
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("doctor_id", ctx.doctorId)
+      .eq("status", "scheduled")
+      .gte("scheduled_at", start)
+      .lt("scheduled_at", weekEnd),
+    db.from("treatments").select("cost, lead_id").eq("doctor_id", ctx.doctorId),
+  ]);
+
+  const treatments = treatmentsRes.data ?? [];
+  const uniquePatients = new Set(treatments.map((t) => t.lead_id));
+  const revenue = treatments.reduce((sum, t) => sum + (t.cost ?? 0), 0);
+
+  return {
+    todaysAppointments: todayRes.count ?? 0,
+    weekAppointments: weekRes.count ?? 0,
+    patientsTreated: uniquePatients.size,
+    revenueGenerated: revenue,
+  };
+}

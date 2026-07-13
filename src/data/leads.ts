@@ -8,6 +8,7 @@ import {
   assertBranchAccess,
   assertLeadWriteAccess,
   canReadLead,
+  canDelete,
 } from "@/lib/auth/guards";
 import { canTransition } from "@/lib/leads/transitions";
 import type { Json, Lead, LeadStatus } from "@/lib/database.types";
@@ -41,8 +42,13 @@ function scopedQuery(ctx: AuthContext) {
   if (ctx.role !== "admin") {
     q = q.in("branch_id", ctx.branchIds.length ? ctx.branchIds : [EMPTY_UUID]);
   }
-  if (ctx.role === "agent") {
+  if (ctx.role === "front_office") {
     q = q.or(`assignee_id.eq.${ctx.userId},assignee_id.is.null`);
+  }
+  // The Leads module is a Front Office / Operations / Clinical Head workflow —
+  // doctors work through their own appointments and treatment records instead.
+  if (ctx.role === "doctor") {
+    q = q.eq("id", EMPTY_UUID);
   }
   return q;
 }
@@ -109,6 +115,9 @@ export async function createLead(
     notes?: string | null;
   }
 ): Promise<Lead> {
+  if (ctx.role === "doctor") {
+    throw new AuthorizationError("Doctors don't create leads — Front Office handles intake");
+  }
   assertBranchAccess(ctx, input.branch_id);
   const { data, error } = await db
     .from("leads")
@@ -142,10 +151,13 @@ export async function updateLeadDetails(
 ) {
   const { data: lead } = await db.from("leads").select("branch_id, assignee_id").eq("id", id).maybeSingle();
   if (!lead) throw new Error("Lead not found");
+  if (ctx.role === "doctor") {
+    throw new AuthorizationError("Doctors don't edit lead records");
+  }
   // Editing contact details is allowed for anyone who can read the lead at
-  // their branch; agents may also fix details of unassigned pool leads.
+  // their branch; Front Office may also fix details of unassigned pool leads.
   assertBranchAccess(ctx, lead.branch_id);
-  if (ctx.role === "agent" && lead.assignee_id && lead.assignee_id !== ctx.userId) {
+  if (ctx.role === "front_office" && lead.assignee_id && lead.assignee_id !== ctx.userId) {
     throw new AuthorizationError("This lead is not assigned to you");
   }
   const { error } = await db.from("leads").update(input).eq("id", id);
@@ -170,11 +182,11 @@ export async function transitionLead(
     .maybeSingle();
   if (!lead) throw new Error("Lead not found");
 
-  // Assigning from the open pool: agents may claim/receive unassigned leads
+  // Assigning from the open pool: Front Office may claim/receive unassigned leads
   if (to === "assigned" && lead.status === "open") {
     assertBranchAccess(ctx, lead.branch_id);
-    if (ctx.role === "agent" && payload.assignee_id !== ctx.userId) {
-      throw new AuthorizationError("Agents can only assign open leads to themselves");
+    if (ctx.role === "front_office" && payload.assignee_id !== ctx.userId) {
+      throw new AuthorizationError("Front Office can only assign open leads to themselves");
     }
   } else {
     assertLeadWriteAccess(ctx, lead);
@@ -194,11 +206,11 @@ export async function transitionLead(
   return data as unknown as Lead;
 }
 
-/** Delete a lead and all its child records (cascade). Managers/admins only. */
+/** Delete a lead and all its child records (cascade). Operations/admin only. */
 export async function deleteLead(ctx: AuthContext, id: string) {
   const { data: lead } = await db.from("leads").select("branch_id").eq("id", id).maybeSingle();
   if (!lead) return;
-  if (ctx.role === "agent") throw new AuthorizationError("Only managers or admins can delete leads");
+  if (!canDelete(ctx.role)) throw new AuthorizationError("Only Operations or Admin can delete leads");
   assertBranchAccess(ctx, lead.branch_id);
   const { error } = await db.from("leads").delete().eq("id", id);
   if (error) throw error;

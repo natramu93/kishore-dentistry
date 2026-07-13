@@ -2,7 +2,7 @@ import "server-only";
 
 import { db } from "./db";
 import type { AuthContext } from "@/lib/auth/context";
-import { assertBranchAccess, assertLeadWriteAccess } from "@/lib/auth/guards";
+import { assertBranchAccess, assertLeadWriteAccess, canDelete } from "@/lib/auth/guards";
 import type { Invoice, InvoiceItem, InvoiceStatus } from "@/lib/database.types";
 
 const EMPTY_UUID = "00000000-0000-0000-0000-000000000000";
@@ -36,6 +36,18 @@ export async function listInvoices(
     q = q.eq("branch_id", opts.branchId);
   }
   if (opts.status) q = q.eq("status", opts.status);
+
+  // Invoicing is a Front Office / Operations workflow — a doctor login only
+  // ever sees invoices tied to treatments they personally performed.
+  if (ctx.role === "doctor") {
+    const { data: myTreatments } = await db
+      .from("treatments")
+      .select("id")
+      .eq("doctor_id", ctx.doctorId ?? EMPTY_UUID);
+    const ids = (myTreatments ?? []).map((t) => t.id);
+    q = q.in("treatment_id", ids.length ? ids : [EMPTY_UUID]);
+  }
+
   const { data, error } = await q;
   if (error) throw error;
   return (data ?? []) as InvoiceWithRefs[];
@@ -171,7 +183,7 @@ export async function updateInvoice(
   if (itemsError) throw itemsError;
 }
 
-/** Delete an invoice (and its items via cascade). Managers/admins only. */
+/** Delete an invoice (and its items via cascade). Operations/admin only. */
 export async function deleteInvoice(ctx: AuthContext, id: string) {
   const { data: invoice } = await db
     .from("invoices")
@@ -179,7 +191,7 @@ export async function deleteInvoice(ctx: AuthContext, id: string) {
     .eq("id", id)
     .maybeSingle();
   if (!invoice) return;
-  if (ctx.role === "agent") throw new Error("Only managers or admins can delete invoices");
+  if (!canDelete(ctx.role)) throw new Error("Only Operations or Admin can delete invoices");
   assertBranchAccess(ctx, invoice.branch_id);
 
   const { error } = await db.from("invoices").delete().eq("id", id);

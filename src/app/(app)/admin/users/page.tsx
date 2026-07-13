@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/auth/context";
-import { listUsers } from "@/data/users";
+import { listUsers, listDoctorsForLinking } from "@/data/users";
 import { listBranches } from "@/data/branches";
 import { createUserAction, toggleUserActive, updateUserAction } from "@/actions/admin";
 import { FormDialog } from "@/components/admin/form-dialog";
@@ -12,16 +12,69 @@ import { Label } from "@/components/ui/label";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { ROLE_LABELS } from "@/components/nav-items";
 
 export const metadata = { title: "Users — Admin" };
+
+function RoleSelect({ id, defaultValue, disabled }: { id: string; defaultValue: string; disabled?: boolean }) {
+  return (
+    <select
+      id={id}
+      name="role"
+      defaultValue={defaultValue}
+      disabled={disabled}
+      className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm disabled:opacity-60"
+    >
+      <option value="front_office">Front Office — reception: intake, booking, own leads</option>
+      <option value="operations">Operations — runs the branch: full lead/appt/invoice access</option>
+      <option value="clinical_head">Clinical Head — treatment catalog, doctor roster, clinical oversight</option>
+      <option value="doctor">Doctor — sees only their own schedule and patients</option>
+      <option value="admin">Admin — everything, all branches</option>
+    </select>
+  );
+}
+
+function DoctorLinkField({
+  id,
+  doctors,
+  defaultValue,
+}: {
+  id: string;
+  doctors: { id: string; full_name: string; branch: { name: string } | null; alreadyLinked: boolean }[];
+  defaultValue?: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>Link to doctor record (only used when Role = Doctor)</Label>
+      <select
+        id={id}
+        name="doctor_record_id"
+        defaultValue={defaultValue ?? ""}
+        className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+      >
+        <option value="">— Not linked —</option>
+        {doctors.map((d) => (
+          <option key={d.id} value={d.id}>
+            {d.full_name}{d.branch ? ` (${d.branch.name})` : ""}
+            {d.alreadyLinked && d.id !== defaultValue ? " — already linked" : ""}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
 
 export default async function UsersPage() {
   const ctx = await getAuthContext();
   if (ctx.role !== "admin") redirect("/dashboard");
-  const [users, branches] = await Promise.all([listUsers(ctx), listBranches(ctx)]);
+  const [users, branches, linkableDoctors] = await Promise.all([
+    listUsers(ctx),
+    listBranches(ctx),
+    listDoctorsForLinking(),
+  ]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Users</h1>
@@ -48,17 +101,9 @@ export default async function UsersPage() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="role">Role</Label>
-            <select
-              id="role"
-              name="role"
-              className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
-              defaultValue="agent"
-            >
-              <option value="agent">Agent — works assigned leads at allocated branches</option>
-              <option value="manager">Branch Manager — full lead access at allocated branches</option>
-              <option value="admin">Admin — everything, all branches</option>
-            </select>
+            <RoleSelect id="role" defaultValue="front_office" />
           </div>
+          <DoctorLinkField id="doctor_record_id" doctors={linkableDoctors} />
           <fieldset className="space-y-2">
             <Label>Branch allocation</Label>
             <div className="grid grid-cols-2 gap-2">
@@ -90,7 +135,7 @@ export default async function UsersPage() {
               <TableCell className="font-medium">{u.full_name}</TableCell>
               <TableCell className="text-muted-foreground">{u.email}</TableCell>
               <TableCell>
-                <Badge variant="outline" className="capitalize">{u.role}</Badge>
+                <Badge variant="outline">{ROLE_LABELS[u.role]}</Badge>
               </TableCell>
               <TableCell>
                 <div className="flex flex-wrap gap-1">
@@ -124,21 +169,16 @@ export default async function UsersPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor={`urole-${u.id}`}>Role</Label>
-                      <select
-                        id={`urole-${u.id}`}
-                        name="role"
-                        defaultValue={u.role}
-                        disabled={u.id === ctx.userId}
-                        className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm disabled:opacity-60"
-                      >
-                        <option value="agent">Agent</option>
-                        <option value="manager">Branch Manager</option>
-                        <option value="admin">Admin</option>
-                      </select>
+                      <RoleSelect id={`urole-${u.id}`} defaultValue={u.role} disabled={u.id === ctx.userId} />
                       {u.id === ctx.userId && (
                         <p className="text-xs text-muted-foreground">You can&apos;t change your own role.</p>
                       )}
                     </div>
+                    <DoctorLinkField
+                      id={`udoc-${u.id}`}
+                      doctors={linkableDoctors}
+                      defaultValue={u.linkedDoctorId ?? undefined}
+                    />
                     <fieldset className="space-y-2">
                       <Label>Branch allocation</Label>
                       <div className="grid grid-cols-2 gap-2">

@@ -43,7 +43,7 @@ export default async function InvoicesPage({
     .reduce((s, i) => s + i.total, 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Invoices</h1>

@@ -17,6 +17,10 @@ export async function listFollowUps(
   ctx: AuthContext,
   opts: { status?: FollowUp["status"]; dueBefore?: string; branchId?: string } = {}
 ): Promise<FollowUpWithLead[]> {
+  // Follow-ups are a Front Office / Operations workflow — doctors work through
+  // appointments and treatment records instead.
+  if (ctx.role === "doctor") return [];
+
   let q = db
     .from("follow_ups")
     .select("*, lead:leads(id, name, mobile, status, assignee_id), branch:branches(name, code)")
@@ -36,7 +40,7 @@ export async function listFollowUps(
   if (error) throw error;
 
   let rows = (data ?? []) as FollowUpWithLead[];
-  if (ctx.role === "agent") {
+  if (ctx.role === "front_office") {
     rows = rows.filter(
       (f) => !f.lead || f.lead.assignee_id === ctx.userId || f.lead.assignee_id === null
     );
@@ -55,9 +59,12 @@ export async function completeFollowUp(
     .eq("id", id)
     .maybeSingle();
   if (!followUp) throw new Error("Follow-up not found");
+  if (ctx.role === "doctor") {
+    throw new AuthorizationError("Follow-ups are managed by Front Office / Operations");
+  }
   assertBranchAccess(ctx, followUp.branch_id);
   const assignee = (followUp.leads as { assignee_id: string | null } | null)?.assignee_id;
-  if (ctx.role === "agent" && assignee && assignee !== ctx.userId) {
+  if (ctx.role === "front_office" && assignee && assignee !== ctx.userId) {
     throw new AuthorizationError("This lead is not assigned to you");
   }
 

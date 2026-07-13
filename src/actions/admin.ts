@@ -53,16 +53,21 @@ const userSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
   full_name: z.string().min(1, "Name is required"),
   phone: z.string().optional(),
-  role: z.enum(["admin", "manager", "agent"]),
+  role: z.enum(["admin", "operations", "front_office", "clinical_head", "doctor"]),
 });
 
 export async function createUserAction(formData: FormData): Promise<ActionResult> {
   const ctx = await getAuthContext();
   const branchIds = formData.getAll("branch_ids").map(String).filter(Boolean);
+  const doctorRecordId = String(formData.get("doctor_record_id") ?? "");
   const parsed = userSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   return runAction(async () => {
-    await users.createUser(ctx, { ...parsed.data, branchIds });
+    await users.createUser(ctx, {
+      ...parsed.data,
+      branchIds,
+      doctorRecordId: doctorRecordId || undefined,
+    });
     revalidatePath("/admin/users");
   });
 }
@@ -82,6 +87,9 @@ export async function updateUserAction(userId: string, formData: FormData): Prom
       // The edit form always includes the branch fieldset (marker present),
       // so an empty selection clears allocations rather than being ignored.
       branchIds: formData.has("manage_branches") ? branchIds : undefined,
+      doctorRecordId: formData.has("doctor_record_id")
+        ? String(formData.get("doctor_record_id") ?? "")
+        : undefined,
     });
     revalidatePath("/admin/users");
   });

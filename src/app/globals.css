@@ -4,6 +4,26 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* App-wide type scale bump (~15-20%) for readability — every `text-*` utility
+   resolves through these CSS variables, so this one override cascades
+   everywhere without touching spacing (which uses its own fixed scale). */
+@theme {
+  --text-xs: 0.9rem;    /* was 0.75rem, +20% */
+  --text-xs--line-height: calc(1.25 / 0.9);
+  --text-sm: 1.05rem;   /* was 0.875rem, +20% */
+  --text-sm--line-height: calc(1.5 / 1.05);
+  --text-base: 1.15rem; /* was 1rem, +15% */
+  --text-base--line-height: calc(1.7 / 1.15);
+  --text-lg: 1.3rem;    /* was 1.125rem, +15.5% */
+  --text-lg--line-height: calc(1.85 / 1.3);
+  --text-xl: 1.4rem;    /* was 1.25rem, +12% */
+  --text-xl--line-height: calc(1.9 / 1.4);
+  --text-2xl: 1.7rem;   /* was 1.5rem, +13.3% */
+  --text-2xl--line-height: calc(2.2 / 1.7);
+  --text-3xl: 2.1rem;   /* was 1.875rem, +12% */
+  --text-3xl--line-height: calc(2.5 / 2.1);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

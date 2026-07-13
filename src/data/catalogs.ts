@@ -2,7 +2,7 @@ import "server-only";
 
 import { db } from "./db";
 import type { AuthContext } from "@/lib/auth/context";
-import { requireAdmin, requireManagerOf } from "@/lib/auth/guards";
+import { requireAdmin, requireManagerOf, requireClinicalCatalogAccess } from "@/lib/auth/guards";
 import type { Doctor, LeadSource, TreatmentType } from "@/lib/database.types";
 
 // ---------- Lead sources ----------
@@ -51,7 +51,7 @@ export async function createTreatmentType(
   ctx: AuthContext,
   input: { name: string; category?: string | null; default_cost?: number }
 ) {
-  requireAdmin(ctx);
+  requireClinicalCatalogAccess(ctx);
   const { error } = await db.from("treatment_types").insert(input);
   if (error) throw error;
 }
@@ -61,7 +61,7 @@ export async function updateTreatmentType(
   id: string,
   input: { name?: string; category?: string | null; default_cost?: number | null; is_active?: boolean }
 ) {
-  requireAdmin(ctx);
+  requireClinicalCatalogAccess(ctx);
   const { error } = await db.from("treatment_types").update(input).eq("id", id);
   if (error) throw error;
 }

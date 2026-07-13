@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BrandWordmark } from "@/components/brand";
 import { DesktopNav, MobileNav } from "@/components/app-nav";
-import { PRIMARY_NAV, ADMIN_NAV, navForRole } from "@/components/nav-items";
+import { PRIMARY_NAV, ADMIN_NAV, navForRole, ROLE_LABELS } from "@/components/nav-items";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getAuthContext();
@@ -21,8 +21,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <DesktopNav nav={nav} adminNav={adminNav} />
         <div className="border-t border-sidebar-border p-4 space-y-2">
           <div className="text-sm font-medium truncate">{ctx.fullName || ctx.email}</div>
-          <Badge className="capitalize bg-sidebar-accent text-sidebar-accent-foreground border-transparent">
-            {ctx.role}
+          <Badge className="bg-sidebar-accent text-sidebar-accent-foreground border-transparent">
+            {ROLE_LABELS[ctx.role]}
           </Badge>
           <form action={logout}>
             <Button
@@ -57,7 +57,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </header>
 
         <main className="flex-1 min-w-0">
-          <div className="p-4 md:p-8 max-w-7xl mx-auto w-full">{children}</div>
+          <div className="p-3 md:p-5 max-w-[100rem] mx-auto w-full">{children}</div>
         </main>
       </div>
     </div>

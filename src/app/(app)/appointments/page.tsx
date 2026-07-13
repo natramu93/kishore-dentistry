@@ -3,16 +3,18 @@ import { addDays } from "date-fns";
 import { getAuthContext } from "@/lib/auth/context";
 import { listAppointments } from "@/data/appointments";
 import { listMyBranches } from "@/data/branches";
+import { listTreatmentTypes } from "@/data/catalogs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LeadStatusBadge } from "@/components/lead-status-badge";
+import { DoctorAppointmentActions } from "@/components/appointments/doctor-actions";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { clinicDayRange, clinicToday, fmt, fmtTime } from "@/lib/tz";
 import type { LeadStatus } from "@/lib/database.types";
 
-export const metadata = { title: "Appointments — Kishore Dentistry CRM" };
+export const metadata = { title: "Appointments — Dr. Kishor's Dentistry CRM" };
 
 export default async function AppointmentsPage({
   searchParams,
@@ -21,6 +23,7 @@ export default async function AppointmentsPage({
 }) {
   const params = await searchParams;
   const ctx = await getAuthContext();
+  const isDoctor = ctx.role === "doctor";
 
   const view = params.view === "week" ? "week" : params.view === "all" ? "all" : "today";
   const today = clinicToday();
@@ -32,19 +35,22 @@ export default async function AppointmentsPage({
         ? { from: start, to: addDays(new Date(start), 7).toISOString() }
         : {};
 
-  const [appointments, branches] = await Promise.all([
+  const [appointments, branches, treatmentTypes] = await Promise.all([
     listAppointments(ctx, {
       ...range,
       branchId: params.branch || undefined,
     }),
     listMyBranches(ctx),
+    isDoctor ? listTreatmentTypes(ctx) : Promise.resolve([]),
   ]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Appointments</h1>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {isDoctor ? "My Schedule" : "Appointments"}
+          </h1>
           <p className="text-sm text-muted-foreground">
             {view === "today" ? "Today" : view === "week" ? "Next 7 days" : "All"} ·{" "}
             {appointments.length} appointment{appointments.length === 1 ? "" : "s"}
@@ -61,7 +67,7 @@ export default async function AppointmentsPage({
         </div>
       </div>
 
-      {branches.length > 1 && (
+      {!isDoctor && branches.length > 1 && (
         <form className="flex gap-2" action="/appointments" method="get">
           <input type="hidden" name="view" value={view} />
           <select
@@ -83,16 +89,17 @@ export default async function AppointmentsPage({
           <TableRow>
             <TableHead>Time</TableHead>
             <TableHead>Patient / Lead</TableHead>
-            <TableHead>Branch</TableHead>
-            <TableHead>Doctor</TableHead>
+            {!isDoctor && <TableHead>Branch</TableHead>}
+            {!isDoctor && <TableHead>Doctor</TableHead>}
             <TableHead>Appointment</TableHead>
             <TableHead>Lead status</TableHead>
+            {isDoctor && <TableHead />}
           </TableRow>
         </TableHeader>
         <TableBody>
           {appointments.length === 0 && (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={isDoctor ? 5 : 6} className="text-center text-muted-foreground py-8">
                 No appointments in this view
               </TableCell>
             </TableRow>
@@ -110,10 +117,12 @@ export default async function AppointmentsPage({
                 ) : "—"}
                 <div className="text-xs text-muted-foreground">{a.lead?.mobile}</div>
               </TableCell>
-              <TableCell>{a.branch?.name ?? "—"}</TableCell>
-              <TableCell className="text-muted-foreground">
-                {a.doctor?.full_name ?? "TBD"}
-              </TableCell>
+              {!isDoctor && <TableCell>{a.branch?.name ?? "—"}</TableCell>}
+              {!isDoctor && (
+                <TableCell className="text-muted-foreground">
+                  {a.doctor?.full_name ?? "TBD"}
+                </TableCell>
+              )}
               <TableCell>
                 <Badge
                   variant={a.status === "scheduled" ? "default" : "secondary"}
@@ -125,6 +134,13 @@ export default async function AppointmentsPage({
               <TableCell>
                 {a.lead && <LeadStatusBadge status={a.lead.status as LeadStatus} />}
               </TableCell>
+              {isDoctor && (
+                <TableCell className="text-right">
+                  {a.status === "scheduled" && (
+                    <DoctorAppointmentActions appointmentId={a.id} treatmentTypes={treatmentTypes} />
+                  )}
+                </TableCell>
+              )}
             </TableRow>
           ))}
         </TableBody>

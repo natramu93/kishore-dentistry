@@ -89,8 +89,10 @@ export async function deleteComment(ctx: AuthContext, id: string) {
 
   const isOwn = comment.author_id === ctx.userId;
   if (!isOwn) {
-    // managers/admins may moderate within their branch scope
-    if (ctx.role === "agent") throw new AuthorizationError("You can only delete your own comments");
+    // Operations/Clinical Head/admin may moderate within their branch scope
+    if (ctx.role === "front_office" || ctx.role === "doctor") {
+      throw new AuthorizationError("You can only delete your own comments");
+    }
     assertBranchAccess(ctx, comment.branch_id);
   }
   const { error } = await db.from("comments").delete().eq("id", id);

@@ -13,6 +13,8 @@ export type AuthContext = {
   branchIds: string[];
   fullName: string;
   email: string;
+  /** Set only for role "doctor" — the crm.doctors row linked to this login. */
+  doctorId: string | null;
 };
 
 export class AuthorizationError extends Error {
@@ -57,5 +59,6 @@ export const getAuthContext = cache(async (): Promise<AuthContext> => {
     branchIds: profile.branchIds,
     fullName: profile.full_name,
     email: profile.email,
+    doctorId: profile.doctorId,
   };
 });

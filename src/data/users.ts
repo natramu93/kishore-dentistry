@@ -8,25 +8,38 @@ import type { Profile, UserRole } from "@/lib/database.types";
 
 /** Used by getAuthContext() itself — no ctx, do not export to pages. */
 export async function getProfileWithBranches(userId: string) {
-  const [{ data: profile }, { data: allocations }] = await Promise.all([
+  const [{ data: profile }, { data: allocations }, { data: linkedDoctor }] = await Promise.all([
     db.from("profiles").select("*").eq("id", userId).maybeSingle(),
     db.from("user_branches").select("branch_id").eq("user_id", userId),
+    db.from("doctors").select("id, branch_id").eq("profile_id", userId).maybeSingle(),
   ]);
   if (!profile) return null;
-  return { ...profile, branchIds: (allocations ?? []).map((a) => a.branch_id) };
+
+  // A "doctor" login self-scopes to their own doctors row's branch even if no
+  // explicit user_branches allocation was made — that's the natural default.
+  const branchIds = new Set((allocations ?? []).map((a) => a.branch_id));
+  if (linkedDoctor) branchIds.add(linkedDoctor.branch_id);
+
+  return {
+    ...profile,
+    branchIds: [...branchIds],
+    doctorId: linkedDoctor?.id ?? null,
+  };
 }
 
 export type UserWithBranches = Profile & {
   branches: { id: string; name: string; code: string }[];
+  /** Set for role "doctor" — the crm.doctors row this login is linked to. */
+  linkedDoctorId: string | null;
 };
 
 export async function listUsers(ctx: AuthContext): Promise<UserWithBranches[]> {
   let userIds: string[] | null = null;
 
-  if (ctx.role === "agent") {
+  if (ctx.role === "front_office" || ctx.role === "doctor") {
     userIds = [ctx.userId];
-  } else if (ctx.role === "manager") {
-    // Users sharing any of the manager's branches (plus themselves)
+  } else if (ctx.role === "operations" || ctx.role === "clinical_head") {
+    // Users sharing any of this manager's branches (plus themselves)
     const { data } = await db
       .from("user_branches")
       .select("user_id")
@@ -40,19 +53,24 @@ export async function listUsers(ctx: AuthContext): Promise<UserWithBranches[]> {
   if (error) throw error;
 
   const ids = (profiles ?? []).map((p) => p.id);
-  const { data: allocations } = await db
-    .from("user_branches")
-    .select("user_id, branch_id")
-    .in("user_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
-  const { data: branches } = await db.from("branches").select("id, name, code");
+  const [{ data: allocations }, { data: branches }, { data: linkedDoctors }] = await Promise.all([
+    db
+      .from("user_branches")
+      .select("user_id, branch_id")
+      .in("user_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]),
+    db.from("branches").select("id, name, code"),
+    db.from("doctors").select("id, profile_id").not("profile_id", "is", null),
+  ]);
 
   const branchMap = new Map((branches ?? []).map((b) => [b.id, b]));
+  const doctorByProfile = new Map((linkedDoctors ?? []).map((d) => [d.profile_id as string, d.id]));
   return (profiles ?? []).map((p) => ({
     ...p,
     branches: (allocations ?? [])
       .filter((a) => a.user_id === p.id)
       .map((a) => branchMap.get(a.branch_id))
       .filter((b): b is NonNullable<typeof b> => Boolean(b)),
+    linkedDoctorId: doctorByProfile.get(p.id) ?? null,
   }));
 }
 
@@ -83,6 +101,8 @@ export async function createUser(
     phone?: string;
     role: UserRole;
     branchIds: string[];
+    /** When role is "doctor": link this login to an existing crm.doctors row. */
+    doctorRecordId?: string;
   }
 ) {
   requireAdmin(ctx);
@@ -113,6 +133,10 @@ export async function createUser(
       .insert(input.branchIds.map((branch_id) => ({ user_id: userId, branch_id })));
     if (allocError) throw allocError;
   }
+
+  if (input.role === "doctor" && input.doctorRecordId) {
+    await db.from("doctors").update({ profile_id: userId }).eq("id", input.doctorRecordId);
+  }
   return userId;
 }
 
@@ -125,6 +149,7 @@ export async function updateUser(
     role?: UserRole;
     is_active?: boolean;
     branchIds?: string[];
+    doctorRecordId?: string;
   }
 ) {
   requireAdmin(ctx);
@@ -132,7 +157,7 @@ export async function updateUser(
     throw new AuthorizationError("You cannot change your own role or deactivate yourself");
   }
 
-  const { branchIds, ...profileFields } = input;
+  const { branchIds, doctorRecordId, ...profileFields } = input;
   if (Object.keys(profileFields).length) {
     const { error } = await db.from("profiles").update(profileFields).eq("id", userId);
     if (error) throw error;
@@ -147,4 +172,27 @@ export async function updateUser(
       if (error) throw error;
     }
   }
+
+  if (doctorRecordId !== undefined) {
+    // Unlink any doctor row previously pointing at this login, then relink.
+    await db.from("doctors").update({ profile_id: null }).eq("profile_id", userId);
+    if (doctorRecordId) {
+      await db.from("doctors").update({ profile_id: userId }).eq("id", doctorRecordId);
+    }
+  }
+}
+
+/** All doctor rows for the "link a login" picker — flags ones already linked. */
+export async function listDoctorsForLinking() {
+  const { data } = await db
+    .from("doctors")
+    .select("id, full_name, profile_id, branch:branches(name)")
+    .eq("is_active", true)
+    .order("full_name");
+  return (data ?? []).map((d) => ({
+    id: d.id,
+    full_name: d.full_name,
+    branch: d.branch,
+    alreadyLinked: d.profile_id !== null,
+  }));
 }

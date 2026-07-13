@@ -33,13 +33,13 @@ function CategoryField({ id, defaultValue }: { id: string; defaultValue?: string
 
 export default async function TreatmentTypesPage() {
   const ctx = await getAuthContext();
-  if (ctx.role !== "admin") redirect("/dashboard");
+  if (ctx.role !== "admin" && ctx.role !== "clinical_head") redirect("/dashboard");
   const types = (await listTreatmentTypes(ctx, { includeInactive: true })).sort(
     (a, b) => categoryRank(a.category) - categoryRank(b.category) || a.name.localeCompare(b.name)
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Treatment catalog</h1>

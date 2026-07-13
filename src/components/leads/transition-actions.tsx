@@ -70,13 +70,13 @@ export function TransitionActions({
   }
 
   const s = lead.status;
-  const isAgent = role === "agent";
+  const isFrontOffice = role === "front_office";
 
   return (
     <div className="flex flex-wrap gap-2">
       {s === "open" && (
         <>
-          {isAgent ? (
+          {isFrontOffice ? (
             <Button size="sm" disabled={pending} onClick={() => quick("assigned", { assignee_id: userId })}>
               Claim lead
             </Button>
@@ -89,7 +89,7 @@ export function TransitionActions({
       {s === "assigned" && (
         <>
           <Button size="sm" onClick={() => setDialog("book")}>Book appointment</Button>
-          {!isAgent && (
+          {!isFrontOffice && (
             <Button size="sm" variant="outline" disabled={pending} onClick={() => quick("open")}>
               Unassign
             </Button>
@@ -147,7 +147,7 @@ export function TransitionActions({
       )}
 
       {s === "missed" && (
-        <Button size="sm" onClick={() => (isAgent ? quick("assigned", { assignee_id: userId }) : setDialog("reengage"))}>
+        <Button size="sm" onClick={() => (isFrontOffice ? quick("assigned", { assignee_id: userId }) : setDialog("reengage"))}>
           Re-engage
         </Button>
       )}
