@@ -1,24 +1,58 @@
 import { redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/auth/context";
 import { canViewReports } from "@/lib/auth/guards";
-import { getReportsData, reportRangeLabel, type ReportRow } from "@/data/reports";
+import {
+  getReportsData, getReportFilterOptions, defaultReportRange, type ReportRow,
+} from "@/data/reports";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { formatINR } from "@/lib/tz";
+import { clinicDayRange, clinicToday, formatINR } from "@/lib/tz";
+import { formatInTimeZone } from "date-fns-tz";
+import { CLINIC_TZ } from "@/lib/tz";
 import { Stethoscope, Building2, CalendarRange, ClipboardList } from "lucide-react";
 
 export const metadata = { title: "Reports — Dr. Kishor's Dentistry CRM" };
 
-const DAYS = 30;
+function toDateInputValue(iso: string): string {
+  return formatInTimeZone(iso, CLINIC_TZ, "yyyy-MM-dd");
+}
 
-export default async function ReportsPage() {
+export default async function ReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const params = await searchParams;
   const ctx = await getAuthContext();
   if (!canViewReports(ctx.role)) redirect("/dashboard");
 
-  const data = await getReportsData(ctx, { days: DAYS });
+  const fallback = defaultReportRange();
+  // Date inputs are clinic-local calendar days — convert to UTC range boundaries.
+  const from = params.from ? clinicDayRange(params.from).start : fallback.from;
+  const to = params.to ? clinicDayRange(params.to).end : fallback.to;
+
+  const [data, filterOptions] = await Promise.all([
+    getReportsData(ctx, {
+      from,
+      to,
+      branchId: params.branch || undefined,
+      doctorId: params.doctor || undefined,
+    }),
+    getReportFilterOptions(ctx),
+  ]);
+
+  const fromValue = params.from ?? toDateInputValue(fallback.from);
+  const toValue = params.to ?? clinicToday();
+  const qs = (overrides: Record<string, string | undefined>) => {
+    const merged = { from: fromValue, to: toValue, branch: params.branch, doctor: params.doctor, ...overrides };
+    const sp = new URLSearchParams();
+    for (const [k, v] of Object.entries(merged)) if (v) sp.set(k, v);
+    return `?${sp.toString()}`;
+  };
 
   return (
     <div className="space-y-5">
@@ -29,6 +63,79 @@ export default async function ReportsPage() {
           treatment cost recorded at time of care
         </p>
       </div>
+
+      {/* Filters */}
+      <Card className="border-l-4 border-l-gold">
+        <CardContent className="pt-5">
+          <form className="flex flex-wrap items-end gap-3" action="/reports" method="get">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">From</label>
+              <input
+                type="date"
+                name="from"
+                defaultValue={fromValue}
+                className="h-9 rounded-md border border-input bg-transparent px-3 text-sm block"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">To</label>
+              <input
+                type="date"
+                name="to"
+                defaultValue={toValue}
+                className="h-9 rounded-md border border-input bg-transparent px-3 text-sm block"
+              />
+            </div>
+            {(ctx.role === "admin" || filterOptions.branches.length > 1) && (
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Center</label>
+                <select
+                  name="branch"
+                  defaultValue={params.branch ?? ""}
+                  className="h-9 rounded-md border border-input bg-transparent px-3 text-sm min-w-40"
+                >
+                  <option value="">All centers</option>
+                  {filterOptions.branches.map((b) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Doctor</label>
+              <select
+                name="doctor"
+                defaultValue={params.doctor ?? ""}
+                className="h-9 rounded-md border border-input bg-transparent px-3 text-sm min-w-44"
+              >
+                <option value="">All doctors</option>
+                {filterOptions.doctors.map((d) => (
+                  <option key={d.id} value={d.id}>{d.full_name}</option>
+                ))}
+              </select>
+            </div>
+            <Button type="submit" variant="secondary" size="sm">Apply</Button>
+            <Button asChild variant="ghost" size="sm">
+              <a href="/reports">Reset</a>
+            </Button>
+          </form>
+
+          <div className="flex flex-wrap gap-2 mt-3">
+            {[
+              { label: "Last 7 days", days: 7 },
+              { label: "Last 30 days", days: 30 },
+              { label: "Last 90 days", days: 90 },
+            ].map((p) => {
+              const range = defaultReportRange(p.days);
+              return (
+                <Button key={p.days} asChild size="sm" variant="outline">
+                  <a href={qs({ from: toDateInputValue(range.from), to: clinicToday() })}>{p.label}</a>
+                </Button>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <TotalCard label="Total leads" value={data.totals.leads} accent="border-l-blue-400" />
@@ -51,7 +158,7 @@ export default async function ReportsPage() {
               </TabsTrigger>
               <TabsTrigger value="day">
                 <CalendarRange className="h-4 w-4 mr-1.5" />
-                By Day ({reportRangeLabel(DAYS)})
+                By Day
               </TabsTrigger>
               <TabsTrigger value="treatment">
                 <ClipboardList className="h-4 w-4 mr-1.5" />
@@ -60,16 +167,16 @@ export default async function ReportsPage() {
             </TabsList>
 
             <TabsContent value="doctor">
-              <ReportTable rows={data.byDoctor} firstColumn="Doctor" emptyText="No doctor activity yet" />
+              <ReportTable rows={data.byDoctor} firstColumn="Doctor" emptyText="No doctor activity in this range" />
             </TabsContent>
             <TabsContent value="center">
-              <ReportTable rows={data.byCenter} firstColumn="Center" emptyText="No branch activity yet" />
+              <ReportTable rows={data.byCenter} firstColumn="Center" emptyText="No branch activity in this range" />
             </TabsContent>
             <TabsContent value="day">
-              <ReportTable rows={data.byDay} firstColumn="Day" emptyText="No activity in this window" />
+              <ReportTable rows={data.byDay} firstColumn="Day" emptyText="No activity in this range" />
             </TabsContent>
             <TabsContent value="treatment">
-              <ReportTable rows={data.byTreatment} firstColumn="Treatment" emptyText="No treatments recorded yet" />
+              <ReportTable rows={data.byTreatment} firstColumn="Treatment" emptyText="No treatments recorded in this range" />
             </TabsContent>
           </Tabs>
         </CardContent>

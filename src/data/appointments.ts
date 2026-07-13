@@ -20,6 +20,7 @@ export async function listAppointments(
     from?: string; // ISO
     to?: string;
     branchId?: string;
+    doctorId?: string;
     status?: Appointment["status"];
   } = {}
 ): Promise<AppointmentWithRefs[]> {
@@ -40,6 +41,7 @@ export async function listAppointments(
   if (opts.from) q = q.gte("scheduled_at", opts.from);
   if (opts.to) q = q.lt("scheduled_at", opts.to);
   if (opts.status) q = q.eq("status", opts.status);
+  if (opts.doctorId) q = q.eq("doctor_id", opts.doctorId);
   // Doctors only ever see their own schedule.
   if (ctx.role === "doctor") q = q.eq("doctor_id", ctx.doctorId ?? EMPTY_UUID);
 

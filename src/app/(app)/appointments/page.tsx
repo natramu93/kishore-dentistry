@@ -3,7 +3,7 @@ import { addDays } from "date-fns";
 import { getAuthContext } from "@/lib/auth/context";
 import { listAppointments } from "@/data/appointments";
 import { listMyBranches } from "@/data/branches";
-import { listTreatmentTypes } from "@/data/catalogs";
+import { listTreatmentTypes, listDoctors } from "@/data/catalogs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LeadStatusBadge } from "@/components/lead-status-badge";
@@ -12,7 +12,9 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { clinicDayRange, clinicToday, fmt, fmtTime } from "@/lib/tz";
-import type { LeadStatus } from "@/lib/database.types";
+import type { AppointmentStatus, LeadStatus } from "@/lib/database.types";
+
+const APPOINTMENT_STATUSES: AppointmentStatus[] = ["scheduled", "completed", "cancelled", "no_show"];
 
 export const metadata = { title: "Appointments — Dr. Kishor's Dentistry CRM" };
 
@@ -35,13 +37,20 @@ export default async function AppointmentsPage({
         ? { from: start, to: addDays(new Date(start), 7).toISOString() }
         : {};
 
-  const [appointments, branches, treatmentTypes] = await Promise.all([
+  const status = APPOINTMENT_STATUSES.includes(params.status as AppointmentStatus)
+    ? (params.status as AppointmentStatus)
+    : undefined;
+
+  const [appointments, branches, treatmentTypes, doctors] = await Promise.all([
     listAppointments(ctx, {
       ...range,
       branchId: params.branch || undefined,
+      doctorId: params.doctor || undefined,
+      status,
     }),
     listMyBranches(ctx),
     isDoctor ? listTreatmentTypes(ctx) : Promise.resolve([]),
+    isDoctor ? Promise.resolve([]) : listDoctors(ctx, { branchId: params.branch || undefined }),
   ]);
 
   return (
@@ -57,30 +66,71 @@ export default async function AppointmentsPage({
           </p>
         </div>
         <div className="flex gap-2">
-          {(["today", "week", "all"] as const).map((v) => (
-            <Button key={v} asChild size="sm" variant={view === v ? "default" : "outline"}>
-              <Link href={`/appointments?view=${v}${params.branch ? `&branch=${params.branch}` : ""}`}>
-                {v === "today" ? "Today" : v === "week" ? "This week" : "All"}
-              </Link>
-            </Button>
-          ))}
+          {(["today", "week", "all"] as const).map((v) => {
+            const sp = new URLSearchParams();
+            sp.set("view", v);
+            if (params.branch) sp.set("branch", params.branch);
+            if (params.doctor) sp.set("doctor", params.doctor);
+            if (params.status) sp.set("status", params.status);
+            return (
+              <Button key={v} asChild size="sm" variant={view === v ? "default" : "outline"}>
+                <Link href={`/appointments?${sp.toString()}`}>
+                  {v === "today" ? "Today" : v === "week" ? "This week" : "All"}
+                </Link>
+              </Button>
+            );
+          })}
         </div>
       </div>
 
-      {!isDoctor && branches.length > 1 && (
-        <form className="flex gap-2" action="/appointments" method="get">
+      {!isDoctor && (
+        <form className="flex flex-wrap items-end gap-2" action="/appointments" method="get">
           <input type="hidden" name="view" value={view} />
-          <select
-            name="branch"
-            defaultValue={params.branch ?? ""}
-            className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
-          >
-            <option value="">All branches</option>
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
+          {branches.length > 1 && (
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Center</label>
+              <select
+                name="branch"
+                defaultValue={params.branch ?? ""}
+                className="h-9 rounded-md border border-input bg-transparent px-3 text-sm block min-w-40"
+              >
+                <option value="">All centers</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Doctor</label>
+            <select
+              name="doctor"
+              defaultValue={params.doctor ?? ""}
+              className="h-9 rounded-md border border-input bg-transparent px-3 text-sm block min-w-44"
+            >
+              <option value="">All doctors</option>
+              {doctors.map((d) => (
+                <option key={d.id} value={d.id}>{d.full_name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Status</label>
+            <select
+              name="status"
+              defaultValue={params.status ?? ""}
+              className="h-9 rounded-md border border-input bg-transparent px-3 text-sm block"
+            >
+              <option value="">Any status</option>
+              {APPOINTMENT_STATUSES.map((s) => (
+                <option key={s} value={s} className="capitalize">{s.replaceAll("_", " ")}</option>
+              ))}
+            </select>
+          </div>
           <Button type="submit" variant="secondary" size="sm">Filter</Button>
+          <Button asChild variant="ghost" size="sm">
+            <Link href={`/appointments?view=${view}`}>Reset</Link>
+          </Button>
         </form>
       )}
 
