@@ -156,3 +156,30 @@
     @apply font-sans;
   }
 }
+
+/* All icons render gold by default (:where() = zero specificity, so an
+   explicit text-color class on a specific icon still wins if ever needed),
+   with a soft brightness "glitter" pulse. Icons animate in a staggered
+   wave via nth-child so a group of icons doesn't blink in unison. */
+:where(svg[class*="lucide-"]) {
+  color: var(--gold);
+  animation: icon-glitter 2.8s ease-in-out infinite;
+}
+:where(svg[class*="lucide-"]:nth-of-type(2n)) { animation-delay: 0.35s; }
+:where(svg[class*="lucide-"]:nth-of-type(3n)) { animation-delay: 0.7s; }
+:where(svg[class*="lucide-"]:nth-of-type(4n)) { animation-delay: 1.05s; }
+
+@keyframes icon-glitter {
+  0%, 100% {
+    filter: brightness(1) drop-shadow(0 0 0 transparent);
+  }
+  50% {
+    filter: brightness(1.4) drop-shadow(0 0 3px color-mix(in srgb, var(--gold) 55%, transparent));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(svg[class*="lucide-"]) {
+    animation: none;
+  }
+}
