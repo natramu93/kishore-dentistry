@@ -149,14 +149,14 @@ person.
 
 An invited Auth user receives an inactive Front Office profile. A new
 installation therefore needs one controlled, one-time promotion. Migration
-`0012_admin_and_history_invariants.sql` deliberately permits promotion from a
-zero-Admin state, then prevents an established environment from losing its
-last active Admin.
+`20260726070825_admin_and_history_invariants.sql` deliberately permits
+promotion from a zero-Admin state, then prevents an established environment
+from losing its last active Admin.
 
 1. Configure and verify the exact hosted Auth redirects, SMTP sender and
    templates, hosted TOTP settings, and Firebase managed secrets described
    above.
-2. Apply every migration through `0012`.
+2. Apply every migration through version `20260726070825`.
 3. Deploy the matching application revision. Verify its liveness, login,
    callback, set-password, and MFA routes before generating a live invitation.
 4. From the trusted Supabase Auth administration interface, invite the
@@ -231,28 +231,54 @@ reviewer without copying the invitation link.
 
 ## Migration order
 
-Apply every numbered migration in order. Later hardening intentionally
+Apply every timestamped migration in order. Later hardening intentionally
 supersedes some early schema behavior; that does not make an earlier migration
-optional.
+optional. The timestamp prefix is the migration identity compared with the
+hosted `supabase_migrations.schema_migrations` ledger.
 
 | Migration | Purpose |
 |---|---|
-| `0001_schema.sql` | Creates the `crm` schema, grants lockdown, core enums, and core tables |
-| `0002_functions_triggers.sql` | Adds profile creation, timestamps, workflow rules, and initial RPCs |
-| `0003_seed.sql` | Adds baseline reference data |
-| `0004_cascade_deletes.sql` | Establishes historical foreign-key behavior later constrained by hardening |
-| `0005_dental_reference_data.sql` | Expands the dental catalog, lead sources, and treatment-interest link |
-| `0006_roles_and_doctor_link.sql` | Adds the current five role values |
-| `0007_role_migration_and_doctor_profile_link.sql` | Migrates legacy roles and links Doctor logins to roster records |
-| `0008_data_integrity_hardening.sql` | Adds current defaults, cross-record validation, audit history, soft deletion, appointment collision protection, and transactional invoice rules |
-| `0009_transaction_and_rate_limit.sql` | Makes lead creation atomic and adds durable PostgreSQL action limits with bounded pruning |
-| `0010_report_aggregates.sql` | Moves scoped dashboard and report aggregates into PostgreSQL |
-| `0011_comment_history.sql` | Adds optimistic comment versions, soft archives, and immutable before/after history |
-| `0012_admin_and_history_invariants.sql` | Serializes last-active-Admin protection, makes lead activity append-only, rejects clinical hard deletion, and adds audited Admin profile-mutation support |
+| `20260706110302_crm_schema.sql` | Creates the `crm` schema, grants lockdown, core enums, and core tables |
+| `20260706110357_crm_functions_triggers.sql` | Adds profile creation, timestamps, workflow rules, and initial RPCs |
+| `20260706110415_crm_seed_reference_data.sql` | Adds baseline reference data |
+| `20260706131215_cascade_deletes.sql` | Establishes historical foreign-key behavior later constrained by hardening |
+| `20260706132931_dental_reference_data.sql` | Expands the dental catalog, lead sources, and treatment-interest link |
+| `20260713082604_roles_and_doctor_link.sql` | Adds the current five role values |
+| `20260713082605_role_migration_and_doctor_profile_link.sql` | Migrates legacy roles and links Doctor logins to roster records |
+| `20260726070821_data_integrity_hardening.sql` | Adds current defaults, cross-record validation, audit history, soft deletion, appointment collision protection, and transactional invoice rules |
+| `20260726070822_transaction_and_rate_limit.sql` | Makes lead creation atomic and adds durable PostgreSQL action limits with bounded pruning |
+| `20260726070823_report_aggregates.sql` | Moves scoped dashboard and report aggregates into PostgreSQL |
+| `20260726070824_comment_history.sql` | Adds optimistic comment versions, soft archives, and immutable before/after history |
+| `20260726070825_admin_and_history_invariants.sql` | Serializes last-active-Admin protection, makes lead activity append-only, rejects clinical hard deletion, and adds audited Admin profile-mutation support |
 
-`0012` must be live before the application revision that relies on those
-invariants and audit functions. Validate a clean `0001`-through-`0012` reset,
-database lint, and SQL tests before applying it to staging.
+### One-time legacy production ledger alignment
+
+The original production project recorded the first five migrations with their
+timestamp versions, but the role-model migrations were applied before they
+were recorded in the migration ledger. Before the first release from this
+timestamp-aligned repository:
+
+1. Create and verify the production backup and capture the output of
+   `supabase migration list --linked`.
+2. Confirm the remote ledger contains the five `20260706...` versions in the
+   table above and no later version.
+3. Independently confirm that the `operations`, `front_office`,
+   `clinical_head`, and `doctor` enum values and `crm.doctors.profile_id`
+   already exist.
+4. Mark `20260713082604` and then `20260713082605` as applied with separate
+   `supabase migration repair --linked --status applied <version>` commands,
+   checking the migration list after each command. These repairs update the
+   ledger only; they must not execute the already-present SQL again.
+5. Run `supabase db push --linked --dry-run`. Stop unless it lists exactly
+   versions `20260726070821` through `20260726070825`, in order.
+
+Never use `--include-all` to work around a ledger mismatch. If any schema
+fingerprint or version differs, stop and reconcile the environment before
+changing production.
+
+Version `20260726070825` must be live before the application revision that
+relies on those invariants and audit functions. Validate a clean reset through
+that version, database lint, and SQL tests before applying it to staging.
 
 ## Release procedure
 
@@ -309,7 +335,8 @@ database lint, and SQL tests before applying it to staging.
    timestamp, retention, restore owner, application revision, and migration
    state.
 4. Apply the exact migrations already tested in staging. For this release,
-   apply `0012` before deploying the matching application revision.
+   apply through version `20260726070825` before deploying the matching
+   application revision.
 5. Create the App Hosting rollout for the exact reviewed commit:
 
    - In the normal Git-connected flow, merge that commit into the backend's

@@ -1,5 +1,5 @@
 -- ============================================================
--- 0008_data_integrity_hardening.sql
+-- 20260726070821_data_integrity_hardening.sql
 --
 -- Forward-only database hardening:
 --   * current profile roles and safer signup defaults

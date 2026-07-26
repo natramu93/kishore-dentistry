@@ -1,5 +1,5 @@
 -- ============================================================
--- 0010_report_aggregates.sql
+-- 20260726070823_report_aggregates.sql
 --
 -- Aggregate report facts in PostgreSQL so report size is bounded by the
 -- number of groups rather than the number of clinical records. The function

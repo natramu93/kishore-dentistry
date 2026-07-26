@@ -1,5 +1,5 @@
 -- ============================================================
--- 0011_comment_history.sql
+-- 20260726070824_comment_history.sql
 --
 -- Preserve comment history and make every destructive mutation explicit:
 --   * active-thread reads use soft deletion

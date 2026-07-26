@@ -1,5 +1,5 @@
 -- ============================================================
--- 0006_roles_and_doctor_link.sql
+-- 20260713082604_roles_and_doctor_link.sql
 -- Role model v2: Admin / Operations / Front Office / Clinical Head / Doctor
 -- (replaces admin/manager/agent). Postgres enums can't drop values, so
 -- 'manager' and 'agent' remain valid-but-unused values for compatibility.

@@ -1,5 +1,5 @@
 -- ============================================================
--- 0001_schema.sql — crm schema, grants lockdown, enums, tables
+-- 20260706110302_crm_schema.sql — crm schema, grants lockdown, enums, tables
 -- ============================================================
 
 create schema if not exists crm;

@@ -1,6 +1,6 @@
 -- ============================================================
--- 0007_role_migration_and_doctor_profile_link.sql
--- Must run after 0006 commits (new enum values can't be used in the same
+-- 20260713082605_role_migration_and_doctor_profile_link.sql
+-- Must run after 20260713082604 commits (new enum values can't be used in the same
 -- transaction that adds them).
 -- ============================================================
 

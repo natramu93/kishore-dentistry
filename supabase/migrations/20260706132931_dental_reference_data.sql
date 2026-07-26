@@ -1,5 +1,5 @@
 -- ============================================================
--- 0005_dental_reference_data.sql
+-- 20260706132931_dental_reference_data.sql
 -- Dental-domain global data: categorized treatment catalog with
 -- realistic INR pricing, expanded lead sources, and a lead
 -- "treatment interest" link (marketing -> treatment funnel).

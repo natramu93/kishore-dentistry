@@ -58,10 +58,11 @@ Use separate development, staging, and production projects.
 3. Keep the minimum password length at 12 or higher.
 4. Confirm `anon` and `authenticated` have no grants or RLS policies on
    `crm.*`. The server-side service role is the only application data path.
-5. Apply every numbered migration in `supabase/migrations/` in order. The
-   current release requires migrations `0001` through `0012`; apply `0012`
-   (`0012_admin_and_history_invariants.sql`) before deploying the application
-   revision that depends on its operational safety RPCs and triggers.
+5. Apply every timestamped migration in `supabase/migrations/` in order. The
+   current release requires the complete sequence through
+   `20260726070825_admin_and_history_invariants.sql`; apply that final hardening
+   migration before deploying the application revision that depends on its
+   operational safety RPCs and triggers.
 
 The migrations are forward-only. Validate the complete sequence and the SQL
 regression suite in staging before production. See
@@ -74,7 +75,7 @@ installation therefore needs one controlled bootstrap:
 
 1. Configure the exact hosted Auth redirects, production SMTP, and Firebase
    managed secrets described below.
-2. Apply all migrations through `0012`.
+2. Apply all migrations through version `20260726070825`.
 3. Deploy the matching application revision and verify its liveness, login,
    callback, set-password, and MFA routes.
 4. From the trusted Supabase Auth administration interface, send an invitation
@@ -83,8 +84,9 @@ installation therefore needs one controlled bootstrap:
 5. In a reviewed SQL transaction, promote and activate the exact generated
    Auth user UUID. Verify that exactly one intended row changed; never select
    the account by a partial name or copy an invitation token into SQL.
-   Migration `0012` permits this zero-Admin bootstrap while protecting an
-   established environment from losing its last active Admin.
+   Migration `20260726070825_admin_and_history_invariants.sql` permits this
+   zero-Admin bootstrap while protecting an established environment from
+   losing its last active Admin.
 6. The invitee accepts the link, chooses their own password, enrolls TOTP, and
    creates a second independently owned Admin account through the application.
    Confirm that both Admin accounts can complete an `aal2` challenge.

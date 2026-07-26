@@ -1,5 +1,5 @@
 -- ============================================================
--- 0012_admin_and_history_invariants.sql
+-- 20260726070825_admin_and_history_invariants.sql
 --
 -- Close the remaining destructive-write and administrator-account gaps:
 --   * serialize active-admin membership through a protected singleton counter

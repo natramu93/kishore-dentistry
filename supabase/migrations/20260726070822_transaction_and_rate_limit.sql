@@ -1,5 +1,5 @@
 -- ============================================================
--- 0009_transaction_and_rate_limit.sql
+-- 20260726070822_transaction_and_rate_limit.sql
 --
 -- Transaction and distributed-enforcement hardening:
 --   * create a lead and its initial activity in one transaction

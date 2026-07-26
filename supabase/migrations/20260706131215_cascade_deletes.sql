@@ -1,5 +1,5 @@
 -- ============================================================
--- 0004_cascade_deletes.sql — enable full CRUD deletes
+-- 20260706131215_cascade_deletes.sql — enable full CRUD deletes
 -- Ensures deleting a lead (or treatment) cleans up dependents
 -- instead of failing on FK constraints.
 -- ============================================================

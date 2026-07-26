@@ -1,5 +1,5 @@
 -- ============================================================
--- 0003_seed.sql — reference data: branches, sources, treatments
+-- 20260706110415_crm_seed_reference_data.sql — reference data: branches, sources, treatments
 -- ============================================================
 
 insert into crm.branches (name, code, address, phone) values
