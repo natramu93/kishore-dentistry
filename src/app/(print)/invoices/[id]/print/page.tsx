@@ -18,7 +18,7 @@ export default async function InvoicePrintPage({
   if (!invoice) notFound();
 
   return (
-    <div className="mx-auto max-w-[210mm] p-8 print:p-0 text-sm text-black bg-white min-h-screen">
+    <main className="mx-auto max-w-[210mm] p-8 print:p-0 text-sm text-black bg-white min-h-screen">
       <PrintButton />
 
       <header className="flex justify-between items-start border-b-2 border-black pb-4">
@@ -44,6 +44,7 @@ export default async function InvoicePrintPage({
       </section>
 
       <table className="w-full mt-6 border-collapse">
+        <caption className="sr-only">Invoice line items</caption>
         <thead>
           <tr className="border-b-2 border-black text-left">
             <th className="py-2">#</th>
@@ -88,6 +89,6 @@ export default async function InvoicePrintPage({
       <footer className="mt-12 text-xs text-neutral-500 text-center">
         Thank you for choosing Dr. Kishor&apos;s Dentistry.
       </footer>
-    </div>
+    </main>
   );
 }

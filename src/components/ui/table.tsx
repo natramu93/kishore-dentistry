@@ -1,14 +1,16 @@
-"use client"
-
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
+  const accessibleName = props["aria-label"]
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className="relative w-full overflow-x-auto rounded-lg focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      role="region"
+      aria-label={typeof accessibleName === "string" ? accessibleName : "Scrollable data table"}
+      tabIndex={0}
     >
       <table
         data-slot="table"

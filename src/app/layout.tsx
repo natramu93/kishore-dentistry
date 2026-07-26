@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { headers } from "next/headers";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -18,11 +19,15 @@ export const metadata: Metadata = {
   description: "Multi-branch dental clinic CRM",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // This request-time read forces dynamic rendering so Next can apply the
+  // per-request CSP nonce to framework and page scripts.
+  await headers();
+
   return (
     <html
       lang="en"

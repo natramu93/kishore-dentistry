@@ -18,11 +18,12 @@ export const metadata = { title: "Treatment Types — Admin" };
 
 // Reused datalist of known categories (admins can also type a new one)
 function CategoryField({ id, defaultValue }: { id: string; defaultValue?: string | null }) {
+  const datalistId = `${id}-categories`;
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>Category</Label>
-      <Input id={id} name="category" list="treatment-categories" defaultValue={defaultValue ?? ""} placeholder="e.g. Orthodontics" />
-      <datalist id="treatment-categories">
+      <Input id={id} name="category" list={datalistId} defaultValue={defaultValue ?? ""} placeholder="e.g. Orthodontics" />
+      <datalist id={datalistId}>
         {CATEGORY_ORDER.map((c) => (
           <option key={c} value={c} />
         ))}
@@ -40,7 +41,7 @@ export default async function TreatmentTypesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Treatment catalog</h1>
           <p className="text-sm text-muted-foreground">
@@ -60,21 +61,21 @@ export default async function TreatmentTypesPage() {
         </FormDialog>
       </div>
 
-      <Table>
+      <Table aria-label="Treatment catalog">
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
-            <TableHead>Category</TableHead>
+            <TableHead className="hidden md:table-cell">Category</TableHead>
             <TableHead>Default cost</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead />
+            <TableHead><span className="sr-only">Actions</span></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {types.map((t) => (
             <TableRow key={t.id}>
               <TableCell className="font-medium">{t.name}</TableCell>
-              <TableCell className="text-muted-foreground">{t.category ?? "—"}</TableCell>
+              <TableCell className="hidden text-muted-foreground md:table-cell">{t.category ?? "—"}</TableCell>
               <TableCell className="whitespace-nowrap">
                 {t.default_cost != null ? formatINR(t.default_cost) : "—"}
               </TableCell>

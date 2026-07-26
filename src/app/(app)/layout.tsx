@@ -13,6 +13,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen w-full">
+      <a
+        href="#main-content"
+        className="sr-only fixed left-3 top-3 z-50 rounded-md bg-background px-4 py-2 font-medium text-foreground shadow-lg focus:not-sr-only focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        Skip to main content
+      </a>
       {/* Desktop sidebar (dark, for the gold/white logo) */}
       <aside className="hidden md:flex w-60 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
         <div className="p-4 border-b border-sidebar-border">
@@ -56,7 +62,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </form>
         </header>
 
-        <main className="flex-1 min-w-0">
+        <main id="main-content" tabIndex={-1} className="flex-1 min-w-0 outline-none">
           <div className="p-3 md:p-5 max-w-[100rem] mx-auto w-full">{children}</div>
         </main>
       </div>

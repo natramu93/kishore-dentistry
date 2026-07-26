@@ -13,6 +13,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { ROLE_LABELS } from "@/components/nav-items";
+import { PaginationNav } from "@/components/pagination-nav";
 
 export const metadata = { title: "Users — Admin" };
 
@@ -23,7 +24,7 @@ function RoleSelect({ id, defaultValue, disabled }: { id: string; defaultValue: 
       name="role"
       defaultValue={defaultValue}
       disabled={disabled}
-      className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm disabled:opacity-60"
+      className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm disabled:opacity-60"
     >
       <option value="front_office">Front Office — reception: intake, booking, own leads</option>
       <option value="operations">Operations — runs the branch: full lead/appt/invoice access</option>
@@ -50,11 +51,15 @@ function DoctorLinkField({
         id={id}
         name="doctor_record_id"
         defaultValue={defaultValue ?? ""}
-        className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+        className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm"
       >
         <option value="">— Not linked —</option>
         {doctors.map((d) => (
-          <option key={d.id} value={d.id}>
+          <option
+            key={d.id}
+            value={d.id}
+            disabled={d.alreadyLinked && d.id !== defaultValue}
+          >
             {d.full_name}{d.branch ? ` (${d.branch.name})` : ""}
             {d.alreadyLinked && d.id !== defaultValue ? " — already linked" : ""}
           </option>
@@ -64,25 +69,38 @@ function DoctorLinkField({
   );
 }
 
-export default async function UsersPage() {
+export default async function UsersPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const params = await searchParams;
   const ctx = await getAuthContext();
   if (ctx.role !== "admin") redirect("/dashboard");
-  const [users, branches, linkableDoctors] = await Promise.all([
-    listUsers(ctx),
+  const [userResult, branches, linkableDoctors] = await Promise.all([
+    listUsers(ctx, { page: Number(params.page) }),
     listBranches(ctx),
-    listDoctorsForLinking(),
+    listDoctorsForLinking(ctx),
   ]);
+  const { users, total, page, pageSize } = userResult;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Users</h1>
           <p className="text-sm text-muted-foreground">
-            Allocate one user to multiple branches, or split branches across users.
+            {total} user{total === 1 ? "" : "s"} · Allocate one user to
+            multiple branches, or split branches across users.
           </p>
         </div>
-        <FormDialog triggerLabel="New user" title="Create user" action={createUserAction}>
+        <FormDialog
+          triggerLabel="New user"
+          title="Invite user"
+          action={createUserAction}
+          submitLabel="Send invitation"
+          successMessage="Invitation sent"
+        >
           <div className="space-y-2">
             <Label htmlFor="full_name">Full name</Label>
             <Input id="full_name" name="full_name" required />
@@ -91,13 +109,13 @@ export default async function UsersPage() {
             <Label htmlFor="email">Email</Label>
             <Input id="email" name="email" type="email" required />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input id="password" name="password" type="text" required minLength={8} placeholder="min 8 characters" />
-          </div>
+          <p className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+            The user will receive an expiring invitation and choose their own
+            password. No password is shared with an administrator.
+          </p>
           <div className="space-y-2">
             <Label htmlFor="phone">Phone</Label>
-            <Input id="phone" name="phone" />
+            <Input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="role">Role</Label>
@@ -105,11 +123,11 @@ export default async function UsersPage() {
           </div>
           <DoctorLinkField id="doctor_record_id" doctors={linkableDoctors} />
           <fieldset className="space-y-2">
-            <Label>Branch allocation</Label>
-            <div className="grid grid-cols-2 gap-2">
+            <legend className="text-sm font-medium">Branch allocation</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
               {branches.map((b) => (
-                <label key={b.id} className="flex items-center gap-2 text-sm border rounded-md px-3 py-2">
-                  <input type="checkbox" name="branch_ids" value={b.id} className="accent-primary" />
+                <label key={b.id} className="flex min-h-10 items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                  <input type="checkbox" name="branch_ids" value={b.id} className="size-5 accent-primary" />
                   {b.name}
                 </label>
               ))}
@@ -118,26 +136,31 @@ export default async function UsersPage() {
         </FormDialog>
       </div>
 
-      <Table>
+      <Table aria-label="Users">
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
-            <TableHead>Email</TableHead>
+            <TableHead className="hidden md:table-cell">Email</TableHead>
             <TableHead>Role</TableHead>
-            <TableHead>Branches</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead />
+            <TableHead className="hidden lg:table-cell">Centers</TableHead>
+            <TableHead className="hidden md:table-cell">Status</TableHead>
+            <TableHead><span className="sr-only">Actions</span></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {users.map((u) => (
             <TableRow key={u.id}>
-              <TableCell className="font-medium">{u.full_name}</TableCell>
-              <TableCell className="text-muted-foreground">{u.email}</TableCell>
+              <TableCell className="whitespace-normal font-medium">
+                {u.full_name}
+                <span className="mt-1 block break-all text-xs font-normal text-muted-foreground md:hidden">
+                  {u.email} · {u.is_active ? "Active" : "Inactive"}
+                </span>
+              </TableCell>
+              <TableCell className="hidden text-muted-foreground md:table-cell">{u.email}</TableCell>
               <TableCell>
                 <Badge variant="outline">{ROLE_LABELS[u.role]}</Badge>
               </TableCell>
-              <TableCell>
+              <TableCell className="hidden lg:table-cell">
                 <div className="flex flex-wrap gap-1">
                   {u.role === "admin" ? (
                     <span className="text-xs text-muted-foreground">All branches</span>
@@ -150,7 +173,7 @@ export default async function UsersPage() {
                   )}
                 </div>
               </TableCell>
-              <TableCell>
+              <TableCell className="hidden md:table-cell">
                 <Badge variant={u.is_active ? "default" : "secondary"}>
                   {u.is_active ? "Active" : "Inactive"}
                 </Badge>
@@ -165,7 +188,14 @@ export default async function UsersPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor={`uphone-${u.id}`}>Phone</Label>
-                      <Input id={`uphone-${u.id}`} name="phone" defaultValue={u.phone ?? ""} />
+                      <Input
+                        id={`uphone-${u.id}`}
+                        name="phone"
+                        type="tel"
+                        inputMode="tel"
+                        autoComplete="tel"
+                        defaultValue={u.phone ?? ""}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor={`urole-${u.id}`}>Role</Label>
@@ -180,16 +210,16 @@ export default async function UsersPage() {
                       defaultValue={u.linkedDoctorId ?? undefined}
                     />
                     <fieldset className="space-y-2">
-                      <Label>Branch allocation</Label>
-                      <div className="grid grid-cols-2 gap-2">
+                      <legend className="text-sm font-medium">Branch allocation</legend>
+                      <div className="grid gap-2 sm:grid-cols-2">
                         {branches.map((b) => (
-                          <label key={b.id} className="flex items-center gap-2 text-sm border rounded-md px-3 py-2">
+                          <label key={b.id} className="flex min-h-10 items-center gap-2 rounded-md border px-3 py-2 text-sm">
                             <input
                               type="checkbox"
                               name="branch_ids"
                               value={b.id}
                               defaultChecked={u.branches.some((ub) => ub.id === b.id)}
-                              className="accent-primary"
+                              className="size-5 accent-primary"
                             />
                             {b.name}
                           </label>
@@ -209,6 +239,13 @@ export default async function UsersPage() {
           ))}
         </TableBody>
       </Table>
+      <PaginationNav
+        pathname="/admin/users"
+        searchParams={params}
+        page={page}
+        pageSize={pageSize}
+        total={total}
+      />
     </div>
   );
 }

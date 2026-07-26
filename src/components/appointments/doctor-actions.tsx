@@ -7,6 +7,17 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,6 +34,7 @@ export function DoctorAppointmentActions({
   treatmentTypes: TreatmentOption[];
 }) {
   const [open, setOpen] = useState(false);
+  const [noShowOpen, setNoShowOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
   function complete(formData: FormData) {
@@ -40,12 +52,17 @@ export function DoctorAppointmentActions({
   function noShow() {
     startTransition(async () => {
       const result = await doctorMarkNoShowAction(appointmentId);
-      if (!result.ok) toast.error(result.error);
+      if (result.ok) {
+        setNoShowOpen(false);
+        toast.success("Appointment marked as no-show");
+      } else {
+        toast.error(result.error);
+      }
     });
   }
 
   return (
-    <div className="flex gap-1 justify-end">
+    <div className="flex flex-wrap justify-end gap-1">
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger
           render={
@@ -65,7 +82,7 @@ export function DoctorAppointmentActions({
               <select
                 id={`dt-${appointmentId}`}
                 name="treatment_type_id"
-                className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+                className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm"
                 defaultValue=""
               >
                 <option value="">— Select —</option>
@@ -93,9 +110,35 @@ export function DoctorAppointmentActions({
           </form>
         </DialogContent>
       </Dialog>
-      <Button size="sm" variant="outline" disabled={pending} onClick={noShow}>
-        No-show
-      </Button>
+      <AlertDialog open={noShowOpen} onOpenChange={setNoShowOpen}>
+        <AlertDialogTrigger
+          render={
+            <Button size="sm" variant="outline" disabled={pending}>
+              No-show
+            </Button>
+          }
+        />
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark this appointment as a no-show?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This updates the appointment and lead workflow. Confirm only after the appointment
+              time has passed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={pending}>Go back</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              variant="destructive"
+              disabled={pending}
+              onClick={noShow}
+            >
+              {pending ? "Updating…" : "Mark no-show"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

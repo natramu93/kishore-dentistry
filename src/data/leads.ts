@@ -2,18 +2,41 @@ import "server-only";
 
 import { cache } from "react";
 import { db } from "./db";
+import {
+  requireActiveDoctorForBranch,
+  requireActiveLeadSource,
+  requireActiveTreatmentType,
+  requireAppointmentForLead,
+  requireAssignableUser,
+  throwMappedDatabaseError,
+} from "./helpers";
 import type { AuthContext } from "@/lib/auth/context";
-import { AuthorizationError } from "@/lib/auth/context";
 import {
   assertBranchAccess,
   assertLeadWriteAccess,
   canReadLead,
   canDelete,
 } from "@/lib/auth/guards";
-import { canTransition } from "@/lib/leads/transitions";
+import {
+  canTransition,
+  transitionPayloadSchemas,
+} from "@/lib/leads/transitions";
+import {
+  AuthorizationError,
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+} from "@/lib/errors";
+import {
+  EMPTY_UUID,
+  assertIsoDateTime,
+  assertLeadStatus,
+  assertUuid,
+  normalizeLimit,
+  normalizePagination,
+  normalizeSearch,
+} from "@/lib/validation";
 import type { Json, Lead, LeadStatus } from "@/lib/database.types";
-
-const EMPTY_UUID = "00000000-0000-0000-0000-000000000000";
 
 export type LeadWithRefs = Lead & {
   branch: { name: string; code: string } | null;
@@ -33,61 +56,67 @@ export type LeadFilters = {
 };
 
 function scopedQuery(ctx: AuthContext) {
-  let q = db
+  let query = db
     .from("leads")
     .select(
       "*, branch:branches(name, code), source:lead_sources(name), assignee:profiles!leads_assignee_id_fkey(full_name), interest:treatment_types!leads_interest_id_fkey(name, category)",
       { count: "exact" }
-    );
+    )
+    .is("deleted_at", null);
   if (ctx.role !== "admin") {
-    q = q.in("branch_id", ctx.branchIds.length ? ctx.branchIds : [EMPTY_UUID]);
+    query = query.in(
+      "branch_id",
+      ctx.branchIds.length ? [...ctx.branchIds] : [EMPTY_UUID]
+    );
   }
   if (ctx.role === "front_office") {
-    q = q.or(`assignee_id.eq.${ctx.userId},assignee_id.is.null`);
+    query = query.or(`assignee_id.eq.${ctx.userId},assignee_id.is.null`);
   }
-  // The Leads module is a Front Office / Operations / Clinical Head workflow —
-  // doctors work through their own appointments and treatment records instead.
-  if (ctx.role === "doctor") {
-    q = q.eq("id", EMPTY_UUID);
-  }
-  return q;
+  if (ctx.role === "doctor") query = query.eq("id", EMPTY_UUID);
+  return query;
 }
 
 export async function listLeads(ctx: AuthContext, filters: LeadFilters = {}) {
-  const pageSize = filters.pageSize ?? 25;
-  const page = filters.page ?? 1;
+  const { page, pageSize } = normalizePagination(filters.page, filters.pageSize);
+  let query = scopedQuery(ctx);
 
-  let q = scopedQuery(ctx);
-  if (filters.status) q = q.eq("status", filters.status);
+  if (filters.status) query = query.eq("status", assertLeadStatus(filters.status));
   if (filters.branchId) {
-    assertBranchAccess(ctx, filters.branchId);
-    q = q.eq("branch_id", filters.branchId);
+    const branchId = assertUuid(filters.branchId, "Branch");
+    assertBranchAccess(ctx, branchId);
+    query = query.eq("branch_id", branchId);
   }
-  if (filters.sourceId) q = q.eq("source_id", filters.sourceId);
-  if (filters.assigneeId) q = q.eq("assignee_id", filters.assigneeId);
-  if (filters.search) {
-    const s = filters.search.replaceAll(",", " ").trim();
-    q = q.or(`name.ilike.%${s}%,mobile.ilike.%${s}%,email.ilike.%${s}%`);
+  if (filters.sourceId) {
+    query = query.eq("source_id", assertUuid(filters.sourceId, "Lead source"));
+  }
+  if (filters.assigneeId) {
+    query = query.eq("assignee_id", assertUuid(filters.assigneeId, "Assignee"));
+  }
+  const search = normalizeSearch(filters.search);
+  if (search) {
+    query = query.or(
+      `name.ilike.%${search}%,mobile.ilike.%${search}%,email.ilike.%${search}%`
+    );
   }
 
   const from = (page - 1) * pageSize;
-  const { data, error, count } = await q
+  const { data, error, count } = await query
     .order("created_at", { ascending: false })
     .range(from, from + pageSize - 1);
   if (error) throw error;
-  return { leads: (data ?? []) as LeadWithRefs[], total: count ?? 0, page, pageSize };
+  return { leads: data as LeadWithRefs[], total: count ?? 0, page, pageSize };
 }
 
-// Cached per request: the lead detail page reads the same lead through several
-// helpers — cache() collapses those into a single DB round-trip.
 export const getLead = cache(
   async (ctx: AuthContext, id: string): Promise<LeadWithRefs | null> => {
+    const leadId = assertUuid(id, "Lead");
     const { data, error } = await db
       .from("leads")
       .select(
         "*, branch:branches(name, code), source:lead_sources(name), assignee:profiles!leads_assignee_id_fkey(full_name), interest:treatment_types!leads_interest_id_fkey(name, category)"
       )
-      .eq("id", id)
+      .eq("id", leadId)
+      .is("deleted_at", null)
       .maybeSingle();
     if (error) throw error;
     if (!data || !canReadLead(ctx, data)) return null;
@@ -97,8 +126,11 @@ export const getLead = cache(
 
 /** Duplicate check for the new-lead form. */
 export async function findLeadsByMobile(ctx: AuthContext, mobile: string) {
-  const { data } = await scopedQuery(ctx).eq("mobile", mobile).limit(5);
-  return (data ?? []) as LeadWithRefs[];
+  const normalized = mobile.trim().slice(0, 32);
+  if (normalized.length < 7) return [];
+  const { data, error } = await scopedQuery(ctx).eq("mobile", normalized).limit(5);
+  if (error) throw error;
+  return data as LeadWithRefs[];
 }
 
 export async function createLead(
@@ -116,23 +148,31 @@ export async function createLead(
   }
 ): Promise<Lead> {
   if (ctx.role === "doctor") {
-    throw new AuthorizationError("Doctors don't create leads — Front Office handles intake");
+    throw new AuthorizationError("Doctors cannot create leads");
   }
-  assertBranchAccess(ctx, input.branch_id);
-  const { data, error } = await db
-    .from("leads")
-    .insert({ ...input, created_by: ctx.userId })
-    .select()
-    .single();
-  if (error) throw error;
+  const branchId = assertUuid(input.branch_id, "Branch");
+  assertBranchAccess(ctx, branchId);
+  await Promise.all([
+    input.source_id ? requireActiveLeadSource(input.source_id) : Promise.resolve(),
+    input.interest_id
+      ? requireActiveTreatmentType(input.interest_id)
+      : Promise.resolve(),
+  ]);
 
-  await db.from("lead_activity").insert({
-    lead_id: data.id,
-    actor_id: ctx.userId,
-    type: "note",
-    detail: { event: "lead_created" },
+  const { data, error } = await db.rpc("create_lead", {
+    p_branch_id: branchId,
+    p_name: input.name,
+    p_mobile: input.mobile,
+    p_email: input.email ?? null,
+    p_source_id: input.source_id ?? null,
+    p_interest_id: input.interest_id ?? null,
+    p_age: input.age ?? null,
+    p_dob: input.dob ?? null,
+    p_notes: input.notes ?? null,
+    p_actor: ctx.userId,
   });
-  return data;
+  if (error) throwMappedDatabaseError(error, "Lead");
+  return data as unknown as Lead;
 }
 
 export async function updateLeadDetails(
@@ -149,110 +189,232 @@ export async function updateLeadDetails(
     notes?: string | null;
   }
 ) {
-  const { data: lead } = await db.from("leads").select("branch_id, assignee_id").eq("id", id).maybeSingle();
-  if (!lead) throw new Error("Lead not found");
-  if (ctx.role === "doctor") {
-    throw new AuthorizationError("Doctors don't edit lead records");
-  }
-  // Editing contact details is allowed for anyone who can read the lead at
-  // their branch; Front Office may also fix details of unassigned pool leads.
-  assertBranchAccess(ctx, lead.branch_id);
-  if (ctx.role === "front_office" && lead.assignee_id && lead.assignee_id !== ctx.userId) {
-    throw new AuthorizationError("This lead is not assigned to you");
-  }
-  const { error } = await db.from("leads").update(input).eq("id", id);
+  const leadId = assertUuid(id, "Lead");
+  const lookup = await db
+    .from("leads")
+    .select("branch_id, assignee_id")
+    .eq("id", leadId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (lookup.error) throw lookup.error;
+  if (!lookup.data) throw new NotFoundError("Lead");
+  assertLeadWriteAccess(ctx, lookup.data);
+
+  await Promise.all([
+    input.source_id ? requireActiveLeadSource(input.source_id) : Promise.resolve(),
+    input.interest_id
+      ? requireActiveTreatmentType(input.interest_id)
+      : Promise.resolve(),
+  ]);
+  const { error } = await db.from("leads").update(input).eq("id", leadId);
   if (error) throw error;
 }
 
 /**
- * The single entry point for status changes. Authorizes, checks the
- * transition map, then delegates to the atomic crm.transition_lead RPC
- * (which also validates via trigger — defense in depth).
+ * The single application entry point for pipeline changes. Conditional payload
+ * checks happen here after loading the current state; the SQL RPC then locks and
+ * applies the compound transition atomically.
  */
 export async function transitionLead(
   ctx: AuthContext,
-  leadId: string,
-  to: LeadStatus,
+  leadIdValue: string,
+  toValue: LeadStatus,
   payload: Record<string, unknown> = {}
 ): Promise<Lead> {
-  const { data: lead } = await db
+  const leadId = assertUuid(leadIdValue, "Lead");
+  const to = assertLeadStatus(toValue);
+  const lookup = await db
     .from("leads")
     .select("id, branch_id, assignee_id, status")
     .eq("id", leadId)
+    .is("deleted_at", null)
     .maybeSingle();
-  if (!lead) throw new Error("Lead not found");
+  if (lookup.error) throw lookup.error;
+  const lead = lookup.data;
+  if (!lead) throw new NotFoundError("Lead");
 
-  // Assigning from the open pool: Front Office may claim/receive unassigned leads
   if (to === "assigned" && lead.status === "open") {
     assertBranchAccess(ctx, lead.branch_id);
-    if (ctx.role === "front_office" && payload.assignee_id !== ctx.userId) {
-      throw new AuthorizationError("Front Office can only assign open leads to themselves");
-    }
+    if (ctx.role === "doctor") throw new AuthorizationError("Doctors cannot manage leads");
   } else {
     assertLeadWriteAccess(ctx, lead);
   }
-
+  if (lead.status === to) {
+    const replay = await db.rpc("transition_lead", {
+      p_lead_id: leadId,
+      p_to: to,
+      p_actor: ctx.userId,
+      p_payload: {} as Json,
+    });
+    if (replay.error) throwMappedDatabaseError(replay.error, "Lead");
+    return replay.data as unknown as Lead;
+  }
   if (!canTransition(lead.status, to)) {
-    throw new Error(`Illegal transition: ${lead.status} -> ${to}`);
+    throw new ConflictError(`Lead cannot move from ${lead.status} to ${to}`);
+  }
+
+  const schema = transitionPayloadSchemas[to as keyof typeof transitionPayloadSchemas];
+  if (!schema) throw new ValidationError("Transition target is invalid");
+  const parsed = schema.safeParse(payload);
+  if (!parsed.success) {
+    throw new ValidationError(parsed.error.issues[0]?.message ?? "Transition details are invalid");
+  }
+  const trustedPayload: Record<string, unknown> = { ...parsed.data };
+
+  if (to === "assigned") {
+    if (lead.status === "appointment_booked") {
+      const appointmentId = trustedPayload.cancelled_appointment_id;
+      if (typeof appointmentId !== "string") {
+        throw new ValidationError("Appointment to cancel is required");
+      }
+      await requireAppointmentForLead(appointmentId, leadId);
+      if (!lead.assignee_id) {
+        throw new ConflictError("Lead must have an assignee before cancelling its appointment");
+      }
+      // The current SQL RPC always applies assignee_id for an assigned target.
+      // Preserve the trusted current assignee rather than accepting it from the client.
+      trustedPayload.assignee_id = lead.assignee_id;
+    } else {
+      const assigneeId = trustedPayload.assignee_id;
+      if (typeof assigneeId !== "string") {
+        throw new ValidationError("Assignee is required");
+      }
+      if (ctx.role === "front_office" && assigneeId !== ctx.userId) {
+        throw new AuthorizationError("Front Office can only assign leads to themselves");
+      }
+      await requireAssignableUser(assigneeId, lead.branch_id);
+    }
+  }
+
+  if (to === "appointment_booked") {
+    trustedPayload.scheduled_at = assertIsoDateTime(
+      trustedPayload.scheduled_at,
+      "Appointment date"
+    );
+    if (typeof trustedPayload.doctor_id === "string") {
+      await requireActiveDoctorForBranch(trustedPayload.doctor_id, lead.branch_id);
+    }
+  }
+
+  if (to === "visited_treated") {
+    const appointmentId = trustedPayload.appointment_id;
+    if (typeof appointmentId !== "string") {
+      throw new ValidationError("Scheduled appointment is required");
+    }
+    const appointment = await requireAppointmentForLead(appointmentId, leadId);
+    if (typeof trustedPayload.treatment_type_id === "string") {
+      await requireActiveTreatmentType(trustedPayload.treatment_type_id);
+    }
+    if (typeof trustedPayload.doctor_id === "string") {
+      await requireActiveDoctorForBranch(trustedPayload.doctor_id, lead.branch_id);
+    } else if (appointment.doctor_id) {
+      trustedPayload.doctor_id = appointment.doctor_id;
+    }
+  }
+
+  if (to === "missed") {
+    if (typeof trustedPayload.appointment_id !== "string") {
+      throw new ValidationError("Scheduled appointment is required");
+    }
+    await requireAppointmentForLead(trustedPayload.appointment_id, leadId);
+  }
+
+  if (to === "dropped" && typeof trustedPayload.appointment_id === "string") {
+    await requireAppointmentForLead(trustedPayload.appointment_id, leadId);
+  }
+
+  if (to === "follow_up") {
+    trustedPayload.due_at = assertIsoDateTime(trustedPayload.due_at, "Follow-up date");
   }
 
   const { data, error } = await db.rpc("transition_lead", {
     p_lead_id: leadId,
     p_to: to,
     p_actor: ctx.userId,
-    p_payload: payload as Json,
+    p_payload: trustedPayload as Json,
   });
-  if (error) throw error;
+  if (error) throwMappedDatabaseError(error, "Lead");
   return data as unknown as Lead;
 }
 
-/** Delete a lead and all its child records (cascade). Operations/admin only. */
 export async function deleteLead(ctx: AuthContext, id: string) {
-  const { data: lead } = await db.from("leads").select("branch_id").eq("id", id).maybeSingle();
-  if (!lead) return;
-  if (!canDelete(ctx.role)) throw new AuthorizationError("Only Operations or Admin can delete leads");
-  assertBranchAccess(ctx, lead.branch_id);
-  const { error } = await db.from("leads").delete().eq("id", id);
-  if (error) throw error;
+  const leadId = assertUuid(id, "Lead");
+  const lookup = await db
+    .from("leads")
+    .select("branch_id")
+    .eq("id", leadId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (lookup.error) throw lookup.error;
+  if (!lookup.data) return;
+  if (!canDelete(ctx.role)) {
+    throw new AuthorizationError("Only Operations or Admin can delete leads");
+  }
+  assertBranchAccess(ctx, lookup.data.branch_id);
+  const { error } = await db.rpc("soft_delete_lead", {
+    p_lead_id: leadId,
+    p_actor: ctx.userId,
+    p_reason: "Deleted by user",
+  });
+  if (error) throwMappedDatabaseError(error, "Lead");
 }
 
-export async function getLeadActivity(ctx: AuthContext, leadId: string) {
+export async function getLeadActivity(ctx: AuthContext, leadIdValue: string, limit = 200) {
+  const leadId = assertUuid(leadIdValue, "Lead");
   const lead = await getLead(ctx, leadId);
   if (!lead) return [];
   const { data, error } = await db
     .from("lead_activity")
     .select("*, actor:profiles!lead_activity_actor_id_fkey(full_name)")
     .eq("lead_id", leadId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(normalizeLimit(limit, 200, 200));
   if (error) throw error;
-  return data ?? [];
+  return data;
 }
 
-/** Child records for the lead detail tabs. */
-export async function getLeadRelated(ctx: AuthContext, leadId: string) {
+export async function getLeadRelated(ctx: AuthContext, leadIdValue: string) {
+  const leadId = assertUuid(leadIdValue, "Lead");
   const lead = await getLead(ctx, leadId);
   if (!lead) return null;
+  const limit = 200;
 
-  const [appointments, treatments, followUps, invoices] = await Promise.all([
+  const results = await Promise.all([
     db
       .from("appointments")
       .select("*, doctor:doctors(full_name)")
       .eq("lead_id", leadId)
-      .order("scheduled_at", { ascending: false }),
+      .order("scheduled_at", { ascending: false })
+      .limit(limit),
     db
       .from("treatments")
       .select("*, treatment_type:treatment_types(name), doctor:doctors(full_name)")
       .eq("lead_id", leadId)
-      .order("treated_at", { ascending: false }),
-    db.from("follow_ups").select("*").eq("lead_id", leadId).order("due_at", { ascending: false }),
-    db.from("invoices").select("*").eq("lead_id", leadId).order("created_at", { ascending: false }),
+      .order("treated_at", { ascending: false })
+      .limit(limit),
+    db
+      .from("follow_ups")
+      .select("*")
+      .eq("lead_id", leadId)
+      .order("due_at", { ascending: false })
+      .limit(limit),
+    db
+      .from("invoices")
+      .select("*")
+      .eq("lead_id", leadId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(limit),
   ]);
+  for (const result of results) {
+    if (result.error) throw result.error;
+  }
 
   return {
     lead,
-    appointments: appointments.data ?? [],
-    treatments: treatments.data ?? [],
-    followUps: followUps.data ?? [],
-    invoices: invoices.data ?? [],
+    appointments: results[0].data,
+    treatments: results[1].data,
+    followUps: results[2].data,
+    invoices: results[3].data,
   };
 }

@@ -234,7 +234,10 @@ function KpiCard({
   href,
   accent,
 }: {
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType<{
+    className?: string;
+    "aria-hidden"?: React.AriaAttributes["aria-hidden"];
+  }>;
   label: string;
   value: number | string;
   href?: string;
@@ -246,9 +249,9 @@ function KpiCard({
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm text-muted-foreground">{label}</p>
-            <p className="text-3xl font-bold">{value}</p>
+            <p className="break-words text-2xl font-bold sm:text-3xl">{value}</p>
           </div>
-          <Icon className="h-8 w-8 text-muted-foreground/40" />
+          <Icon aria-hidden="true" className="h-8 w-8 text-muted-foreground/40" />
         </div>
       </CardContent>
     </Card>
@@ -263,7 +266,7 @@ function BarRow({ label, count, max }: { label: string; count: number; max: numb
         <span>{label}</span>
         <span className="font-medium">{count}</span>
       </div>
-      <div className="h-2 rounded-full bg-muted mt-1">
+      <div aria-hidden="true" className="h-2 rounded-full bg-muted mt-1">
         <div
           className="h-2 rounded-full bg-primary"
           style={{ width: `${Math.max(4, (count / Math.max(max, 1)) * 100)}%` }}

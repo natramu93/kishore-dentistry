@@ -4,16 +4,25 @@ import { db } from "./db";
 import type { AuthContext } from "@/lib/auth/context";
 import { requireAdmin } from "@/lib/auth/guards";
 import type { Branch } from "@/lib/database.types";
+import { NotFoundError, ValidationError } from "@/lib/errors";
+import { MAX_LIST_ROWS, assertUuid } from "@/lib/validation";
 
 /** All active branches — names are needed app-wide for labels/dropdowns. */
 export async function listBranches(
   _ctx: AuthContext,
   opts: { includeInactive?: boolean } = {}
 ): Promise<Branch[]> {
-  let q = db.from("branches").select("*").order("name");
+  let q = db
+    .from("branches")
+    .select("*")
+    .order("name")
+    .limit(MAX_LIST_ROWS + 1);
   if (!opts.includeInactive) q = q.eq("is_active", true);
   const { data, error } = await q;
   if (error) throw error;
+  if ((data?.length ?? 0) > MAX_LIST_ROWS) {
+    throw new ValidationError("Too many branches to display");
+  }
   return data ?? [];
 }
 
@@ -44,9 +53,13 @@ export async function updateBranch(
   input: { name?: string; code?: string; address?: string | null; phone?: string | null; is_active?: boolean }
 ) {
   requireAdmin(ctx);
-  const { error } = await db
+  const branchId = assertUuid(id, "Branch");
+  const { data, error } = await db
     .from("branches")
     .update({ ...input, ...(input.code ? { code: input.code.toUpperCase() } : {}) })
-    .eq("id", id);
+    .eq("id", branchId)
+    .select("id")
+    .maybeSingle();
   if (error) throw error;
+  if (!data) throw new NotFoundError("Branch");
 }

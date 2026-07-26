@@ -1,5 +1,7 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { cache, type ReactNode } from "react";
 import { getAuthContext } from "@/lib/auth/context";
 import { canDelete } from "@/lib/auth/guards";
 import { getLeadRelated, getLeadActivity } from "@/data/leads";
@@ -11,6 +13,7 @@ import { StatusStepper } from "@/components/leads/status-stepper";
 import { TransitionActions } from "@/components/leads/transition-actions";
 import { AppointmentReschedule } from "@/components/leads/appointment-reschedule";
 import { LeadDeleteButton } from "@/components/leads/lead-delete-button";
+import { ContactActions } from "@/components/contact-actions";
 import { RowEditDialog } from "@/components/admin/row-edit-dialog";
 import { updateLeadAction } from "@/actions/leads";
 import { Input } from "@/components/ui/input";
@@ -25,16 +28,46 @@ import { groupByCategory } from "@/lib/dental";
 import { fmt, fmtDate, formatINR, toClinicInputValue } from "@/lib/tz";
 import { ReceiptText } from "lucide-react";
 
+const getLeadPageData = cache(async (id: string) => {
+  const ctx = await getAuthContext();
+  const related = await getLeadRelated(ctx, id);
+  return { ctx, related };
+});
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const { related } = await getLeadPageData(id);
+  const leadName = related?.lead.name.replace(/\s+/g, " ").trim().slice(0, 80);
+  return {
+    title: related
+      ? `${leadName || "Lead"} — Lead — Dr. Kishor's Dentistry CRM`
+      : "Lead not found — Dr. Kishor's Dentistry CRM",
+  };
+}
+
 export default async function LeadDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const ctx = await getAuthContext();
-  const related = await getLeadRelated(ctx, id);
+  const { ctx, related } = await getLeadPageData(id);
   if (!related) notFound();
-  const { lead, appointments, treatments, followUps, invoices } = related;
+  const {
+    lead,
+    appointments: appointmentRows,
+    treatments: treatmentRows,
+    followUps: followUpRows,
+    invoices: invoiceRows,
+  } = related;
+  const appointments = appointmentRows ?? [];
+  const treatments = treatmentRows ?? [];
+  const followUps = followUpRows ?? [];
+  const invoices = invoiceRows ?? [];
 
   const [activity, comments, assignableUsers, doctors, treatmentTypes, sources] = await Promise.all([
     getLeadActivity(ctx, id),
@@ -52,11 +85,23 @@ export default async function LeadDetailPage({
     items: g.items.map((t) => ({ id: t.id, name: t.name })),
   }));
   const canModerate = ctx.role !== "front_office" && ctx.role !== "doctor";
+  const canWriteComments =
+    ctx.role !== "doctor" &&
+    (ctx.role !== "front_office" || lead.assignee_id === ctx.userId);
+  const commentsByScope = new Map<string, typeof comments>();
+  for (const comment of comments) {
+    const key = `${comment.entity_type}:${comment.entity_id ?? ""}`;
+    const bucket = commentsByScope.get(key);
+    if (bucket) bucket.push(comment);
+    else commentsByScope.set(key, [comment]);
+  }
+  const commentsFor = (entityType: string, entityId: string | null) =>
+    commentsByScope.get(`${entityType}:${entityId ?? ""}`) ?? [];
   const commentProps = {
     leadId: lead.id,
-    comments,
     currentUserId: ctx.userId,
     canModerate,
+    canWrite: canWriteComments,
   } as const;
 
   return (
@@ -64,7 +109,7 @@ export default async function LeadDetailPage({
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight">{lead.name}</h1>
             <LeadStatusBadge status={lead.status} />
           </div>
@@ -72,7 +117,7 @@ export default async function LeadDetailPage({
             {lead.branch?.name} · {lead.source?.name ?? "Unknown source"} · Added {fmtDate(lead.created_at)}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
           <TransitionActions
             lead={{ id: lead.id, status: lead.status }}
             activeAppointmentId={activeAppointment?.id ?? null}
@@ -90,16 +135,16 @@ export default async function LeadDetailPage({
             userId={ctx.userId}
             defaultTreatmentTypeId={lead.interest_id}
           />
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             <RowEditDialog title="Edit lead details" action={updateLeadAction.bind(null, lead.id)}>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="edit-name">Name</Label>
                   <Input id="edit-name" name="name" defaultValue={lead.name} required />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-mobile">Mobile</Label>
-                  <Input id="edit-mobile" name="mobile" defaultValue={lead.mobile} required />
+                  <Input id="edit-mobile" name="mobile" type="tel" inputMode="tel" autoComplete="tel" defaultValue={lead.mobile} required />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-email">Email</Label>
@@ -111,7 +156,7 @@ export default async function LeadDetailPage({
                     id="edit-source"
                     name="source_id"
                     defaultValue={lead.source_id ?? ""}
-                    className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+                    className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm"
                   >
                     <option value="">— None —</option>
                     {sources.map((s) => (
@@ -125,7 +170,7 @@ export default async function LeadDetailPage({
                     id="edit-interest"
                     name="interest_id"
                     defaultValue={lead.interest_id ?? ""}
-                    className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+                    className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm"
                   >
                     <option value="">— None —</option>
                     {interestGroups.map((g) => (
@@ -166,9 +211,25 @@ export default async function LeadDetailPage({
               <CardTitle className="text-base">Details</CardTitle>
             </CardHeader>
             <CardContent>
-              <dl className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3 text-sm">
-                <Field label="Mobile" value={lead.mobile} />
-                <Field label="Email" value={lead.email} />
+              <dl className="grid gap-x-4 gap-y-3 text-sm sm:grid-cols-2 md:grid-cols-3">
+                <Field
+                  label="Mobile"
+                  value={
+                    <a href={`tel:${lead.mobile}`} className="underline-offset-2 hover:underline">
+                      {lead.mobile}
+                    </a>
+                  }
+                />
+                <Field
+                  label="Email"
+                  value={
+                    lead.email ? (
+                      <a href={`mailto:${lead.email}`} className="break-all underline-offset-2 hover:underline">
+                        {lead.email}
+                      </a>
+                    ) : null
+                  }
+                />
                 <Field label="Age" value={lead.age?.toString()} />
                 <Field label="Date of birth" value={lead.dob ? fmtDate(lead.dob) : null} />
                 <Field label="Assignee" value={lead.assignee?.full_name ?? "Unassigned"} />
@@ -176,6 +237,7 @@ export default async function LeadDetailPage({
                 <Field label="Treatment interest" value={lead.interest?.name} />
                 <Field label="Source" value={lead.source?.name} />
               </dl>
+              <ContactActions mobile={lead.mobile} email={lead.email} />
               {lead.notes && (
                 <p className="mt-4 text-sm whitespace-pre-wrap border-t pt-3 text-muted-foreground">
                   {lead.notes}
@@ -197,7 +259,7 @@ export default async function LeadDetailPage({
               )}
               {appointments.map((a) => (
                 <div key={a.id} className="rounded-lg border p-3">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="text-sm font-medium">{fmt(a.scheduled_at)}</div>
                     <Badge
                       variant={a.status === "scheduled" ? "default" : "secondary"}
@@ -224,7 +286,13 @@ export default async function LeadDetailPage({
                       />
                     </div>
                   )}
-                  <CommentThread {...commentProps} entityType="appointment" entityId={a.id} compact />
+                  <CommentThread
+                    {...commentProps}
+                    comments={commentsFor("appointment", a.id)}
+                    entityType="appointment"
+                    entityId={a.id}
+                    compact
+                  />
                 </div>
               ))}
             </CardContent>
@@ -243,11 +311,11 @@ export default async function LeadDetailPage({
               )}
               {treatments.map((t) => (
                 <div key={t.id} className="rounded-lg border p-3">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="text-sm font-medium">
                       {(t.treatment_type as { name: string } | null)?.name ?? "Treatment"}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {t.cost != null && (
                         <span className="text-sm font-semibold">{formatINR(t.cost)}</span>
                       )}
@@ -264,7 +332,13 @@ export default async function LeadDetailPage({
                     {fmt(t.treated_at)}
                     {t.notes ? ` · ${t.notes}` : ""}
                   </p>
-                  <CommentThread {...commentProps} entityType="treatment" entityId={t.id} compact />
+                  <CommentThread
+                    {...commentProps}
+                    comments={commentsFor("treatment", t.id)}
+                    entityType="treatment"
+                    entityId={t.id}
+                    compact
+                  />
                 </div>
               ))}
             </CardContent>
@@ -281,7 +355,7 @@ export default async function LeadDetailPage({
               )}
               {followUps.map((f) => (
                 <div key={f.id} className="rounded-lg border p-3">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="text-sm font-medium">Due {fmt(f.due_at)}</div>
                     <Badge
                       variant={f.status === "pending" ? "default" : "secondary"}
@@ -296,7 +370,13 @@ export default async function LeadDetailPage({
                       {f.outcome_notes ? ` — ${f.outcome_notes}` : ""}
                     </p>
                   )}
-                  <CommentThread {...commentProps} entityType="follow_up" entityId={f.id} compact />
+                  <CommentThread
+                    {...commentProps}
+                    comments={commentsFor("follow_up", f.id)}
+                    entityType="follow_up"
+                    entityId={f.id}
+                    compact
+                  />
                 </div>
               ))}
             </CardContent>
@@ -315,18 +395,24 @@ export default async function LeadDetailPage({
               )}
               {invoices.map((inv) => (
                 <div key={inv.id} className="rounded-lg border p-3">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
                     <Link href={`/invoices/${inv.id}`} className="text-sm font-medium hover:underline">
                       {inv.invoice_number}
                     </Link>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-semibold">{formatINR(inv.total)}</span>
                       <Badge variant={inv.status === "paid" ? "default" : "secondary"} className="capitalize">
                         {inv.status}
                       </Badge>
                     </div>
                   </div>
-                  <CommentThread {...commentProps} entityType="invoice" entityId={inv.id} compact />
+                  <CommentThread
+                    {...commentProps}
+                    comments={commentsFor("invoice", inv.id)}
+                    entityType="invoice"
+                    entityId={inv.id}
+                    compact
+                  />
                 </div>
               ))}
             </CardContent>
@@ -338,7 +424,12 @@ export default async function LeadDetailPage({
               <CardTitle className="text-base">Comments</CardTitle>
             </CardHeader>
             <CardContent>
-              <CommentThread {...commentProps} entityType="lead" entityId={null} />
+              <CommentThread
+                {...commentProps}
+                comments={commentsFor("lead", null)}
+                entityType="lead"
+                entityId={null}
+              />
             </CardContent>
           </Card>
         </div>
@@ -379,7 +470,7 @@ export default async function LeadDetailPage({
   );
 }
 
-function Field({ label, value }: { label: string; value: string | null | undefined }) {
+function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
       <dt className="text-xs text-muted-foreground">{label}</dt>

@@ -1,5 +1,7 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { getAuthContext } from "@/lib/auth/context";
 import { getInvoice } from "@/data/invoices";
 import { Badge } from "@/components/ui/badge";
@@ -12,21 +14,40 @@ import { fmtDate, formatINR } from "@/lib/tz";
 import { InvoiceActions } from "./status-buttons";
 import { Printer } from "lucide-react";
 
+const getInvoicePageData = cache(async (id: string) => {
+  const ctx = await getAuthContext();
+  const invoice = await getInvoice(ctx, id);
+  return { ctx, invoice };
+});
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const { invoice } = await getInvoicePageData(id);
+  return {
+    title: invoice
+      ? `${invoice.invoice_number} — Invoice — Dr. Kishor's Dentistry CRM`
+      : "Invoice not found — Dr. Kishor's Dentistry CRM",
+  };
+}
+
 export default async function InvoiceDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const ctx = await getAuthContext();
-  const invoice = await getInvoice(ctx, id);
+  const { ctx, invoice } = await getInvoicePageData(id);
   if (!invoice) notFound();
 
   return (
     <div className="max-w-2xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight">{invoice.invoice_number}</h1>
             <Badge variant={invoice.status === "paid" ? "default" : "secondary"} className="capitalize">
               {invoice.status}
@@ -41,20 +62,26 @@ export default async function InvoiceDetailPage({
             · {invoice.branch?.name} · {fmtDate(invoice.created_at)}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
-            <Link href={`/invoices/${invoice.id}/print`} target="_blank">
+            <Link href={`/invoices/${invoice.id}/print`} target="_blank" rel="noreferrer">
               <Printer className="h-4 w-4 mr-1" />
               Print / PDF
+              <span className="sr-only"> (opens in a new tab)</span>
             </Link>
           </Button>
-          <InvoiceActions invoiceId={invoice.id} status={invoice.status} role={ctx.role} />
+          <InvoiceActions
+            invoiceId={invoice.id}
+            status={invoice.status}
+            role={ctx.role}
+            version={invoice.version}
+          />
         </div>
       </div>
 
       <Card>
         <CardContent className="pt-6">
-          <Table>
+          <Table aria-label={`Line items for invoice ${invoice.invoice_number}`}>
             <TableHeader>
               <TableRow>
                 <TableHead>Description</TableHead>

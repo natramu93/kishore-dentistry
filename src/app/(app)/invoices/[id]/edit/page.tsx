@@ -30,6 +30,7 @@ export default async function EditInvoicePage({
       <InvoiceEditor
         mode="edit"
         invoiceId={invoice.id}
+        initialVersion={invoice.version}
         leadId={invoice.lead_id}
         treatmentCatalog={catalog.map((c) => ({ id: c.id, name: c.name, default_cost: c.default_cost }))}
         initialItems={invoice.items.map((i) => ({

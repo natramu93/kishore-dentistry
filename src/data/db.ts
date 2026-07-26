@@ -2,8 +2,10 @@ import "server-only";
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
+import { getServerSupabaseEnv } from "@/lib/env.server";
 
-// THE security boundary of this app (no RLS): the service-role client.
+// The privileged data boundary: CRM tables have RLS enabled without browser
+// policies, while this service-role client intentionally bypasses RLS.
 // Only modules inside src/data/ may import this — enforced by ESLint
 // no-restricted-imports. Every exported data function must take an
 // AuthContext and apply role/branch scoping itself.
@@ -19,9 +21,10 @@ type CrmClient = SupabaseClient<Database, "crm">;
 let _db: CrmClient | null = null;
 function getDb(): CrmClient {
   if (!_db) {
+    const { url, serviceRoleKey } = getServerSupabaseEnv();
     _db = createClient<Database, "crm">(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      url,
+      serviceRoleKey,
       { db: { schema: "crm" }, auth: { persistSession: false, autoRefreshToken: false } }
     );
   }
@@ -46,9 +49,10 @@ type AuthAdmin = ReturnType<typeof createClient>["auth"]["admin"];
 let _authAdmin: AuthAdmin | null = null;
 function getAuthAdmin(): AuthAdmin {
   if (!_authAdmin) {
+    const { url, serviceRoleKey } = getServerSupabaseEnv();
     _authAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      url,
+      serviceRoleKey,
       { auth: { persistSession: false, autoRefreshToken: false } }
     ).auth.admin;
   }

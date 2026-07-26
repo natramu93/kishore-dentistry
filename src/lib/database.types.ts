@@ -27,6 +27,34 @@ export type AppointmentStatus = "scheduled" | "completed" | "cancelled" | "no_sh
 export type InvoiceStatus = "draft" | "sent" | "paid";
 export type FollowUpStatus = "pending" | "done" | "cancelled";
 export type CommentEntity = "lead" | "appointment" | "treatment" | "follow_up" | "invoice";
+export type ReportAggregateRpcPayload = {
+  by_doctor: Json;
+  by_center: Json;
+  by_day: Json;
+  by_treatment: Json;
+  totals: Json;
+};
+
+export type BusinessDashboardMetric =
+  | "status"
+  | "branch"
+  | "source"
+  | "interest"
+  | "summary";
+
+export type BusinessDashboardRpcRow = {
+  metric: BusinessDashboardMetric;
+  row_key: string;
+  row_label: string;
+  value: number;
+};
+
+export type DoctorDashboardRpcRow = {
+  todays_appointments: number;
+  week_appointments: number;
+  patients_treated: number;
+  revenue_generated: number;
+};
 
 type Timestamps = { created_at: string };
 
@@ -99,6 +127,9 @@ export type Lead = Timestamps & {
   created_by: string | null;
   status_changed_at: string;
   updated_at: string;
+  deleted_at: string | null;
+  deleted_by: string | null;
+  delete_reason: string | null;
 };
 
 export type Appointment = Timestamps & {
@@ -151,9 +182,14 @@ export type Invoice = Timestamps & {
   tax_amount: number;
   total: number;
   issued_at: string | null;
+  paid_at: string | null;
   notes: string | null;
   created_by: string | null;
   updated_at: string;
+  deleted_at: string | null;
+  deleted_by: string | null;
+  delete_reason: string | null;
+  version: number;
 };
 
 export type InvoiceItem = Timestamps & {
@@ -185,6 +221,37 @@ export type Comment = Timestamps & {
   body: string;
   author_id: string;
   updated_at: string;
+  deleted_at: string | null;
+  deleted_by: string | null;
+  delete_reason: string | null;
+  version: number;
+};
+
+export type AuditLog = {
+  id: number;
+  entity_type:
+    | "lead"
+    | "appointment"
+    | "treatment"
+    | "follow_up"
+    | "invoice"
+    | "comment"
+    | "profile";
+  entity_id: string;
+  action: string;
+  actor_id: string | null;
+  old_data: Json | null;
+  new_data: Json | null;
+  occurred_at: string;
+};
+
+export type ActionRateLimit = {
+  actor_id: string;
+  scope: string;
+  window_started_at: string;
+  expires_at: string;
+  request_count: number;
+  last_seen_at: string;
 };
 
 // Supabase client Database shape for `{ db: { schema: 'crm' } }` clients.
@@ -239,7 +306,13 @@ export type Database = {
       leads: TableDef<
         Lead,
         "branch_id" | "name" | "mobile",
-        "id" | "created_at" | "updated_at" | "status_changed_at",
+        | "id"
+        | "created_at"
+        | "updated_at"
+        | "status_changed_at"
+        | "deleted_at"
+        | "deleted_by"
+        | "delete_reason",
         [
           FK<"leads_branch_id_fkey", "branch_id", "branches">,
           FK<"leads_source_id_fkey", "source_id", "lead_sources">,
@@ -282,7 +355,15 @@ export type Database = {
       invoices: TableDef<
         Invoice,
         "invoice_number" | "lead_id",
-        "id" | "created_at" | "updated_at" | "branch_id",
+        | "id"
+        | "created_at"
+        | "updated_at"
+        | "branch_id"
+        | "paid_at"
+        | "deleted_at"
+        | "deleted_by"
+        | "delete_reason"
+        | "version",
         [
           FK<"invoices_lead_id_fkey", "lead_id", "leads">,
           FK<"invoices_branch_id_fkey", "branch_id", "branches">,
@@ -308,12 +389,35 @@ export type Database = {
       comments: TableDef<
         Comment,
         "lead_id" | "body" | "author_id",
-        "id" | "created_at" | "updated_at" | "branch_id",
+        | "id"
+        | "created_at"
+        | "updated_at"
+        | "branch_id"
+        | "deleted_at"
+        | "deleted_by"
+        | "delete_reason"
+        | "version",
         [
           FK<"comments_lead_id_fkey", "lead_id", "leads">,
           FK<"comments_branch_id_fkey", "branch_id", "branches">,
           FK<"comments_author_id_fkey", "author_id", "profiles">
         ]
+      >;
+      audit_log: TableDef<
+        AuditLog,
+        "entity_type" | "entity_id" | "action",
+        "id" | "occurred_at"
+      >;
+      action_rate_limits: TableDef<
+        ActionRateLimit,
+        | "actor_id"
+        | "scope"
+        | "window_started_at"
+        | "expires_at"
+        | "request_count"
+        | "last_seen_at",
+        never,
+        [FK<"action_rate_limits_actor_id_fkey", "actor_id", "profiles">]
       >;
     };
     Views: Record<string, never>;
@@ -322,6 +426,142 @@ export type Database = {
       transition_lead: {
         Args: { p_lead_id: string; p_to: LeadStatus; p_actor: string; p_payload?: Json };
         Returns: Lead;
+      };
+      create_invoice: {
+        Args: {
+          p_lead_id: string;
+          p_treatment_id: string | null;
+          p_tax_rate: number;
+          p_notes: string | null;
+          p_items: Json;
+          p_actor: string;
+        };
+        Returns: Invoice;
+      };
+      update_invoice: {
+        Args: {
+          p_invoice_id: string;
+          p_tax_rate: number;
+          p_notes: string | null;
+          p_items: Json;
+          p_actor: string;
+          p_expected_version?: number | null;
+        };
+        Returns: Invoice;
+      };
+      transition_invoice_status: {
+        Args: {
+          p_invoice_id: string;
+          p_to: InvoiceStatus;
+          p_actor: string;
+          p_expected_version?: number | null;
+        };
+        Returns: Invoice;
+      };
+      delete_invoice: {
+        Args: {
+          p_invoice_id: string;
+          p_actor: string;
+          p_reason?: string;
+          p_expected_version?: number | null;
+        };
+        Returns: Invoice;
+      };
+      soft_delete_lead: {
+        Args: { p_lead_id: string; p_actor: string; p_reason: string };
+        Returns: Lead;
+      };
+      create_lead: {
+        Args: {
+          p_branch_id: string;
+          p_name: string;
+          p_mobile: string;
+          p_email: string | null;
+          p_source_id: string | null;
+          p_interest_id: string | null;
+          p_age: number | null;
+          p_dob: string | null;
+          p_notes: string | null;
+          p_actor: string;
+        };
+        Returns: Lead;
+      };
+      create_comment: {
+        Args: {
+          p_lead_id: string;
+          p_entity_type: CommentEntity;
+          p_entity_id: string | null;
+          p_body: string;
+          p_actor: string;
+        };
+        Returns: Comment;
+      };
+      update_comment: {
+        Args: {
+          p_comment_id: string;
+          p_body: string;
+          p_actor: string;
+          p_expected_version: number;
+        };
+        Returns: Comment;
+      };
+      soft_delete_comment: {
+        Args: {
+          p_comment_id: string;
+          p_actor: string;
+          p_reason: string;
+          p_expected_version: number;
+        };
+        Returns: Comment;
+      };
+      consume_action_rate_limit: {
+        Args: {
+          p_actor: string;
+          p_scope: string;
+          p_limit: number;
+          p_window_ms: number;
+        };
+        Returns: boolean;
+      };
+      prune_action_rate_limits: {
+        Args: { p_batch_size?: number };
+        Returns: number;
+      };
+      get_report_aggregates: {
+        Args: {
+          p_actor: string;
+          p_from: string;
+          p_to: string;
+          p_branch_id?: string | null;
+          p_doctor_id?: string | null;
+        };
+        Returns: ReportAggregateRpcPayload[];
+      };
+      get_business_dashboard: {
+        Args: {
+          p_actor: string;
+          p_day_start: string;
+          p_day_end: string;
+        };
+        Returns: BusinessDashboardRpcRow[];
+      };
+      get_doctor_dashboard: {
+        Args: {
+          p_actor: string;
+          p_day_start: string;
+          p_day_end: string;
+        };
+        Returns: DoctorDashboardRpcRow[];
+      };
+      record_profile_admin_audit: {
+        Args: {
+          p_profile_id: string;
+          p_actor: string;
+          p_action: "created" | "updated";
+          p_old_data: Json | null;
+          p_new_data: Json;
+        };
+        Returns: number;
       };
     };
     Enums: {

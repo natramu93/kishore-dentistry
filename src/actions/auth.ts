@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getProfileWithBranches } from "@/data/users";
 
@@ -10,14 +11,24 @@ export async function login(
   _prev: LoginState | null,
   formData: FormData
 ): Promise<LoginState> {
-  const email = String(formData.get("email") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
-
-  if (!email) return { error: "Enter your email address.", field: "email" };
-  if (!password) return { error: "Enter your password.", field: "password" };
+  const parsed = z
+    .object({
+      email: z.string().trim().email().max(254),
+      password: z.string().min(1).max(128),
+    })
+    .safeParse({
+      email: formData.get("email"),
+      password: formData.get("password"),
+    });
+  if (!parsed.success) {
+    const emailIssue = parsed.error.issues.some((issue) => issue.path[0] === "email");
+    return emailIssue
+      ? { error: "Enter a valid email address.", field: "email" }
+      : { error: "Enter your password.", field: "password" };
+  }
 
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
 
   if (error) {
     // Map Supabase auth errors to clear, specific messages
@@ -35,7 +46,18 @@ export async function login(
   }
 
   // Block deactivated accounts at login (avoids a redirect loop mid-app)
-  const profile = data.user ? await getProfileWithBranches(data.user.id) : null;
+  let profile: Awaited<ReturnType<typeof getProfileWithBranches>> = null;
+  try {
+    profile = data.user ? await getProfileWithBranches(data.user.id) : null;
+  } catch (profileError) {
+    const reference = crypto.randomUUID();
+    console.error(`Profile lookup failed during login [${reference}]`, profileError);
+    await supabase.auth.signOut();
+    return {
+      error: `We couldn't finish signing you in. Please try again. Reference: ${reference}`,
+      field: "form",
+    };
+  }
   if (!profile) {
     await supabase.auth.signOut();
     return { error: "No CRM profile is linked to this account. Contact your administrator.", field: "form" };

@@ -21,7 +21,7 @@ export default async function BranchesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Branches</h1>
           <p className="text-sm text-muted-foreground">
@@ -43,29 +43,41 @@ export default async function BranchesPage() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="phone">Phone</Label>
-            <Input id="phone" name="phone" />
+            <Input id="phone" name="phone" type="tel" inputMode="tel" />
           </div>
         </FormDialog>
       </div>
 
-      <Table>
+      <Table aria-label="Branches">
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
             <TableHead>Code</TableHead>
-            <TableHead>Address</TableHead>
-            <TableHead>Phone</TableHead>
+            <TableHead className="hidden lg:table-cell">Address</TableHead>
+            <TableHead className="hidden md:table-cell">Phone</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead />
+            <TableHead><span className="sr-only">Actions</span></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {branches.map((b) => (
             <TableRow key={b.id}>
-              <TableCell className="font-medium">{b.name}</TableCell>
+              <TableCell className="whitespace-normal font-medium">
+                {b.name}
+                {b.phone && (
+                  <a
+                    href={`tel:${b.phone}`}
+                    className="mt-1 block text-xs font-normal text-muted-foreground underline-offset-2 hover:underline md:hidden"
+                  >
+                    {b.phone}
+                  </a>
+                )}
+              </TableCell>
               <TableCell>{b.code}</TableCell>
-              <TableCell className="text-muted-foreground">{b.address}</TableCell>
-              <TableCell className="text-muted-foreground">{b.phone}</TableCell>
+              <TableCell className="hidden text-muted-foreground lg:table-cell">{b.address}</TableCell>
+              <TableCell className="hidden text-muted-foreground md:table-cell">
+                {b.phone ? <a href={`tel:${b.phone}`} className="hover:underline">{b.phone}</a> : "—"}
+              </TableCell>
               <TableCell>
                 <Badge variant={b.is_active ? "default" : "secondary"}>
                   {b.is_active ? "Active" : "Inactive"}
@@ -88,7 +100,7 @@ export default async function BranchesPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor={`bphone-${b.id}`}>Phone</Label>
-                      <Input id={`bphone-${b.id}`} name="phone" defaultValue={b.phone ?? ""} />
+                      <Input id={`bphone-${b.id}`} name="phone" type="tel" inputMode="tel" defaultValue={b.phone ?? ""} />
                     </div>
                   </RowEditDialog>
                   <ToggleActiveButton

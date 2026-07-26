@@ -4,12 +4,13 @@ import { db } from "./db";
 import type { AuthContext } from "@/lib/auth/context";
 import type { LeadStatus } from "@/lib/database.types";
 import { clinicDayRange, clinicToday } from "@/lib/tz";
-
-const EMPTY_UUID = "00000000-0000-0000-0000-000000000000";
+import { requireAnyRole } from "@/lib/auth/guards";
+import { AuthorizationError } from "@/lib/errors";
+import { EMPTY_UUID, normalizeLimit } from "@/lib/validation";
 
 function branchScope(ctx: AuthContext): string[] | null {
   if (ctx.role === "admin") return null;
-  return ctx.branchIds.length ? ctx.branchIds : [EMPTY_UUID];
+  return ctx.branchIds.length ? [...ctx.branchIds] : [EMPTY_UUID];
 }
 
 export type DashboardData = {
@@ -22,87 +23,95 @@ export type DashboardData = {
   totalLeads: number;
 };
 
-export async function getDashboardData(ctx: AuthContext): Promise<DashboardData> {
-  const scope = branchScope(ctx);
-  const today = clinicToday();
-  const { start, end } = clinicDayRange(today);
+export async function getDashboardData(
+  ctx: AuthContext
+): Promise<DashboardData> {
+  requireAnyRole(
+    ctx,
+    ["admin", "operations", "front_office", "clinical_head"],
+    "Business dashboard access required"
+  );
+  const { start, end } = clinicDayRange(clinicToday());
 
-  let leadsQ = db.from("leads").select("status, branch_id, source_id, interest_id");
-  if (scope) leadsQ = leadsQ.in("branch_id", scope);
-  if (ctx.role === "front_office") {
-    leadsQ = leadsQ.or(`assignee_id.eq.${ctx.userId},assignee_id.is.null`);
-  }
+  const result = await db.rpc("get_business_dashboard", {
+    p_actor: ctx.userId,
+    p_day_start: start,
+    p_day_end: end,
+  });
+  if (result.error) throw result.error;
 
-  let apptQ = db
-    .from("appointments")
-    .select("id", { count: "exact", head: true })
-    .gte("scheduled_at", start)
-    .lt("scheduled_at", end)
-    .eq("status", "scheduled");
-  if (scope) apptQ = apptQ.in("branch_id", scope);
-
-  let fuQ = db
-    .from("follow_ups")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "pending")
-    .lt("due_at", end);
-  if (scope) fuQ = fuQ.in("branch_id", scope);
-
-  const [leadsRes, apptRes, fuRes, branchesRes, sourcesRes, treatmentsRes] = await Promise.all([
-    leadsQ,
-    apptQ,
-    fuQ,
-    db.from("branches").select("id, name"),
-    db.from("lead_sources").select("id, name"),
-    db.from("treatment_types").select("id, name"),
-  ]);
-
-  const leads = leadsRes.data ?? [];
-  const branchNames = new Map((branchesRes.data ?? []).map((b) => [b.id, b.name]));
-  const sourceNames = new Map((sourcesRes.data ?? []).map((s) => [s.id, s.name]));
-  const treatmentNames = new Map((treatmentsRes.data ?? []).map((t) => [t.id, t.name]));
-
-  const statusCounts: Record<string, number> = {};
-  const byBranch = new Map<string, number>();
-  const bySource = new Map<string, number>();
-  const byInterest = new Map<string, number>();
-  for (const l of leads) {
-    statusCounts[l.status] = (statusCounts[l.status] ?? 0) + 1;
-    byBranch.set(l.branch_id, (byBranch.get(l.branch_id) ?? 0) + 1);
-    const src = l.source_id ?? "unknown";
-    bySource.set(src, (bySource.get(src) ?? 0) + 1);
-    if (l.interest_id) byInterest.set(l.interest_id, (byInterest.get(l.interest_id) ?? 0) + 1);
-  }
+  const rows = result.data ?? [];
+  const statusCounts: Record<string, number> = Object.fromEntries(
+    rows
+      .filter((row) => row.metric === "status")
+      .map((row) => [row.row_key, Number(row.value)])
+  );
+  const summary = new Map(
+    rows
+      .filter((row) => row.metric === "summary")
+      .map((row) => [row.row_key, Number(row.value)])
+  );
+  const summaryValue = (key: string): number => {
+    const value = summary.get(key);
+    if (value === undefined) {
+      throw new Error(`Business dashboard response omitted ${key}`);
+    }
+    return value;
+  };
 
   return {
     statusCounts,
-    branchCounts: [...byBranch.entries()]
-      .map(([id, count]) => ({ branch: branchNames.get(id) ?? "—", count }))
-      .sort((a, b) => b.count - a.count),
-    sourceCounts: [...bySource.entries()]
-      .map(([id, count]) => ({ source: sourceNames.get(id) ?? "Unknown", count }))
-      .sort((a, b) => b.count - a.count),
-    interestCounts: [...byInterest.entries()]
-      .map(([id, count]) => ({ interest: treatmentNames.get(id) ?? "Unknown", count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 6),
-    todaysAppointments: apptRes.count ?? 0,
-    dueFollowUps: fuRes.count ?? 0,
-    totalLeads: leads.length,
+    branchCounts: rows
+      .filter((row) => row.metric === "branch")
+      .map((row) => ({
+        branch: row.row_label,
+        count: Number(row.value),
+      })),
+    sourceCounts: rows
+      .filter((row) => row.metric === "source")
+      .map((row) => ({
+        source: row.row_label,
+        count: Number(row.value),
+      })),
+    interestCounts: rows
+      .filter((row) => row.metric === "interest")
+      .map((row) => ({
+        interest: row.row_label,
+        count: Number(row.value),
+      })),
+    todaysAppointments: summaryValue("todays_appointments"),
+    dueFollowUps: summaryValue("due_follow_ups"),
+    totalLeads: summaryValue("total_leads"),
   };
 }
 
 export async function getRecentActivity(ctx: AuthContext, limit = 15) {
+  if (ctx.role === "doctor") return [];
+  const safeLimit = normalizeLimit(limit, 15, 50);
   const scope = branchScope(ctx);
-  let q = db
+  let query = db
     .from("lead_activity")
-    .select("*, lead:leads(id, name), actor:profiles!lead_activity_actor_id_fkey(full_name)")
+    .select(
+      "*, lead:leads!inner(id, name, assignee_id), actor:profiles!lead_activity_actor_id_fkey(full_name)"
+    )
     .order("created_at", { ascending: false })
-    .limit(limit);
-  if (scope) q = q.in("branch_id", scope);
-  const { data, error } = await q;
+    .limit(safeLimit);
+  if (scope) query = query.in("branch_id", scope);
+  if (ctx.role === "front_office") {
+    query = query.or(
+      `assignee_id.eq.${ctx.userId},assignee_id.is.null`,
+      { referencedTable: "lead" }
+    );
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
-  return data ?? [];
+  return data.map((activity) => ({
+    ...activity,
+    lead: activity.lead
+      ? { id: activity.lead.id, name: activity.lead.name }
+      : null,
+  }));
 }
 
 export type StatusCount = { status: LeadStatus; count: number };
@@ -114,41 +123,39 @@ export type DoctorDashboardData = {
   revenueGenerated: number;
 };
 
-/** Summary for the "doctor" role — scoped entirely to their own schedule/work. */
-export async function getDoctorDashboardData(ctx: AuthContext): Promise<DoctorDashboardData> {
-  if (!ctx.doctorId) {
-    return { todaysAppointments: 0, weekAppointments: 0, patientsTreated: 0, revenueGenerated: 0 };
+/** Summary for the doctor role, derived from their linked doctor record. */
+export async function getDoctorDashboardData(
+  ctx: AuthContext
+): Promise<DoctorDashboardData> {
+  if (ctx.role !== "doctor") {
+    throw new AuthorizationError("Doctor dashboard access required");
   }
-  const today = clinicToday();
-  const { start, end } = clinicDayRange(today);
-  const weekEnd = new Date(new Date(start).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  if (!ctx.doctorId) {
+    return {
+      todaysAppointments: 0,
+      weekAppointments: 0,
+      patientsTreated: 0,
+      revenueGenerated: 0,
+    };
+  }
 
-  const [todayRes, weekRes, treatmentsRes] = await Promise.all([
-    db
-      .from("appointments")
-      .select("id", { count: "exact", head: true })
-      .eq("doctor_id", ctx.doctorId)
-      .eq("status", "scheduled")
-      .gte("scheduled_at", start)
-      .lt("scheduled_at", end),
-    db
-      .from("appointments")
-      .select("id", { count: "exact", head: true })
-      .eq("doctor_id", ctx.doctorId)
-      .eq("status", "scheduled")
-      .gte("scheduled_at", start)
-      .lt("scheduled_at", weekEnd),
-    db.from("treatments").select("cost, lead_id").eq("doctor_id", ctx.doctorId),
-  ]);
+  const { start, end } = clinicDayRange(clinicToday());
+  const result = await db.rpc("get_doctor_dashboard", {
+    p_actor: ctx.userId,
+    p_day_start: start,
+    p_day_end: end,
+  });
+  if (result.error) throw result.error;
 
-  const treatments = treatmentsRes.data ?? [];
-  const uniquePatients = new Set(treatments.map((t) => t.lead_id));
-  const revenue = treatments.reduce((sum, t) => sum + (t.cost ?? 0), 0);
+  const row = result.data?.[0];
+  if (!row) {
+    throw new Error("Doctor dashboard response was empty");
+  }
 
   return {
-    todaysAppointments: todayRes.count ?? 0,
-    weekAppointments: weekRes.count ?? 0,
-    patientsTreated: uniquePatients.size,
-    revenueGenerated: revenue,
+    todaysAppointments: Number(row.todays_appointments),
+    weekAppointments: Number(row.week_appointments),
+    patientsTreated: Number(row.patients_treated),
+    revenueGenerated: Number(row.revenue_generated),
   };
 }

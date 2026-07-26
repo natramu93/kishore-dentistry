@@ -77,7 +77,7 @@ export function AppointmentReschedule({
               id={`resched-doc-${appointmentId}`}
               name="doctor_id"
               defaultValue={defaultDoctorId ?? ""}
-              className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+              className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm"
             >
               <option value="">— Not assigned —</option>
               {doctors.map((d) => (

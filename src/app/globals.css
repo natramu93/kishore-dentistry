@@ -1,6 +1,5 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -27,7 +26,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -105,7 +104,7 @@
   --sidebar-foreground: #ffffff;
   --sidebar-primary: #4158d0;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: color-mix(in srgb, var(--gold) 38%, #4158d0 62%);
+  --sidebar-accent: color-mix(in srgb, var(--gold) 18%, #293b9f 82%);
   --sidebar-accent-foreground: #ffffff;
   --sidebar-border: color-mix(in srgb, #4158d0 65%, black 35%);
   --sidebar-ring: var(--gold);
@@ -157,29 +156,13 @@
   }
 }
 
-/* All icons render gold by default (:where() = zero specificity, so an
-   explicit text-color class on a specific icon still wins if ever needed),
-   with a soft brightness "glitter" pulse. Icons animate in a staggered
-   wave via nth-child so a group of icons doesn't blink in unison. */
-:where(svg[class*="lucide-"]) {
-  color: var(--gold);
-  animation: icon-glitter 2.8s ease-in-out infinite;
-}
-:where(svg[class*="lucide-"]:nth-of-type(2n)) { animation-delay: 0.35s; }
-:where(svg[class*="lucide-"]:nth-of-type(3n)) { animation-delay: 0.7s; }
-:where(svg[class*="lucide-"]:nth-of-type(4n)) { animation-delay: 1.05s; }
-
-@keyframes icon-glitter {
-  0%, 100% {
-    filter: brightness(1) drop-shadow(0 0 0 transparent);
-  }
-  50% {
-    filter: brightness(1.4) drop-shadow(0 0 3px color-mix(in srgb, var(--gold) 55%, transparent));
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  :where(svg[class*="lucide-"]) {
-    animation: none;
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

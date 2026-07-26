@@ -41,32 +41,37 @@ export const PIPELINE_ORDER: LeadStatus[] = [
 
 // Per-transition payload schemas, validated in the server action
 export const transitionPayloadSchemas = {
-  assigned: z.object({
-    assignee_id: z.string().uuid(),
-  }),
+  assigned: z
+    .object({
+      assignee_id: z.string().uuid().optional(),
+      cancelled_appointment_id: z.string().uuid().optional(),
+    })
+    .refine((value) => value.assignee_id || value.cancelled_appointment_id, {
+      message: "An assignee or appointment to cancel is required",
+    }),
   appointment_booked: z.object({
-    scheduled_at: z.string().min(1),
+    scheduled_at: z.string().min(1).max(64),
     doctor_id: z.string().uuid().optional().or(z.literal("")),
     duration_minutes: z.coerce.number().int().min(5).max(480).default(30),
-    notes: z.string().optional(),
+    notes: z.string().trim().max(4_000).optional(),
   }),
   visited_treated: z.object({
     appointment_id: z.string().uuid().optional(),
     treatment_type_id: z.string().uuid().optional().or(z.literal("")),
     doctor_id: z.string().uuid().optional().or(z.literal("")),
-    cost: z.coerce.number().min(0).optional(),
-    notes: z.string().optional(),
+    cost: z.coerce.number().finite().min(0).max(100_000_000).optional(),
+    notes: z.string().trim().max(4_000).optional(),
   }),
   follow_up: z.object({
-    due_at: z.string().min(1),
-    reason: z.string().optional(),
+    due_at: z.string().min(1).max(64),
+    reason: z.string().trim().max(1_000).optional(),
   }),
   missed: z.object({
     appointment_id: z.string().uuid().optional(),
   }),
   closed: z.object({}),
   dropped: z.object({
-    reason: z.string().optional(),
+    reason: z.string().trim().max(1_000).optional(),
     appointment_id: z.string().uuid().optional(),
   }),
   open: z.object({}),

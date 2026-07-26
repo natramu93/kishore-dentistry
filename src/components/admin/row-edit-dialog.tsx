@@ -26,13 +26,28 @@ export function RowEditDialog({
   triggerLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  function changeOpen(nextOpen: boolean) {
+    if (
+      !nextOpen &&
+      dirty &&
+      !pending &&
+      !window.confirm("Discard your unsaved changes?")
+    ) {
+      return;
+    }
+    setOpen(nextOpen);
+    if (!nextOpen) setDirty(false);
+  }
 
   function submit(formData: FormData) {
     startTransition(async () => {
       const result = await action(formData);
       if (result.ok) {
         toast.success("Saved");
+        setDirty(false);
         setOpen(false);
       } else {
         toast.error(result.error);
@@ -41,7 +56,7 @@ export function RowEditDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger
         render={
           <Button variant="ghost" size="sm">
@@ -54,7 +69,11 @@ export function RowEditDialog({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <form action={submit} className="space-y-4">
+        <form
+          action={submit}
+          className="space-y-4"
+          onChange={() => setDirty(true)}
+        >
           {children}
           <div className="flex justify-end">
             <Button type="submit" disabled={pending}>

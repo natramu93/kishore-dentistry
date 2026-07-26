@@ -1,10 +1,11 @@
 import { type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
+import { createCspContext } from "@/lib/security/csp";
 
 // Next.js 16 proxy (formerly middleware): refreshes the Supabase auth session
 // and redirects unauthenticated users. Authorization lives in src/lib/auth.
 export async function proxy(request: NextRequest) {
-  return await updateSession(request);
+  return await updateSession(request, createCspContext());
 }
 
 export const config = {

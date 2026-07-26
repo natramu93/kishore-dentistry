@@ -20,7 +20,8 @@ export default async function NewInvoicePage({
     listTreatmentTypes(ctx),
   ]);
   if (!related) notFound();
-  const { lead, treatments } = related;
+  const { lead } = related;
+  const treatments = related.treatments ?? [];
 
   const treatment = treatments.find((t) => t.id === params.treatment) ?? null;
   const initialItems = treatment

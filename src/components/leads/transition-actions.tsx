@@ -7,6 +7,16 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,6 +33,15 @@ type DialogKind =
   | "drop"
   | "reengage"
   | null;
+
+type QuickConfirmation = {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  to: LeadStatus;
+  extra?: Record<string, string>;
+  destructive?: boolean;
+};
 
 export function TransitionActions({
   lead,
@@ -44,6 +63,7 @@ export function TransitionActions({
   defaultTreatmentTypeId?: string | null;
 }) {
   const [dialog, setDialog] = useState<DialogKind>(null);
+  const [confirmation, setConfirmation] = useState<QuickConfirmation | null>(null);
   const [pending, startTransition] = useTransition();
   // Default the treatment stage to the lead's captured interest.
   const defaultTreatment = treatmentTypes.find((t) => t.id === defaultTreatmentTypeId);
@@ -55,8 +75,9 @@ export function TransitionActions({
     startTransition(async () => {
       const result = await transitionLeadAction(lead.id, to, formData);
       if (result.ok) {
-        toast.success("Updated");
+        toast.success("Lead status updated");
         setDialog(null);
+        setConfirmation(null);
       } else {
         toast.error(result.error);
       }
@@ -107,7 +128,14 @@ export function TransitionActions({
             variant="outline"
             disabled={pending}
             onClick={() =>
-              quick("missed", activeAppointmentId ? { appointment_id: activeAppointmentId } : {})
+              setConfirmation({
+                title: "Mark this appointment as a no-show?",
+                description: "This moves the lead to Missed and updates the active appointment.",
+                confirmLabel: "Mark no-show",
+                to: "missed",
+                extra: activeAppointmentId ? { appointment_id: activeAppointmentId } : {},
+                destructive: true,
+              })
             }
           >
             No-show → Missed
@@ -117,10 +145,16 @@ export function TransitionActions({
             variant="outline"
             disabled={pending}
             onClick={() =>
-              quick(
-                "assigned",
-                activeAppointmentId ? { cancelled_appointment_id: activeAppointmentId } : {}
-              )
+              setConfirmation({
+                title: "Cancel the active appointment?",
+                description: "The appointment will be cancelled and the lead will return to Assigned.",
+                confirmLabel: "Cancel appointment",
+                to: "assigned",
+                extra: activeAppointmentId
+                  ? { cancelled_appointment_id: activeAppointmentId }
+                  : {},
+                destructive: true,
+              })
             }
           >
             Cancel appointment
@@ -131,7 +165,19 @@ export function TransitionActions({
       {s === "visited_treated" && (
         <>
           <Button size="sm" onClick={() => setDialog("follow_up")}>Schedule follow-up</Button>
-          <Button size="sm" variant="outline" disabled={pending} onClick={() => quick("closed")}>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={() =>
+              setConfirmation({
+                title: "Close this lead?",
+                description: "Closed is a terminal stage and cannot be reopened.",
+                confirmLabel: "Close lead",
+                to: "closed",
+              })
+            }
+          >
             Close lead
           </Button>
         </>
@@ -140,7 +186,19 @@ export function TransitionActions({
       {s === "follow_up" && (
         <>
           <Button size="sm" onClick={() => setDialog("book")}>Book next appointment</Button>
-          <Button size="sm" variant="outline" disabled={pending} onClick={() => quick("closed")}>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={() =>
+              setConfirmation({
+                title: "Close this lead?",
+                description: "Closed is a terminal stage and cannot be reopened.",
+                confirmLabel: "Close lead",
+                to: "closed",
+              })
+            }
+          >
             Close lead
           </Button>
         </>
@@ -172,7 +230,7 @@ export function TransitionActions({
                 id="assignee_id"
                 name="assignee_id"
                 required
-                className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+                className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm"
               >
                 {assignableUsers.map((u) => (
                   <option key={u.id} value={u.id}>{u.label}</option>
@@ -199,7 +257,7 @@ export function TransitionActions({
               <select
                 id="doctor_id"
                 name="doctor_id"
-                className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+                className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm"
                 defaultValue=""
               >
                 <option value="">— Not decided —</option>
@@ -235,7 +293,7 @@ export function TransitionActions({
               <select
                 id="treatment_type_id"
                 name="treatment_type_id"
-                className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+                className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm"
                 defaultValue={defaultTreatmentTypeId ?? ""}
                 onChange={(e) => {
                   const t = treatmentTypes.find((x) => x.id === e.target.value);
@@ -253,7 +311,7 @@ export function TransitionActions({
               <select
                 id="t_doctor_id"
                 name="doctor_id"
-                className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+                className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm"
                 defaultValue=""
               >
                 <option value="">— Select —</option>
@@ -325,6 +383,33 @@ export function TransitionActions({
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={confirmation !== null}
+        onOpenChange={(open) => {
+          if (!open && !pending) setConfirmation(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmation?.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirmation?.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={pending}>Go back</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              variant={confirmation?.destructive ? "destructive" : "default"}
+              disabled={pending}
+              onClick={() => {
+                if (confirmation) quick(confirmation.to, confirmation.extra);
+              }}
+            >
+              {pending ? "Updating…" : confirmation?.confirmLabel}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

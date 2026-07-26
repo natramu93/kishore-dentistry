@@ -49,24 +49,24 @@ function NavList({
         onClick={onNavigate}
         aria-current={active ? "page" : undefined}
         className={cn(
-          "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+          "flex min-h-10 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
           active
             ? "bg-sidebar-accent text-sidebar-accent-foreground"
             : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         )}
       >
-        <Icon className="h-4 w-4 shrink-0 text-gold" />
+        <Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-gold" />
         {item.label}
       </Link>
     );
   };
 
   return (
-    <nav className="flex-1 space-y-1 p-2">
+    <nav aria-label="Main navigation" className="flex-1 space-y-1 p-2">
       {nav.map(renderItem)}
       {adminNav.length > 0 && (
         <>
-          <p className="px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-gold">
+          <p className="px-3 pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/80">
             Administration
           </p>
           {adminNav.map(renderItem)}

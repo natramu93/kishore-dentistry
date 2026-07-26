@@ -23,7 +23,7 @@ export default async function DoctorsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Doctors</h1>
           <p className="text-sm text-muted-foreground">
@@ -41,7 +41,7 @@ export default async function DoctorsPage() {
               id="branch_id"
               name="branch_id"
               required
-              className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+              className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm"
             >
               {branches.map((b) => (
                 <option key={b.id} value={b.id}>{b.name}</option>
@@ -54,7 +54,7 @@ export default async function DoctorsPage() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="phone">Phone</Label>
-            <Input id="phone" name="phone" />
+            <Input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
@@ -63,24 +63,33 @@ export default async function DoctorsPage() {
         </FormDialog>
       </div>
 
-      <Table>
+      <Table aria-label="Doctors">
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
             <TableHead>Branch</TableHead>
-            <TableHead>Specialization</TableHead>
-            <TableHead>Phone</TableHead>
+            <TableHead className="hidden lg:table-cell">Specialization</TableHead>
+            <TableHead className="hidden md:table-cell">Phone</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead />
+            <TableHead><span className="sr-only">Actions</span></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {doctors.map((d) => (
             <TableRow key={d.id}>
-              <TableCell className="font-medium">{d.full_name}</TableCell>
+              <TableCell className="whitespace-normal font-medium">
+                {d.full_name}
+                {d.phone && (
+                  <a href={`tel:${d.phone}`} className="mt-1 block text-xs font-normal text-muted-foreground hover:underline md:hidden">
+                    {d.phone}
+                  </a>
+                )}
+              </TableCell>
               <TableCell>{d.branch?.name ?? "—"}</TableCell>
-              <TableCell className="text-muted-foreground">{d.specialization}</TableCell>
-              <TableCell className="text-muted-foreground">{d.phone}</TableCell>
+              <TableCell className="hidden text-muted-foreground lg:table-cell">{d.specialization}</TableCell>
+              <TableCell className="hidden text-muted-foreground md:table-cell">
+                {d.phone ? <a href={`tel:${d.phone}`} className="hover:underline">{d.phone}</a> : "—"}
+              </TableCell>
               <TableCell>
                 <Badge variant={d.is_active ? "default" : "secondary"}>
                   {d.is_active ? "Active" : "Inactive"}
@@ -99,7 +108,7 @@ export default async function DoctorsPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor={`dphone-${d.id}`}>Phone</Label>
-                      <Input id={`dphone-${d.id}`} name="phone" defaultValue={d.phone ?? ""} />
+                      <Input id={`dphone-${d.id}`} name="phone" type="tel" inputMode="tel" defaultValue={d.phone ?? ""} />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor={`demail-${d.id}`}>Email</Label>

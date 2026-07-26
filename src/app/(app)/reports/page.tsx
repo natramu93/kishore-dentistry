@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/auth/context";
 import { canViewReports } from "@/lib/auth/guards";
@@ -13,7 +14,13 @@ import {
 import { clinicDayRange, clinicToday, formatINR } from "@/lib/tz";
 import { formatInTimeZone } from "date-fns-tz";
 import { CLINIC_TZ } from "@/lib/tz";
-import { Stethoscope, Building2, CalendarRange, ClipboardList } from "lucide-react";
+import {
+  Stethoscope,
+  Building2,
+  CalendarRange,
+  ClipboardList,
+  Download,
+} from "lucide-react";
 
 export const metadata = { title: "Reports — Dr. Kishor's Dentistry CRM" };
 
@@ -53,6 +60,18 @@ export default async function ReportsPage({
     for (const [k, v] of Object.entries(merged)) if (v) sp.set(k, v);
     return `?${sp.toString()}`;
   };
+  const exportParams = new URLSearchParams();
+  for (const [key, value] of Object.entries({
+    from: params.from,
+    to: params.to,
+    branch: params.branch,
+    doctor: params.doctor,
+  })) {
+    if (value) exportParams.set(key, value);
+  }
+  const exportHref = `/reports/export${
+    exportParams.size ? `?${exportParams.toString()}` : ""
+  }`;
 
   return (
     <div className="space-y-5">
@@ -64,35 +83,51 @@ export default async function ReportsPage({
         </p>
       </div>
 
+      <div className="flex justify-end">
+        <Button asChild variant="outline" size="sm">
+          <Link
+            href={exportHref}
+            prefetch={false}
+            aria-label="Download the filtered aggregate report as CSV"
+          >
+            <Download aria-hidden="true" className="h-4 w-4" />
+            Download CSV
+          </Link>
+        </Button>
+      </div>
+
       {/* Filters */}
       <Card className="border-l-4 border-l-gold">
         <CardContent className="pt-5">
           <form className="flex flex-wrap items-end gap-3" action="/reports" method="get">
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">From</label>
+              <label htmlFor="report-from" className="text-xs text-muted-foreground">From</label>
               <input
+                id="report-from"
                 type="date"
                 name="from"
                 defaultValue={fromValue}
-                className="h-9 rounded-md border border-input bg-transparent px-3 text-sm block"
+                className="block h-11 rounded-md border border-input bg-transparent px-3 text-sm"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">To</label>
+              <label htmlFor="report-to" className="text-xs text-muted-foreground">To</label>
               <input
+                id="report-to"
                 type="date"
                 name="to"
                 defaultValue={toValue}
-                className="h-9 rounded-md border border-input bg-transparent px-3 text-sm block"
+                className="block h-11 rounded-md border border-input bg-transparent px-3 text-sm"
               />
             </div>
             {(ctx.role === "admin" || filterOptions.branches.length > 1) && (
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Center</label>
+                <label htmlFor="report-branch" className="text-xs text-muted-foreground">Center</label>
                 <select
+                  id="report-branch"
                   name="branch"
                   defaultValue={params.branch ?? ""}
-                  className="h-9 rounded-md border border-input bg-transparent px-3 text-sm min-w-40"
+                  className="h-11 min-w-40 rounded-md border border-input bg-transparent px-3 text-sm"
                 >
                   <option value="">All centers</option>
                   {filterOptions.branches.map((b) => (
@@ -102,11 +137,12 @@ export default async function ReportsPage({
               </div>
             )}
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Doctor</label>
+              <label htmlFor="report-doctor" className="text-xs text-muted-foreground">Doctor</label>
               <select
+                id="report-doctor"
                 name="doctor"
                 defaultValue={params.doctor ?? ""}
-                className="h-9 rounded-md border border-input bg-transparent px-3 text-sm min-w-44"
+                className="h-11 min-w-44 rounded-md border border-input bg-transparent px-3 text-sm"
               >
                 <option value="">All doctors</option>
                 {filterOptions.doctors.map((d) => (
@@ -116,7 +152,7 @@ export default async function ReportsPage({
             </div>
             <Button type="submit" variant="secondary" size="sm">Apply</Button>
             <Button asChild variant="ghost" size="sm">
-              <a href="/reports">Reset</a>
+              <Link href="/reports">Reset</Link>
             </Button>
           </form>
 
@@ -129,7 +165,7 @@ export default async function ReportsPage({
               const range = defaultReportRange(p.days);
               return (
                 <Button key={p.days} asChild size="sm" variant="outline">
-                  <a href={qs({ from: toDateInputValue(range.from), to: clinicToday() })}>{p.label}</a>
+                  <Link href={qs({ from: toDateInputValue(range.from), to: clinicToday() })}>{p.label}</Link>
                 </Button>
               );
             })}
@@ -190,7 +226,7 @@ function TotalCard({ label, value, accent }: { label: string; value: number | st
     <Card className={`border-l-4 ${accent}`}>
       <CardContent className="pt-5">
         <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="text-2xl font-bold">{value}</p>
+        <p className="break-words text-xl font-bold sm:text-2xl">{value}</p>
       </CardContent>
     </Card>
   );
@@ -207,7 +243,7 @@ function ReportTable({
 }) {
   const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0);
   return (
-    <Table>
+    <Table aria-label={`${firstColumn} report`}>
       <TableHeader>
         <TableRow>
           <TableHead>{firstColumn}</TableHead>

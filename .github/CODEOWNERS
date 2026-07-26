@@ -1,0 +1,9 @@
+# Security-sensitive boundaries require repository-owner review.
+/src/data/ @natramu93
+/src/actions/ @natramu93
+/src/lib/auth/ @natramu93
+/src/lib/supabase/ @natramu93
+/src/proxy.ts @natramu93
+/supabase/migrations/ @natramu93
+/next.config.ts @natramu93
+/apphosting.yaml @natramu93

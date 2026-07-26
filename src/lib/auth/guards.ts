@@ -1,4 +1,7 @@
-import { AuthorizationError, type AuthContext } from "./context";
+import type { AuthContext } from "./context";
+import { AuthorizationError } from "@/lib/errors";
+
+const BUSINESS_ROLES = ["admin", "operations", "front_office", "clinical_head"] as const;
 
 /** Roles with full read/write over every lead at their allocated branches
  *  (not limited to leads assigned to them) — the business/clinical leadership. */
@@ -6,6 +9,23 @@ const BRANCH_WIDE_LEAD_ROLES = ["admin", "operations", "clinical_head"] as const
 
 /** Roles that manage the doctor roster and treatment catalog for a branch. */
 const CLINICAL_ADMIN_ROLES = ["admin", "operations", "clinical_head"] as const;
+
+type ScopedLead = { branch_id: string; assignee_id: string | null };
+
+function hasRole(
+  role: AuthContext["role"],
+  allowlist: readonly AuthContext["role"][]
+): boolean {
+  return allowlist.includes(role);
+}
+
+export function requireAnyRole(
+  ctx: AuthContext,
+  allowlist: readonly AuthContext["role"][],
+  message = "Not authorized"
+): void {
+  if (!hasRole(ctx.role, allowlist)) throw new AuthorizationError(message);
+}
 
 export function requireAdmin(ctx: AuthContext): void {
   if (ctx.role !== "admin") throw new AuthorizationError("Admin access required");
@@ -26,6 +46,10 @@ export function assertBranchAccess(ctx: AuthContext, branchId: string): void {
   }
 }
 
+export function canAccessBranch(ctx: AuthContext, branchId: string): boolean {
+  return ctx.role === "admin" || ctx.branchIds.includes(branchId);
+}
+
 /** Doctor roster / treatment catalog management for a specific branch. */
 export function requireManagerOf(ctx: AuthContext, branchId: string): void {
   if (ctx.role === "admin") return;
@@ -44,7 +68,7 @@ export function requireManagerOf(ctx: AuthContext, branchId: string): void {
  */
 export function assertLeadWriteAccess(
   ctx: AuthContext,
-  lead: { branch_id: string; assignee_id: string | null }
+  lead: ScopedLead
 ): void {
   if (ctx.role === "doctor") {
     throw new AuthorizationError("Doctors work through appointments, not the lead pipeline");
@@ -58,7 +82,7 @@ export function assertLeadWriteAccess(
 /** Front Office reads own + the unassigned pool; branch-wide roles read everything in-branch. */
 export function canReadLead(
   ctx: AuthContext,
-  lead: { branch_id: string; assignee_id: string | null }
+  lead: ScopedLead
 ): boolean {
   if (ctx.role === "admin") return true;
   if (ctx.role === "doctor") return false; // doctors don't use the Leads module
@@ -67,9 +91,32 @@ export function canReadLead(
   return lead.assignee_id === ctx.userId || lead.assignee_id === null;
 }
 
+/** Invoice policy mirrors lead scope and explicitly excludes doctor accounts. */
+export function canReadInvoice(ctx: AuthContext, invoice: ScopedLead): boolean {
+  if (!hasRole(ctx.role, BUSINESS_ROLES)) return false;
+  return canReadLead(ctx, invoice);
+}
+
+export function assertInvoiceAccess(ctx: AuthContext, invoice: ScopedLead): void {
+  if (!canReadInvoice(ctx, invoice)) {
+    throw new AuthorizationError("No access to this invoice");
+  }
+}
+
+export function assertInvoiceWriteAccess(ctx: AuthContext, invoice: ScopedLead): void {
+  assertInvoiceAccess(ctx, invoice);
+  if (ctx.role === "front_office" && invoice.assignee_id !== ctx.userId) {
+    throw new AuthorizationError("This lead must be assigned to you before invoicing");
+  }
+}
+
 /** Whether this role can see reports (revenue/clinical performance). */
 export function canViewReports(role: AuthContext["role"]): boolean {
   return role === "admin" || role === "operations" || role === "clinical_head";
+}
+
+export function requireReportAccess(ctx: AuthContext): void {
+  if (!canViewReports(ctx.role)) throw new AuthorizationError("Reports access required");
 }
 
 /** Whether this role can delete records (leads, invoices). */

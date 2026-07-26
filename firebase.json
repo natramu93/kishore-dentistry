@@ -3,16 +3,5 @@
     "backendId": "kishore-crm",
     "rootDir": ".",
     "ignore": ["node_modules", ".git", ".firebase", "firebase-debug.log"]
-  },
-  "hosting": {
-    "source": ".",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "supabase/**"],
-    "frameworksBackend": {
-      "region": "asia-south1",
-      "maxInstances": 4,
-      "memory": "512MiB",
-      "concurrency": 80,
-      "secrets": ["SUPABASE_SERVICE_ROLE_KEY"]
-    }
   }
 }
