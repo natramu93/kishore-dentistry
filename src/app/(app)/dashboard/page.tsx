@@ -27,19 +27,31 @@ export default async function DashboardPage() {
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           <KpiCard icon={CalendarDays} label="Today's appointments" value={doc.todaysAppointments} href="/appointments" accent="violet" />
           <KpiCard icon={CalendarDays} label="This week" value={doc.weekAppointments} href="/appointments?view=week" accent="blue" />
-          <KpiCard icon={Stethoscope} label="Patients treated" value={doc.patientsTreated} accent="emerald" />
+          <KpiCard icon={Stethoscope} label="Patients treated" value={doc.patientsTreated} href="/my-patients" accent="emerald" />
           <KpiCard icon={IndianRupee} label="Revenue generated" value={formatINR(doc.revenueGenerated)} accent="gold" />
         </div>
-        <Card className="border-l-4 border-l-violet-400">
-          <CardContent className="pt-5">
-            <Link href="/appointments" className="text-sm font-medium text-primary hover:underline">
-              Go to My Schedule →
-            </Link>
-            <p className="text-sm text-muted-foreground mt-1">
-              Mark appointments treated or no-show, and log your treatment notes there.
-            </p>
-          </CardContent>
-        </Card>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Card className="border-l-4 border-l-violet-400">
+            <CardContent className="pt-5">
+              <Link href="/appointments" className="text-sm font-medium text-primary hover:underline">
+                Go to My Schedule →
+              </Link>
+              <p className="text-sm text-muted-foreground mt-1">
+                Mark appointments treated or no-show, and log your treatment notes there.
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="border-l-4 border-l-emerald-400">
+            <CardContent className="pt-5">
+              <Link href="/my-patients" className="text-sm font-medium text-primary hover:underline">
+                Go to My Patients →
+              </Link>
+              <p className="text-sm text-muted-foreground mt-1">
+                Your treatment history — filter by patient, date range, or treatment type.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }

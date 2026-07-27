@@ -15,6 +15,7 @@ import {
   Megaphone,
   ClipboardList,
   BarChart3,
+  BookUser,
   Menu,
   type LucideIcon,
 } from "lucide-react";
@@ -26,7 +27,7 @@ import type { NavItem } from "@/components/nav-items";
 
 const ICONS: Record<string, LucideIcon> = {
   LayoutDashboard, Users, CalendarDays, BellRing, ReceiptText,
-  Building2, UserCog, Stethoscope, Megaphone, ClipboardList, BarChart3,
+  Building2, UserCog, Stethoscope, Megaphone, ClipboardList, BarChart3, BookUser,
 };
 
 function NavList({

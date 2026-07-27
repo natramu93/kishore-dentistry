@@ -122,6 +122,37 @@ export default async function AppointmentsPage({
         </div>
       </div>
 
+      {isDoctor && (
+        <form className="flex flex-wrap items-end gap-2" action="/appointments" method="get">
+          <input type="hidden" name="view" value={view} />
+          {view === "date" && <input type="hidden" name="date" value={selectedDate} />}
+          <div className="space-y-1">
+            <label htmlFor="my-schedule-status" className="text-xs text-muted-foreground">Status</label>
+            <select
+              id="my-schedule-status"
+              name="status"
+              defaultValue={params.status ?? ""}
+              className="block h-11 rounded-md border border-input bg-transparent px-3 text-sm"
+            >
+              <option value="">Any status</option>
+              {APPOINTMENT_STATUSES.map((s) => (
+                <option key={s} value={s} className="capitalize">{s.replaceAll("_", " ")}</option>
+              ))}
+            </select>
+          </div>
+          <Button type="submit" variant="secondary" size="sm">Filter</Button>
+          <Button asChild variant="ghost" size="sm">
+            <Link
+              href={`/appointments?view=${view}${
+                view === "date" ? `&date=${encodeURIComponent(selectedDate)}` : ""
+              }`}
+            >
+              Reset
+            </Link>
+          </Button>
+        </form>
+      )}
+
       {!isDoctor && (
         <form className="flex flex-wrap items-end gap-2" action="/appointments" method="get">
           <input type="hidden" name="view" value={view} />
