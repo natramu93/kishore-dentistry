@@ -8,6 +8,14 @@
 -- business and doctor dashboard summaries out of application memory.
 -- ============================================================
 
+-- A short-lived production hotfix used these same argument signatures with
+-- weaker definitions, including a different get_business_dashboard return
+-- type. PostgreSQL cannot change a table-returning function's OUT types with
+-- CREATE OR REPLACE, so remove the exact signatures before recreating them.
+drop function if exists crm.get_report_aggregates(uuid, timestamptz, timestamptz, uuid, uuid);
+drop function if exists crm.get_business_dashboard(uuid, timestamptz, timestamptz);
+drop function if exists crm.get_doctor_dashboard(uuid, timestamptz, timestamptz);
+
 create or replace function crm.get_report_aggregates(
   p_actor uuid,
   p_from timestamptz,
