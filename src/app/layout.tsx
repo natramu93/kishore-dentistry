@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { headers } from "next/headers";
 import { Toaster } from "@/components/ui/sonner";
+import { TIRUPUR_CLINIC } from "@/lib/clinic";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -15,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dr. Kishor's Dentistry CRM",
-  description: "Multi-branch dental clinic CRM",
+  title: `${TIRUPUR_CLINIC.brandName} CRM`,
+  description: `Clinic CRM for ${TIRUPUR_CLINIC.officialName}`,
 };
 
 export default async function RootLayout({

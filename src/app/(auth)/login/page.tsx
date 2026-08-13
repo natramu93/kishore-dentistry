@@ -1,7 +1,11 @@
 import { LoginForm } from "./login-form";
 import { BrandWordmark } from "@/components/brand";
+import { ClinicContactDetails } from "@/components/clinic-contact-details";
+import { TIRUPUR_CLINIC } from "@/lib/clinic";
 
-export const metadata = { title: "Sign in — Dr. Kishor's Dentistry CRM" };
+export const metadata = {
+  title: `Sign in — ${TIRUPUR_CLINIC.brandName} CRM`,
+};
 
 export default async function LoginPage({
   searchParams,
@@ -10,8 +14,8 @@ export default async function LoginPage({
 }) {
   const params = await searchParams;
   return (
-    <main className="flex flex-1 min-h-screen items-center justify-center bg-sidebar p-4">
-      <div className="w-full max-w-sm">
+    <main className="flex min-h-svh flex-1 items-center justify-start overflow-y-auto bg-sidebar p-4 py-8 sm:justify-center">
+      <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center text-center">
           <BrandWordmark className="mb-3 h-16 w-auto" preload />
           <h1 className="text-lg font-semibold text-sidebar-foreground">Sign in</h1>
@@ -22,6 +26,7 @@ export default async function LoginPage({
           recoveryError={params.error === "recovery"}
           passwordUpdated={params.password === "updated"}
         />
+        <ClinicContactDetails className="mt-6 rounded-lg border border-sidebar-border bg-sidebar-accent/30 p-4 text-sidebar-foreground" />
       </div>
     </main>
   );

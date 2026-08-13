@@ -183,6 +183,9 @@ export type Invoice = Timestamps & {
   total: number;
   issued_at: string | null;
   paid_at: string | null;
+  issuer_name: string;
+  issuer_address: string | null;
+  issuer_phone: string | null;
   notes: string | null;
   created_by: string | null;
   updated_at: string;
@@ -360,6 +363,9 @@ export type Database = {
         | "updated_at"
         | "branch_id"
         | "paid_at"
+        | "issuer_name"
+        | "issuer_address"
+        | "issuer_phone"
         | "deleted_at"
         | "deleted_by"
         | "delete_reason"

@@ -1,7 +1,7 @@
 # Operations runbook
 
 This runbook covers environment setup, releases, routine maintenance, account
-recovery, and incident containment for the Kishore Dentistry CRM. Production
+recovery, and incident containment for the Dr. Kishor's Dentistry CRM. Production
 changes require a named operator, a reviewer, a recorded application revision,
 and a recorded migration list.
 

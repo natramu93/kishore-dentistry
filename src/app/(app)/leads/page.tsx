@@ -16,7 +16,7 @@ import { fmtDate } from "@/lib/tz";
 import { Plus } from "lucide-react";
 import { PaginationNav } from "@/components/pagination-nav";
 
-export const metadata = { title: "Leads — Kishore Dentistry CRM" };
+export const metadata = { title: "Leads — Dr. Kishor's Dentistry CRM" };
 
 const STATUSES = Object.keys(STATUS_LABELS) as LeadStatus[];
 

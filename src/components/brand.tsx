@@ -1,5 +1,6 @@
 import Image from "next/image";
 import brandLogo from "../../public/KD-logo.png";
+import { TIRUPUR_CLINIC } from "@/lib/clinic";
 import { cn } from "@/lib/utils";
 
 /**
@@ -16,7 +17,7 @@ export function BrandWordmark({
   return (
     <Image
       src={brandLogo}
-      alt="Dr. Kishor's Dentistry"
+      alt={TIRUPUR_CLINIC.brandName}
       className={cn("h-9 w-auto select-none", className)}
       draggable={false}
       sizes="(max-width: 768px) 160px, 208px"

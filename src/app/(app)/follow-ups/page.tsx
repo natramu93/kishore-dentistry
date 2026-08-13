@@ -12,7 +12,7 @@ import { CompleteFollowUpButtons } from "./complete-buttons";
 import { LeadStatusBadge } from "@/components/lead-status-badge";
 import type { LeadStatus } from "@/lib/database.types";
 
-export const metadata = { title: "Follow-ups — Kishore Dentistry CRM" };
+export const metadata = { title: "Follow-ups — Dr. Kishor's Dentistry CRM" };
 
 const WINDOWS = ["overdue", "today", "upcoming"] as const;
 type FollowUpWindow = (typeof WINDOWS)[number];

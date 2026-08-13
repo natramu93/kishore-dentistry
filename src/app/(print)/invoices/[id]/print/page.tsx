@@ -1,6 +1,11 @@
 import { notFound } from "next/navigation";
 import { getAuthContext } from "@/lib/auth/context";
 import { getInvoice } from "@/data/invoices";
+import {
+  TIRUPUR_CLINIC,
+  addressLinesFromSnapshot,
+  getTelephoneHref,
+} from "@/lib/clinic";
 import { fmtDate, formatINR } from "@/lib/tz";
 import { PrintButton } from "./print-button";
 
@@ -17,18 +22,52 @@ export default async function InvoicePrintPage({
   const invoice = await getInvoice(ctx, id);
   if (!invoice) notFound();
 
+  const isTirupur = invoice.branch?.code === TIRUPUR_CLINIC.branchCode;
+  const issuerName =
+    invoice.issuer_name ??
+    (isTirupur
+      ? TIRUPUR_CLINIC.officialName
+      : `${TIRUPUR_CLINIC.brandName}${invoice.branch?.name ? ` - ${invoice.branch.name}` : ""}`);
+  const issuerAddress =
+    invoice.issuer_address ??
+    (isTirupur ? TIRUPUR_CLINIC.address : invoice.branch?.address);
+  const issuerPhone =
+    invoice.issuer_phone ??
+    (isTirupur ? TIRUPUR_CLINIC.phoneE164 : invoice.branch?.phone);
+  const issuerPhoneHref = getTelephoneHref(issuerPhone);
+  const issuerPhoneDisplay =
+    issuerPhoneHref === TIRUPUR_CLINIC.phoneHref
+      ? TIRUPUR_CLINIC.phoneDisplay
+      : issuerPhone;
+
   return (
-    <main className="mx-auto max-w-[210mm] p-8 print:p-0 text-sm text-black bg-white min-h-screen">
+    <main className="mx-auto min-h-screen max-w-[210mm] bg-white p-4 text-sm text-black sm:p-8 print:p-0">
       <PrintButton />
 
-      <header className="flex justify-between items-start border-b-2 border-black pb-4">
+      <header className="flex flex-col items-start justify-between gap-4 border-b-2 border-black pb-4 sm:flex-row">
         <div>
-          <h1 className="text-2xl font-bold">Dr. Kishor&apos;s Dentistry</h1>
-          <p className="mt-1">{invoice.branch?.name} Branch</p>
-          {invoice.branch?.address && <p>{invoice.branch.address}</p>}
-          {invoice.branch?.phone && <p>Phone: {invoice.branch.phone}</p>}
+          <h1 className="text-2xl font-bold">{issuerName}</h1>
+          {(issuerAddress || issuerPhoneDisplay) && (
+            <address className="mt-1 not-italic">
+              {issuerAddress &&
+                addressLinesFromSnapshot(issuerAddress).map((line) => (
+                  <span key={line} className="block">
+                    {line}
+                  </span>
+                ))}
+              {issuerPhoneDisplay && (
+                issuerPhoneHref ? (
+                  <a href={issuerPhoneHref} className="block underline underline-offset-2">
+                    Call: {issuerPhoneDisplay}
+                  </a>
+                ) : (
+                  <span className="block">Call: {issuerPhoneDisplay}</span>
+                )
+              )}
+            </address>
+          )}
         </div>
-        <div className="text-right">
+        <div className="text-left sm:text-right">
           <h2 className="text-xl font-bold uppercase tracking-wide">Invoice</h2>
           <p className="mt-1 font-mono">{invoice.invoice_number}</p>
           <p>Date: {fmtDate(invoice.issued_at ?? invoice.created_at)}</p>
@@ -67,7 +106,7 @@ export default async function InvoicePrintPage({
         </tbody>
       </table>
 
-      <div className="mt-4 ml-auto w-64 space-y-1">
+      <div className="mt-4 ml-auto w-full space-y-1 sm:w-64">
         <div className="flex justify-between">
           <span>Subtotal</span>
           <span>{formatINR(invoice.subtotal)}</span>
@@ -87,7 +126,7 @@ export default async function InvoicePrintPage({
       )}
 
       <footer className="mt-12 text-xs text-neutral-500 text-center">
-        Thank you for choosing Dr. Kishor&apos;s Dentistry.
+        Thank you for choosing {TIRUPUR_CLINIC.brandName}.
       </footer>
     </main>
   );

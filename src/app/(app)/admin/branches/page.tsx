@@ -8,11 +8,77 @@ import { ToggleActiveButton } from "@/components/admin/toggle-active-button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { getTelephoneHref } from "@/lib/clinic";
+import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Branches — Admin" };
+
+function getDirectionsHref(address: string) {
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`;
+}
+
+function BranchAddress({
+  address,
+  branchName,
+  className,
+  showEmpty = false,
+}: {
+  address: string | null;
+  branchName: string;
+  className?: string;
+  showEmpty?: boolean;
+}) {
+  const trimmedAddress = address?.trim();
+  if (!trimmedAddress) return showEmpty ? "—" : null;
+  const directionsHref = getDirectionsHref(trimmedAddress);
+
+  return (
+    <address className={cn("not-italic", className)}>
+      <span className="block whitespace-pre-line">{trimmedAddress}</span>
+      <a
+        href={directionsHref}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-1 inline-flex min-h-11 items-center text-xs underline underline-offset-2"
+        aria-label={`Get directions to ${branchName} (opens in a new tab)`}
+      >
+        Directions
+      </a>
+    </address>
+  );
+}
+
+function BranchPhone({
+  phone,
+  branchName,
+  className,
+  showEmpty = false,
+}: {
+  phone: string | null;
+  branchName: string;
+  className?: string;
+  showEmpty?: boolean;
+}) {
+  const trimmedPhone = phone?.trim();
+  if (!trimmedPhone) return showEmpty ? "—" : null;
+
+  const telephoneHref = getTelephoneHref(trimmedPhone);
+  if (!telephoneHref) return <span className={className}>{trimmedPhone}</span>;
+
+  return (
+    <a
+      href={telephoneHref}
+      className={cn("inline-flex min-h-11 items-center", className)}
+      aria-label={`Call ${branchName} at ${trimmedPhone}`}
+    >
+      {trimmedPhone}
+    </a>
+  );
+}
 
 export default async function BranchesPage() {
   const ctx = await getAuthContext();
@@ -39,11 +105,11 @@ export default async function BranchesPage() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="address">Address</Label>
-            <Input id="address" name="address" />
+            <Textarea id="address" name="address" autoComplete="street-address" rows={3} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="phone">Phone</Label>
-            <Input id="phone" name="phone" type="tel" inputMode="tel" />
+            <Input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" />
           </div>
         </FormDialog>
       </div>
@@ -64,19 +130,32 @@ export default async function BranchesPage() {
             <TableRow key={b.id}>
               <TableCell className="whitespace-normal font-medium">
                 {b.name}
-                {b.phone && (
-                  <a
-                    href={`tel:${b.phone}`}
-                    className="mt-1 block text-xs font-normal text-muted-foreground underline-offset-2 hover:underline md:hidden"
-                  >
-                    {b.phone}
-                  </a>
-                )}
+                <BranchAddress
+                  address={b.address}
+                  branchName={b.name}
+                  className="mt-1 text-xs font-normal text-muted-foreground lg:hidden"
+                />
+                <BranchPhone
+                  phone={b.phone}
+                  branchName={b.name}
+                  className="mt-1 block text-xs font-normal text-muted-foreground underline-offset-2 hover:underline md:hidden"
+                />
               </TableCell>
               <TableCell>{b.code}</TableCell>
-              <TableCell className="hidden text-muted-foreground lg:table-cell">{b.address}</TableCell>
+              <TableCell className="hidden whitespace-normal text-muted-foreground lg:table-cell">
+                <BranchAddress
+                  address={b.address}
+                  branchName={b.name}
+                  showEmpty
+                />
+              </TableCell>
               <TableCell className="hidden text-muted-foreground md:table-cell">
-                {b.phone ? <a href={`tel:${b.phone}`} className="hover:underline">{b.phone}</a> : "—"}
+                <BranchPhone
+                  phone={b.phone}
+                  branchName={b.name}
+                  className="hover:underline"
+                  showEmpty
+                />
               </TableCell>
               <TableCell>
                 <Badge variant={b.is_active ? "default" : "secondary"}>
@@ -96,11 +175,24 @@ export default async function BranchesPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor={`baddr-${b.id}`}>Address</Label>
-                      <Input id={`baddr-${b.id}`} name="address" defaultValue={b.address ?? ""} />
+                      <Textarea
+                        id={`baddr-${b.id}`}
+                        name="address"
+                        defaultValue={b.address ?? ""}
+                        autoComplete="street-address"
+                        rows={3}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor={`bphone-${b.id}`}>Phone</Label>
-                      <Input id={`bphone-${b.id}`} name="phone" type="tel" inputMode="tel" defaultValue={b.phone ?? ""} />
+                      <Input
+                        id={`bphone-${b.id}`}
+                        name="phone"
+                        type="tel"
+                        inputMode="tel"
+                        autoComplete="tel"
+                        defaultValue={b.phone ?? ""}
+                      />
                     </div>
                   </RowEditDialog>
                   <ToggleActiveButton

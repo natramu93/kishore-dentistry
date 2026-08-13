@@ -1,4 +1,4 @@
-# Kishore Dentistry CRM
+# Dr. Kishor's Dentistry CRM
 
 An internal, multi-branch dental-clinic CRM for lead intake, appointments,
 treatments, follow-ups, comments, invoicing, printable invoices, and
