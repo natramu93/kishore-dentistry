@@ -1064,10 +1064,18 @@ alter table crm.invoice_items
   add column surfaces text[],
   add column active_billing boolean not null default true;
 
-update crm.invoice_items ii
-set active_billing = i.deleted_at is null
-from crm.invoices i
-where i.id = ii.invoice_id;
+do $billing_backfill$
+begin
+  perform set_config('crm.allow_hard_delete', 'on', true);
+  update crm.invoice_items ii
+  set active_billing = false
+  from crm.invoices i
+  where i.id = ii.invoice_id
+    and i.deleted_at is not null
+    and ii.active_billing;
+  perform set_config('crm.allow_hard_delete', 'off', true);
+end
+$billing_backfill$;
 
 create unique index invoice_items_treatment_unique_idx
   on crm.invoice_items (treatment_id)
