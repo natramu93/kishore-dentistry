@@ -12,7 +12,7 @@ declare
   v_invoice_after_branch_edit crm.invoices%rowtype;
   v_lead_id constant uuid := 'c1300000-0000-4000-8000-000000000001';
   v_invoice_id constant uuid := 'c1300000-0000-4000-8000-000000000002';
-  v_address constant text := E'No-541, 543/338-34, 1st floor, Aadhaar Hospital,\nOpp to KR Bakes, Puspha Theatre Bus stop,\nTirupur – 641602.';
+  v_address constant text := E'No-541, 543/338-34, 1st floor, Aadhaar Hospital, Opp to KR Bakes, Puspha Theatre Bus stop,\nTirupur – 641602.';
 begin
   perform set_config('crm.allow_legacy_test_records', 'on', true);
   if (select count(*) from crm.branches where code = 'TUP') <> 1 then
@@ -24,9 +24,9 @@ begin
   from crm.branches
   where code = 'TUP';
 
-  if v_branch.name <> 'Tirupur'
+  if v_branch.name <> 'DR. KISHOR''S DENTISTRY - TIRUPUR'
      or v_branch.address is distinct from v_address
-     or v_branch.phone <> '+919361135459'
+     or v_branch.phone <> '9361135459'
      or v_branch.timezone <> 'Asia/Kolkata'
      or not v_branch.is_active then
     raise exception 'TUP branch does not contain the canonical Tirupur contact details';
@@ -59,7 +59,7 @@ begin
 
   if v_invoice.issuer_name <> 'DR. KISHOR''S DENTISTRY - TIRUPUR'
      or v_invoice.issuer_address is distinct from v_address
-     or v_invoice.issuer_phone <> '+919361135459' then
+     or v_invoice.issuer_phone <> '9361135459' then
     raise exception 'new invoice did not snapshot the Tirupur issuer details';
   end if;
 
