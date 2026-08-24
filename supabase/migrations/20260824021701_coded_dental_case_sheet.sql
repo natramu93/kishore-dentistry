@@ -1,6 +1,28 @@
 -- Coded dental case sheets and invoice traceability.
--- Historical treatments/invoices remain nullable/legacy; every new clinical
--- record and every invoice created through the RPC is code-enforced.
+-- Historical treatments/invoices remain nullable/legacy. A private release
+-- flag keeps the currently deployed app compatible while this schema and the
+-- new app are rolled out; the next migration enables mandatory enforcement.
+
+alter table crm.security_state
+  add column coded_dental_enforced boolean not null default false;
+
+create function crm.coded_dental_enforcement_enabled() returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $function$
+  select coalesce((
+    select s.coded_dental_enforced
+    from crm.security_state s
+    where s.id = 1
+  ), false)
+$function$;
+
+revoke execute on function crm.coded_dental_enforcement_enabled()
+  from public, anon, authenticated;
+grant execute on function crm.coded_dental_enforcement_enabled()
+  to service_role;
 
 create table crm.treatment_codes (
   code text primary key,
@@ -731,6 +753,10 @@ begin
      and current_setting('crm.allow_legacy_test_records', true) = 'on' then
     return new;
   end if;
+  if new.case_sheet_id is null
+     and not crm.coded_dental_enforcement_enabled() then
+    return new;
+  end if;
   if new.case_sheet_id is null or new.treatment_code is null then
     raise exception 'new treatments require a finalized coded case sheet'
       using errcode = '23514';
@@ -1192,6 +1218,7 @@ language plpgsql set search_path = ''
 as $function$
 begin
   if tg_op = 'INSERT' and not new.code_enforced
+     and crm.coded_dental_enforcement_enabled()
      and not (
        current_user = 'postgres'
        and current_setting('crm.allow_legacy_test_records', true) = 'on'
@@ -1231,8 +1258,13 @@ begin
   if v_tax_rate < 0 or v_tax_rate > 100 or v_tax_rate <> round(v_tax_rate,2) then
     raise exception 'tax_rate must be between 0 and 100 with at most two decimals' using errcode = '22023';
   end if;
-  if current_user = 'postgres'
-     and current_setting('crm.allow_legacy_test_records', true) = 'on' then
+  if (
+    current_user = 'postgres'
+    and current_setting('crm.allow_legacy_test_records', true) = 'on'
+  ) or (
+    not crm.coded_dental_enforcement_enabled()
+    and not coalesce((p_items->0) ? 'treatment_id', false)
+  ) then
     v_subtotal := crm.invoice_items_subtotal(p_items);
     v_tax_amount := round(v_subtotal*v_tax_rate/100,2);
     v_total := v_subtotal+v_tax_amount;

@@ -16,6 +16,7 @@ declare
   v_planned uuid;
   v_invoice crm.invoices%rowtype;
   v_reissued_invoice crm.invoices%rowtype;
+  v_compat_invoice crm.invoices%rowtype;
   v_legacy_lead uuid;
   v_legacy_appointment uuid;
   v_legacy_treatment uuid;
@@ -23,6 +24,7 @@ declare
   v_unassigned_appointment uuid;
   v_by_treatment jsonb;
   v_totals jsonb;
+  v_uncoded_rejected boolean := false;
 begin
   if (select count(*) from crm.treatment_codes) <> 584 then
     raise exception 'authoritative treatment master does not contain 584 codes';
@@ -52,6 +54,19 @@ begin
   values(v_lead,v_branch,v_doctor,'2042-01-14T09:00:00Z','scheduled',v_admin)
   returning id into v_appointment;
 
+  update crm.security_state set coded_dental_enforced=false where id=1;
+  execute 'set local role service_role';
+  select * into v_compat_invoice from crm.create_invoice(
+    v_lead,null,0,'Compatibility window',
+    jsonb_build_array(jsonb_build_object(
+      'description','Pre-release application line','quantity',1,'unit_price',100
+    )),v_admin
+  );
+  execute 'reset role';
+  if v_compat_invoice.code_enforced then
+    raise exception 'compatibility window did not preserve the deployed invoice contract';
+  end if;
+
   select * into v_sheet from crm.finalize_case_sheet(
     v_lead,v_appointment,v_doctor,'2042-01-14T09:05:00Z',
     'Sensitivity','Localized findings','Clinical diagnosis','Treat and review','None',
@@ -68,6 +83,21 @@ begin
     ),
     v_doctor_profile
   );
+  update crm.security_state set coded_dental_enforced=true where id=1;
+
+  begin
+    perform crm.create_invoice(
+      v_lead,null,0,'Uncoded after release',
+      jsonb_build_array(jsonb_build_object(
+        'description','Uncoded line','quantity',1,'unit_price',100
+      )),v_admin
+    );
+  exception when others then
+    v_uncoded_rejected := true;
+  end;
+  if not v_uncoded_rejected then
+    raise exception 'uncoded invoice unexpectedly passed the release gate';
+  end if;
 
   if (select status from crm.appointments where id=v_appointment) <> 'completed'
      or (select status from crm.leads where id=v_lead) <> 'visited_treated'
