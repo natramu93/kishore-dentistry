@@ -8,7 +8,6 @@ import * as invoices from "@/data/invoices";
 import { assertActionRateLimit } from "@/lib/rate-limit";
 import {
   invoiceStatusSchema,
-  optionalUuidSchema,
   uuidSchema,
 } from "@/lib/validation";
 import {
@@ -32,7 +31,7 @@ const money = z.coerce
   .max(MAX_UNIT_PRICE)
   .refine(hasAtMostTwoDecimals, "Amounts support at most two decimals");
 const invoiceItemSchema = z.object({
-  description: z.string().trim().min(1).max(500),
+  treatment_id: uuidSchema,
   quantity: z.coerce
     .number()
     .finite()
@@ -82,7 +81,6 @@ function validateInvoiceTotal(
 const invoiceSchema = invoiceDetailsSchema
   .extend({
     lead_id: uuidSchema,
-    treatment_id: optionalUuidSchema,
   })
   .superRefine(validateInvoiceTotal);
 const invoiceUpdateSchema = invoiceDetailsSchema
@@ -110,7 +108,6 @@ export async function createInvoiceAction(
     await invoiceMutationLimit(ctx.userId);
     const invoice = await invoices.createInvoice(ctx, {
       lead_id: parsed.data.lead_id,
-      treatment_id: parsed.data.treatment_id || null,
       tax_rate: parsed.data.tax_rate,
       notes: parsed.data.notes || null,
       items: parsed.data.items,

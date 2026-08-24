@@ -1,7 +1,7 @@
 import "server-only";
 
 import { db } from "./db";
-import { requireTreatmentForLead, throwMappedDatabaseError } from "./helpers";
+import { throwMappedDatabaseError } from "./helpers";
 import type { AuthContext } from "@/lib/auth/context";
 import {
   assertBranchAccess,
@@ -55,9 +55,23 @@ type InvoiceScopeRow = Invoice & {
 };
 
 export type InvoiceItemInput = {
-  description: string;
+  treatment_id: string;
   quantity: number;
   unit_price: number;
+};
+
+export type InvoiceEligibleTreatment = {
+  id: string;
+  treatment_code: string;
+  treatment_name: string;
+  treatment_category: string | null;
+  site_scope: string;
+  site_detail: string | null;
+  tooth_number: string | null;
+  surfaces: string[];
+  quantity: number;
+  cost: number | null;
+  performed_at: string;
 };
 
 function roundCurrency(value: number): number {
@@ -94,10 +108,13 @@ function validateInvoiceInput(items: InvoiceItemInput[], taxRate: number): void 
   if (!items.length || items.length > 100) {
     throw new ValidationError("Invoice must contain between 1 and 100 line items");
   }
+  const treatmentIds = new Set<string>();
   for (const item of items) {
-    if (!item.description.trim() || item.description.length > 500) {
-      throw new ValidationError("Invoice item description is invalid");
+    const treatmentId = assertUuid(item.treatment_id, "Treatment");
+    if (treatmentIds.has(treatmentId)) {
+      throw new ValidationError("A treatment can appear only once on an invoice");
     }
+    treatmentIds.add(treatmentId);
     if (!Number.isFinite(item.quantity) || item.quantity <= 0 || item.quantity > 100_000) {
       throw new ValidationError("Invoice item quantity is invalid");
     }
@@ -122,6 +139,52 @@ function validateInvoiceInput(items: InvoiceItemInput[], taxRate: number): void 
   ) {
     throw new ValidationError("Invoice total is too large");
   }
+}
+
+export async function listInvoiceEligibleTreatments(
+  ctx: AuthContext,
+  leadIdValue: string
+): Promise<InvoiceEligibleTreatment[]> {
+  requireAnyRole(ctx, INVOICE_ROLES, "Invoices access required");
+  const leadId = assertUuid(leadIdValue, "Patient");
+  const leadResult = await db
+    .from("leads")
+    .select("branch_id, assignee_id")
+    .eq("id", leadId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (leadResult.error) throw leadResult.error;
+  if (!leadResult.data) throw new NotFoundError("Patient");
+  assertInvoiceWriteAccess(ctx, leadResult.data);
+
+  const { data, error } = await db
+    .from("treatments")
+    .select(
+      "id, treatment_code, treatment_name, treatment_category, site_scope, site_detail, tooth_number, surfaces, quantity, cost, performed_at, clinical_status, case_sheet:case_sheets!inner(finalized_at), invoice_items(id, active_billing)"
+    )
+    .eq("lead_id", leadId)
+    .eq("branch_id", leadResult.data.branch_id)
+    .eq("clinical_status", "completed")
+    .not("treatment_code", "is", null)
+    .not("case_sheet_id", "is", null)
+    .order("performed_at", { ascending: false })
+    .limit(200);
+  if (error) throw error;
+  return (data ?? [])
+    .filter((row) => !row.invoice_items?.some((item) => item.active_billing))
+    .map((row) => ({
+      id: row.id,
+      treatment_code: row.treatment_code!,
+      treatment_name: row.treatment_name!,
+      treatment_category: row.treatment_category,
+      site_scope: row.site_scope!,
+      site_detail: row.site_detail,
+      tooth_number: row.tooth_number,
+      surfaces: row.surfaces ?? [],
+      quantity: row.quantity ?? 1,
+      cost: row.cost,
+      performed_at: row.performed_at!,
+    }));
 }
 
 function validateExpectedVersion(value: number): number {
@@ -247,7 +310,6 @@ export async function createInvoice(
   ctx: AuthContext,
   input: {
     lead_id: string;
-    treatment_id?: string | null;
     tax_rate: number;
     notes?: string | null;
     items: InvoiceItemInput[];
@@ -268,21 +330,13 @@ export async function createInvoice(
   if (leadResult.error) throw leadResult.error;
   if (!leadResult.data) throw new NotFoundError("Lead");
   assertInvoiceWriteAccess(ctx, leadResult.data);
-  if (input.treatment_id) {
-    await requireTreatmentForLead(
-      input.treatment_id,
-      leadId,
-      leadResult.data.branch_id
-    );
-  }
-
   const invoiceResult = await db.rpc("create_invoice", {
     p_lead_id: leadId,
-    p_treatment_id: input.treatment_id ?? null,
+    p_treatment_id: input.items[0]!.treatment_id,
     p_tax_rate: input.tax_rate,
     p_notes: input.notes?.trim() || null,
     p_items: input.items.map((item) => ({
-      description: item.description.trim(),
+      treatment_id: item.treatment_id,
       quantity: item.quantity,
       unit_price: item.unit_price,
     })) as Json,
@@ -312,6 +366,11 @@ export async function updateInvoiceStatus(
     branch_id: invoice.branch_id,
     assignee_id: invoice.lead?.assignee_id ?? null,
   });
+  if (!invoice.code_enforced) {
+    throw new ConflictError(
+      "Legacy uncoded invoices cannot be issued or marked paid. Create a coded invoice from a finalized case sheet."
+    );
+  }
   if (invoice.status === status) return;
   if (invoice.version !== expectedVersion) {
     throw new ConflictError(
@@ -351,6 +410,11 @@ export async function updateInvoice(
   if (invoice.status === "paid") {
     throw new ConflictError("A paid invoice cannot be edited");
   }
+  if (!invoice.code_enforced) {
+    throw new ConflictError(
+      "Legacy invoices cannot be edited. Create a new invoice from finalized coded treatments."
+    );
+  }
   if (invoice.version !== expectedVersion) {
     throw new ConflictError(
       "This invoice changed since the editor was opened. Refresh before saving."
@@ -366,7 +430,7 @@ export async function updateInvoice(
     p_tax_rate: input.tax_rate,
     p_notes: input.notes?.trim() || null,
     p_items: input.items.map((item) => ({
-      description: item.description.trim(),
+      treatment_id: item.treatment_id,
       quantity: item.quantity,
       unit_price: item.unit_price,
     })) as Json,

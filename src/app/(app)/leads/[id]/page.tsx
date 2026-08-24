@@ -6,6 +6,7 @@ import { getAuthContext } from "@/lib/auth/context";
 import { canDelete } from "@/lib/auth/guards";
 import { getLeadRelated, getLeadActivity } from "@/data/leads";
 import { listComments } from "@/data/comments";
+import { listCaseSheetsForLead } from "@/data/case-sheets";
 import { listAssignableUsers } from "@/data/users";
 import { listDoctors, listTreatmentTypes, listLeadSources } from "@/data/catalogs";
 import { LeadStatusBadge } from "@/components/lead-status-badge";
@@ -25,8 +26,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { STATUS_LABELS } from "@/lib/leads/transitions";
 import { groupByCategory } from "@/lib/dental";
+import { formatClinicalSite } from "@/lib/clinical";
 import { fmt, fmtDate, formatINR, toClinicInputValue } from "@/lib/tz";
-import { ReceiptText } from "lucide-react";
+import { ClipboardPlus, ReceiptText } from "lucide-react";
 
 const getLeadPageData = cache(async (id: string) => {
   const ctx = await getAuthContext();
@@ -69,15 +71,18 @@ export default async function LeadDetailPage({
   const followUps = followUpRows ?? [];
   const invoices = invoiceRows ?? [];
 
-  const [activity, comments, assignableUsers, doctors, treatmentTypes, sources] = await Promise.all([
+  const [activity, comments, caseSheets, assignableUsers, doctors, treatmentTypes, sources] = await Promise.all([
     getLeadActivity(ctx, id),
     listComments(ctx, id),
+    listCaseSheetsForLead(ctx, id),
     listAssignableUsers(ctx, lead.branch_id),
     listDoctors(ctx, { branchId: lead.branch_id }),
     listTreatmentTypes(ctx),
     listLeadSources(ctx),
   ]);
   const canManage = canDelete(ctx.role);
+  const canAuthorCaseSheet = ctx.role === "admin" || ctx.role === "clinical_head";
+  const canViewClinicalNarrative = canAuthorCaseSheet;
 
   const activeAppointment = appointments.find((a) => a.status === "scheduled") ?? null;
   const interestGroups = groupByCategory(treatmentTypes).map((g) => ({
@@ -126,14 +131,8 @@ export default async function LeadDetailPage({
               label: `${u.full_name || u.email} (${u.role})`,
             }))}
             doctors={doctors.map((d) => ({ id: d.id, label: d.full_name }))}
-            treatmentTypes={treatmentTypes.map((t) => ({
-              id: t.id,
-              label: t.default_cost != null ? `${t.name} — ${formatINR(t.default_cost)}` : t.name,
-              cost: t.default_cost,
-            }))}
             role={ctx.role}
             userId={ctx.userId}
-            defaultTreatmentTypeId={lead.interest_id}
           />
           <div className="flex flex-wrap items-center gap-1">
             <RowEditDialog title="Edit lead details" action={updateLeadAction.bind(null, lead.id)}>
@@ -300,47 +299,146 @@ export default async function LeadDetailPage({
 
           {/* Treatments */}
           <Card className="border-l-4 border-l-emerald-400">
-            <CardHeader>
-              <CardTitle className="text-base">Treatments</CardTitle>
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">Digital case sheets &amp; treatment history</CardTitle>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Invoice eligibility comes only from finalized, coded, completed treatments.
+                </p>
+              </div>
+              {canAuthorCaseSheet && activeAppointment && (
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/case-sheets/new?lead=${lead.id}&appointment=${activeAppointment.id}`}>
+                    <ClipboardPlus aria-hidden="true" />
+                    Add case sheet
+                  </Link>
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
-              {treatments.length === 0 && (
+              {caseSheets.length === 0 && treatments.length === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  Recorded when an appointment is marked visited / treated.
+                  No case sheet has been recorded yet.
                 </p>
               )}
-              {treatments.map((t) => (
-                <div key={t.id} className="rounded-lg border p-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="text-sm font-medium">
-                      {(t.treatment_type as { name: string } | null)?.name ?? "Treatment"}
+              {caseSheets.map((sheet) => {
+                const doctor = sheet.doctor as { full_name: string } | null;
+                const lines = (sheet.treatments ?? []) as Array<{
+                  id: string;
+                  treatment_code: string | null;
+                  treatment_name: string | null;
+                  treatment_category: string | null;
+                  clinical_status: string;
+                  site_scope: string;
+                  site_detail: string | null;
+                  tooth_number: string | null;
+                  surfaces: string[];
+                  quantity: number;
+                  cost: number | null;
+                  notes: string | null;
+                  invoice_items?: Array<{
+                    id: string;
+                    invoice_id: string;
+                    active_billing: boolean;
+                  }>;
+                }>;
+                return (
+                  <section key={sheet.id} className="rounded-lg border p-3" aria-labelledby={`case-${sheet.id}`}>
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <h3 id={`case-${sheet.id}`} className="text-sm font-semibold">
+                          Visit {fmt(sheet.visit_at)}
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          {doctor?.full_name ?? "Doctor not recorded"} · Digitally finalized {fmt(sheet.finalized_at)}
+                        </p>
+                      </div>
+                      <Badge variant="secondary">Finalized</Badge>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {t.cost != null && (
-                        <span className="text-sm font-semibold">{formatINR(t.cost)}</span>
-                      )}
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`/invoices/new?lead=${lead.id}&treatment=${t.id}`}>
-                          <ReceiptText className="h-3.5 w-3.5 mr-1" />
-                          Raise invoice
-                        </Link>
-                      </Button>
+                    {canViewClinicalNarrative && (
+                      <dl className="mt-3 grid gap-2 rounded-md bg-muted/40 p-3 text-sm sm:grid-cols-2">
+                        <Field label="Chief complaint" value={sheet.chief_complaint} />
+                        <Field label="Findings" value={sheet.findings} />
+                        <Field label="Diagnosis" value={sheet.diagnosis} />
+                        <Field label="Treatment plan" value={sheet.plan} />
+                        <Field label="Medical alerts" value={sheet.medical_alerts} />
+                      </dl>
+                    )}
+                    <div className="mt-3 space-y-3">
+                      {lines.map((t) => {
+                        const billed = t.invoice_items?.some((item) => item.active_billing) ?? false;
+                        const invoiceEligible =
+                          t.clinical_status === "completed" && Boolean(t.treatment_code) && !billed;
+                        return (
+                          <div key={t.id} className="rounded-md border bg-background p-3">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Badge variant="outline" className="font-mono">
+                                    {t.treatment_code}
+                                  </Badge>
+                                  <span className="text-sm font-medium">
+                                    {t.treatment_name ?? "Coded treatment"}
+                                  </span>
+                                  <Badge variant={t.clinical_status === "completed" ? "default" : "secondary"}>
+                                    {t.clinical_status}
+                                  </Badge>
+                                </div>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {formatClinicalSite(t)}
+                                  {t.quantity !== 1 ? ` · Qty ${t.quantity}` : ""}
+                                  {t.notes ? ` · ${t.notes}` : ""}
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                {t.cost != null && (
+                                  <span className="text-right text-sm font-semibold">
+                                    {formatINR(t.cost * (t.quantity ?? 1))}
+                                    <span className="block text-xs font-normal text-muted-foreground">
+                                      Line total
+                                    </span>
+                                  </span>
+                                )}
+                                {invoiceEligible && (
+                                  <Button asChild size="sm" variant="outline">
+                                    <Link href={`/invoices/new?lead=${lead.id}&treatment=${t.id}`}>
+                                      <ReceiptText aria-hidden="true" />
+                                      Raise invoice
+                                    </Link>
+                                  </Button>
+                                )}
+                                {billed && <Badge variant="secondary">Invoiced</Badge>}
+                              </div>
+                            </div>
+                            <CommentThread
+                              {...commentProps}
+                              comments={commentsFor("treatment", t.id)}
+                              entityType="treatment"
+                              entityId={t.id}
+                              compact
+                            />
+                          </div>
+                        );
+                      })}
                     </div>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {(t.doctor as { full_name: string } | null)?.full_name ?? "Doctor not recorded"} ·{" "}
-                    {fmt(t.treated_at)}
-                    {t.notes ? ` · ${t.notes}` : ""}
+                  </section>
+                );
+              })}
+              {treatments.filter((t) => !t.case_sheet_id).length > 0 && (
+                <section className="rounded-lg border border-dashed p-3">
+                  <h3 className="text-sm font-semibold">Legacy treatment history</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    These records predate digital treatment codes. They remain in history but are not invoice-eligible.
                   </p>
-                  <CommentThread
-                    {...commentProps}
-                    comments={commentsFor("treatment", t.id)}
-                    entityType="treatment"
-                    entityId={t.id}
-                    compact
-                  />
-                </div>
-              ))}
+                  <ul className="mt-3 space-y-2">
+                    {treatments.filter((t) => !t.case_sheet_id).map((t) => (
+                      <li key={t.id} className="text-sm">
+                        {(t.treatment_type as { name: string } | null)?.name ?? "Legacy treatment"} · {fmt(t.treated_at)}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
             </CardContent>
           </Card>
 

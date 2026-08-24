@@ -52,6 +52,9 @@ export default async function InvoiceDetailPage({
             <Badge variant={invoice.status === "paid" ? "default" : "secondary"} className="capitalize">
               {invoice.status}
             </Badge>
+            <Badge variant={invoice.code_enforced ? "outline" : "destructive"}>
+              {invoice.code_enforced ? "Case-sheet coded" : "Legacy uncoded"}
+            </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
             {invoice.lead ? (
@@ -63,24 +66,33 @@ export default async function InvoiceDetailPage({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/invoices/${invoice.id}/print`} target="_blank" rel="noreferrer">
-              <Printer className="h-4 w-4 mr-1" />
-              Print / PDF
-              <span className="sr-only"> (opens in a new tab)</span>
-            </Link>
-          </Button>
+          {invoice.code_enforced && (
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/invoices/${invoice.id}/print`} target="_blank" rel="noreferrer">
+                <Printer className="h-4 w-4 mr-1" />
+                Print / PDF
+                <span className="sr-only"> (opens in a new tab)</span>
+              </Link>
+            </Button>
+          )}
           <InvoiceActions
             invoiceId={invoice.id}
             status={invoice.status}
             role={ctx.role}
             version={invoice.version}
+            codeEnforced={invoice.code_enforced}
           />
         </div>
       </div>
 
       <Card>
         <CardContent className="pt-6">
+          {!invoice.code_enforced && (
+            <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:bg-amber-950/20 dark:text-amber-100">
+              This historical invoice predates coded digital case sheets. It remains readable,
+              but editing, sending, payment changes, and print generation are locked.
+            </div>
+          )}
           <Table aria-label={`Line items for invoice ${invoice.invoice_number}`}>
             <TableHeader>
               <TableRow>
@@ -93,7 +105,14 @@ export default async function InvoiceDetailPage({
             <TableBody>
               {invoice.items.map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell>{item.description}</TableCell>
+                  <TableCell>
+                    {item.description}
+                    {item.surfaces?.length ? (
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        Surfaces: {item.surfaces.join(", ")}
+                      </span>
+                    ) : null}
+                  </TableCell>
                   <TableCell className="text-right">{item.quantity}</TableCell>
                   <TableCell className="text-right">{formatINR(item.unit_price)}</TableCell>
                   <TableCell className="text-right">{formatINR(item.amount)}</TableCell>

@@ -17,8 +17,8 @@ declare
   v_follow_up uuid;
   v_activity uuid;
   v_audit_id bigint;
-  v_invoice crm.invoices%rowtype;
 begin
+  perform set_config('crm.allow_legacy_test_records', 'on', true);
   if (
     select active_admin_count
     from crm.security_state
@@ -147,29 +147,24 @@ begin
   )
   returning id into v_lead;
 
-  -- Existing invoker-style workflows still retain audit INSERT access.
+  -- Invoker-style workflows retain audit INSERT access without reopening the
+  -- production-only coded invoice gate.
   execute 'set local role service_role';
-  select *
-  into v_invoice
-  from crm.create_invoice(
-    v_lead,
-    null,
-    0,
-    null,
-    '[{"description":"Invariant audit item","quantity":1,"unit_price":100}]',
-    v_operations
-  );
+  insert into crm.audit_log(entity_type,entity_id,action,actor_id,new_data)
+  values('lead',v_lead,'service_role_audit_probe',v_operations,'{}'::jsonb)
+  returning id into v_audit_id;
   execute 'reset role';
 
   if not exists (
     select 1
     from crm.audit_log a
-    where a.entity_type = 'invoice'
-      and a.entity_id = v_invoice.id
-      and a.action = 'created'
+    where a.id = v_audit_id
+      and a.entity_type = 'lead'
+      and a.entity_id = v_lead
+      and a.action = 'service_role_audit_probe'
       and a.actor_id = v_operations
   ) then
-    raise exception 'legacy service-role audit workflow stopped recording events';
+    raise exception 'service-role audit workflow stopped recording events';
   end if;
 
   -- The only accepted profile metadata is non-PII authorization/allocation

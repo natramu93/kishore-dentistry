@@ -192,38 +192,16 @@ describe("trusted lead transition service", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it("derives treatment doctor attribution from the trusted appointment", async () => {
-    mockLeadLookup({
-      id: LEAD_ID,
-      branch_id: BRANCH_ID,
-      assignee_id: ASSIGNEE_ID,
-      status: "appointment_booked",
-    });
-    mocks.requireAppointmentForLead.mockResolvedValue({
-      id: APPOINTMENT_ID,
-      doctor_id: DOCTOR_ID,
-    });
-
-    await transitionLead(
-      context("operations"),
-      LEAD_ID,
-      "visited_treated",
-      {
+  it("blocks the legacy uncoded treatment transition", async () => {
+    await expect(
+      transitionLead(context("operations"), LEAD_ID, "visited_treated", {
         appointment_id: APPOINTMENT_ID,
         cost: 500,
-      }
+      })
+    ).rejects.toThrow(
+      new ValidationError("Finalize a coded digital case sheet to complete this visit")
     );
-
-    expect(mocks.rpc).toHaveBeenCalledWith("transition_lead", {
-      p_lead_id: LEAD_ID,
-      p_to: "visited_treated",
-      p_actor: USER_ID,
-      p_payload: {
-        appointment_id: APPOINTMENT_ID,
-        cost: 500,
-        doctor_id: DOCTOR_ID,
-      },
-    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it("validates active branch doctor data before booking", async () => {
@@ -261,7 +239,7 @@ describe("trusted lead transition service", () => {
     );
   });
 
-  it("requires appointment references for completion and no-show transitions", async () => {
+  it("routes completion to case sheets and still requires no-show appointments", async () => {
     mockLeadLookup({
       id: LEAD_ID,
       branch_id: BRANCH_ID,
@@ -277,7 +255,7 @@ describe("trusted lead transition service", () => {
         {}
       )
     ).rejects.toThrow(
-      new ValidationError("Scheduled appointment is required")
+      new ValidationError("Finalize a coded digital case sheet to complete this visit")
     );
     await expect(
       transitionLead(context("operations"), LEAD_ID, "missed", {})

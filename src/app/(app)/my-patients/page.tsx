@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/auth/context";
 import { listMyTreatments, countMyPatients } from "@/data/doctor-portal";
-import { listTreatmentTypes } from "@/data/catalogs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,19 +33,21 @@ export default async function MyPatientsPage({
   const from = isValidDateParam(params.from) ? clinicDayRange(params.from).start : undefined;
   const to = isValidDateParam(params.to) ? clinicDayRange(params.to).end : undefined;
 
-  const [result, patientCount, treatmentTypes] = await Promise.all([
+  const [result, patientCount] = await Promise.all([
     listMyTreatments(ctx, {
       from,
       to,
-      treatmentTypeId: params.treatment || undefined,
+      treatmentCode: params.treatment_code || undefined,
       search: params.q || undefined,
       page: Number(params.page),
     }),
     countMyPatients(ctx),
-    listTreatmentTypes(ctx),
   ]);
   const { records, total, page, pageSize } = result;
-  const totalRevenue = records.reduce((sum, r) => sum + (r.cost ?? 0), 0);
+  const totalRevenue = records.reduce(
+    (sum, r) => sum + (r.cost ?? 0) * (r.quantity ?? 1),
+    0,
+  );
 
   return (
     <div className="space-y-4">
@@ -94,18 +95,15 @@ export default async function MyPatientsPage({
               />
             </div>
             <div className="space-y-1">
-              <label htmlFor="mp-treatment" className="text-xs text-muted-foreground">Treatment</label>
-              <select
-                id="mp-treatment"
-                name="treatment"
-                defaultValue={params.treatment ?? ""}
+              <label htmlFor="mp-treatment-code" className="text-xs text-muted-foreground">Treatment code</label>
+              <input
+                id="mp-treatment-code"
+                name="treatment_code"
+                defaultValue={params.treatment_code ?? ""}
+                placeholder="e.g. TMT_108"
+                autoCapitalize="characters"
                 className="block h-11 min-w-44 rounded-md border border-input bg-transparent px-3 text-sm"
-              >
-                <option value="">All treatments</option>
-                {treatmentTypes.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
+              />
             </div>
             <Button type="submit" variant="secondary" size="sm">Filter</Button>
             <Button asChild variant="ghost" size="sm">
@@ -122,7 +120,7 @@ export default async function MyPatientsPage({
             <TableHead>Patient</TableHead>
             <TableHead>Treatment</TableHead>
             <TableHead className="hidden md:table-cell">Center</TableHead>
-            <TableHead className="text-right">Cost</TableHead>
+            <TableHead className="text-right">Amount</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -137,7 +135,13 @@ export default async function MyPatientsPage({
             <TableRow key={r.id}>
               <TableCell className="whitespace-nowrap font-medium">{fmt(r.treated_at)}</TableCell>
               <TableCell className="whitespace-normal">
-                <span className="font-medium">{r.lead?.name ?? "—"}</span>
+                {r.lead ? (
+                  <Link href={`/my-patients/${r.lead.id}`} className="font-medium underline-offset-2 hover:underline">
+                    {r.lead.name}
+                  </Link>
+                ) : (
+                  <span className="font-medium">—</span>
+                )}
                 {r.lead?.mobile && (
                   <a
                     href={`tel:${r.lead.mobile}`}
@@ -148,17 +152,28 @@ export default async function MyPatientsPage({
                 )}
               </TableCell>
               <TableCell className="whitespace-normal">
-                {r.treatment_type ? (
+                {r.treatment_code ? (
                   <>
-                    {r.treatment_type.name}
-                    {r.treatment_type.category && (
+                    <Badge variant="outline" className="mr-2 font-mono">
+                      {r.treatment_code}
+                    </Badge>
+                    {r.treatment_name ?? "Coded treatment"}
+                    {r.treatment_category && (
                       <Badge variant="secondary" className="ml-2 hidden lg:inline-flex">
-                        {r.treatment_type.category}
+                        {r.treatment_category}
                       </Badge>
                     )}
                   </>
+                ) : r.treatment_type ? (
+                  <>{r.treatment_type.name} <Badge variant="secondary">Legacy</Badge></>
                 ) : (
                   "—"
+                )}
+                {r.tooth_number && (
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    FDI tooth {r.tooth_number}
+                    {r.surfaces?.length ? ` · ${r.surfaces.join(", ")}` : ""}
+                  </p>
                 )}
                 {r.notes && (
                   <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{r.notes}</p>
@@ -168,7 +183,12 @@ export default async function MyPatientsPage({
                 {r.branch?.name ?? "—"}
               </TableCell>
               <TableCell className="text-right font-semibold whitespace-nowrap">
-                {r.cost != null ? formatINR(r.cost) : "—"}
+                {r.cost != null ? formatINR(r.cost * (r.quantity ?? 1)) : "—"}
+                {r.cost != null && (r.quantity ?? 1) !== 1 && (
+                  <span className="block text-xs font-normal text-muted-foreground">
+                    {r.quantity} × {formatINR(r.cost)}
+                  </span>
+                )}
               </TableCell>
             </TableRow>
           ))}

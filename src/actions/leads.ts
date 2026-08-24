@@ -131,6 +131,12 @@ export async function transitionLeadAction(
   if (!id.success || !target.success) {
     return { ok: false, error: "Transition target is invalid" };
   }
+  if (target.data === "visited_treated") {
+    return {
+      ok: false,
+      error: "Finalize a coded digital case sheet to complete this visit",
+    };
+  }
   const schema =
     transitionPayloadSchemas[target.data as keyof typeof transitionPayloadSchemas];
   if (!schema) return { ok: false, error: "Transition target is invalid" };

@@ -14,6 +14,7 @@ declare
   v_invoice_id constant uuid := 'c1300000-0000-4000-8000-000000000002';
   v_address constant text := E'No-541, 543/338-34, 1st floor, Aadhaar Hospital,\nOpp to KR Bakes, Puspha Theatre Bus stop,\nTirupur – 641602.';
 begin
+  perform set_config('crm.allow_legacy_test_records', 'on', true);
   if (select count(*) from crm.branches where code = 'TUP') <> 1 then
     raise exception 'expected exactly one TUP branch';
   end if;
@@ -39,6 +40,7 @@ begin
     invoice_number,
     lead_id,
     branch_id,
+    code_enforced,
     issuer_name,
     issuer_address,
     issuer_phone
@@ -48,6 +50,7 @@ begin
     'TUP/2099/0013',
     v_lead_id,
     v_branch.id,
+    false,
     'Untrusted caller-supplied name',
     'Untrusted caller-supplied address',
     '+910000000000'

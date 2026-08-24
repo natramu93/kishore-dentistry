@@ -21,6 +21,7 @@ export default async function InvoicePrintPage({
   const ctx = await getAuthContext();
   const invoice = await getInvoice(ctx, id);
   if (!invoice) notFound();
+  if (!invoice.code_enforced) notFound();
 
   const isTirupur = invoice.branch?.code === TIRUPUR_CLINIC.branchCode;
   const issuerName =
@@ -97,7 +98,14 @@ export default async function InvoicePrintPage({
           {invoice.items.map((item, i) => (
             <tr key={item.id} className="border-b border-neutral-300">
               <td className="py-2">{i + 1}</td>
-              <td className="py-2">{item.description}</td>
+              <td className="py-2">
+                {item.description}
+                {item.surfaces?.length ? (
+                  <span className="block text-xs text-neutral-600">
+                    Surfaces: {item.surfaces.join(", ")}
+                  </span>
+                ) : null}
+              </td>
               <td className="py-2 text-right">{item.quantity}</td>
               <td className="py-2 text-right">{formatINR(item.unit_price)}</td>
               <td className="py-2 text-right">{formatINR(item.amount)}</td>

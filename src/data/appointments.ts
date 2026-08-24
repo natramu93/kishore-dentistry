@@ -4,7 +4,6 @@ import { db } from "./db";
 import {
   recordLeadActivity,
   requireActiveDoctorForBranch,
-  requireActiveTreatmentType,
   throwMappedDatabaseError,
 } from "./helpers";
 import type { AuthContext } from "@/lib/auth/context";
@@ -218,41 +217,6 @@ async function loadOwnScheduledAppointment(ctx: AuthContext, appointmentIdValue:
     throw new ConflictError("Only a scheduled appointment can be updated");
   }
   return result.data;
-}
-
-export async function doctorCompleteAppointment(
-  ctx: AuthContext,
-  appointmentId: string,
-  treatment: { treatment_type_id?: string; cost?: number; notes?: string }
-): Promise<{ lead_id: string }> {
-  const appointment = await loadOwnScheduledAppointment(ctx, appointmentId);
-  if (treatment.treatment_type_id) {
-    await requireActiveTreatmentType(treatment.treatment_type_id);
-  }
-  if (
-    treatment.cost !== undefined &&
-    (!Number.isFinite(treatment.cost) || treatment.cost < 0 || treatment.cost > 100_000_000)
-  ) {
-    throw new ValidationError("Treatment cost is invalid");
-  }
-  if (treatment.notes && treatment.notes.length > 4_000) {
-    throw new ValidationError("Treatment notes are too long");
-  }
-
-  const { error } = await db.rpc("transition_lead", {
-    p_lead_id: appointment.lead_id,
-    p_to: "visited_treated",
-    p_actor: ctx.userId,
-    p_payload: {
-      appointment_id: appointment.id,
-      treatment_type_id: treatment.treatment_type_id,
-      doctor_id: ctx.doctorId,
-      cost: treatment.cost,
-      notes: treatment.notes,
-    } as Json,
-  });
-  if (error) throwMappedDatabaseError(error, "Appointment");
-  return { lead_id: appointment.lead_id };
 }
 
 export async function doctorMarkNoShow(

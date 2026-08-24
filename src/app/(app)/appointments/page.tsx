@@ -3,7 +3,7 @@ import { addDays } from "date-fns";
 import { getAuthContext } from "@/lib/auth/context";
 import { listAppointments } from "@/data/appointments";
 import { listMyBranches } from "@/data/branches";
-import { listTreatmentTypes, listDoctors } from "@/data/catalogs";
+import { listDoctors } from "@/data/catalogs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LeadStatusBadge } from "@/components/lead-status-badge";
@@ -60,7 +60,7 @@ export default async function AppointmentsPage({
     ? (params.status as AppointmentStatus)
     : undefined;
 
-  const [appointmentResult, branches, treatmentTypes, doctors] = await Promise.all([
+  const [appointmentResult, branches, doctors] = await Promise.all([
     listAppointments(ctx, {
       ...range,
       branchId: params.branch || undefined,
@@ -69,7 +69,6 @@ export default async function AppointmentsPage({
       page: Number(params.page),
     }),
     listMyBranches(ctx),
-    isDoctor ? listTreatmentTypes(ctx) : Promise.resolve([]),
     isDoctor ? Promise.resolve([]) : listDoctors(ctx, { branchId: params.branch || undefined }),
   ]);
   const { appointments, total, page, pageSize } = appointmentResult;
@@ -291,7 +290,7 @@ export default async function AppointmentsPage({
               {isDoctor && (
                 <TableCell className="text-right">
                   {a.status === "scheduled" && (
-                    <DoctorAppointmentActions appointmentId={a.id} treatmentTypes={treatmentTypes} />
+                    <DoctorAppointmentActions appointmentId={a.id} leadId={a.lead_id} />
                   )}
                 </TableCell>
               )}

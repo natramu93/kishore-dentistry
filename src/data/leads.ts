@@ -223,6 +223,11 @@ export async function transitionLead(
 ): Promise<Lead> {
   const leadId = assertUuid(leadIdValue, "Lead");
   const to = assertLeadStatus(toValue);
+  if (to === "visited_treated") {
+    throw new ValidationError(
+      "Finalize a coded digital case sheet to complete this visit"
+    );
+  }
   const lookup = await db
     .from("leads")
     .select("id, branch_id, assignee_id, status")
@@ -293,22 +298,6 @@ export async function transitionLead(
     );
     if (typeof trustedPayload.doctor_id === "string") {
       await requireActiveDoctorForBranch(trustedPayload.doctor_id, lead.branch_id);
-    }
-  }
-
-  if (to === "visited_treated") {
-    const appointmentId = trustedPayload.appointment_id;
-    if (typeof appointmentId !== "string") {
-      throw new ValidationError("Scheduled appointment is required");
-    }
-    const appointment = await requireAppointmentForLead(appointmentId, leadId);
-    if (typeof trustedPayload.treatment_type_id === "string") {
-      await requireActiveTreatmentType(trustedPayload.treatment_type_id);
-    }
-    if (typeof trustedPayload.doctor_id === "string") {
-      await requireActiveDoctorForBranch(trustedPayload.doctor_id, lead.branch_id);
-    } else if (appointment.doctor_id) {
-      trustedPayload.doctor_id = appointment.doctor_id;
     }
   }
 

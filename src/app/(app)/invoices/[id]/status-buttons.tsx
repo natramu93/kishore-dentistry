@@ -25,11 +25,13 @@ export function InvoiceActions({
   status,
   role,
   version,
+  codeEnforced,
 }: {
   invoiceId: string;
   status: InvoiceStatus;
   role: UserRole;
   version: number;
+  codeEnforced: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -63,7 +65,7 @@ export function InvoiceActions({
 
   return (
     <div className="flex flex-wrap gap-2">
-      {status !== "paid" && (
+      {codeEnforced && status !== "paid" && (
         <Button asChild size="sm" variant="outline">
           <Link href={`/invoices/${invoiceId}/edit`}>
             <Pencil className="h-3.5 w-3.5 mr-1" />
@@ -71,12 +73,12 @@ export function InvoiceActions({
           </Link>
         </Button>
       )}
-      {status === "draft" && (
+      {codeEnforced && status === "draft" && (
         <Button size="sm" disabled={pending} onClick={() => setStatus("sent")}>
           Mark sent
         </Button>
       )}
-      {status !== "paid" && (
+      {codeEnforced && status !== "paid" && (
         <AlertDialog open={paidOpen} onOpenChange={setPaidOpen}>
           <AlertDialogTrigger
             render={

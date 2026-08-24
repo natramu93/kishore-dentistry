@@ -54,38 +54,6 @@ export async function rescheduleAppointmentAction(
   });
 }
 
-const doctorTreatmentSchema = z.object({
-  treatment_type_id: optionalUuidSchema,
-  cost: z.coerce.number().finite().min(0).max(100_000_000).optional(),
-  notes: z.string().trim().max(4_000).optional(),
-});
-
-export async function doctorCompleteAppointmentAction(
-  appointmentId: string,
-  formData: FormData
-): Promise<ActionResult> {
-  const ctx = await getAuthContext();
-  const id = uuidSchema.safeParse(appointmentId);
-  const parsed = doctorTreatmentSchema.safeParse(Object.fromEntries(formData));
-  if (!id.success) return { ok: false, error: "Appointment is invalid" };
-  if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
-  }
-  return runAction(async () => {
-    await assertActionRateLimit(ctx.userId, "appointment:doctor-outcome", {
-      limit: 30,
-      windowMs: 5 * 60_000,
-    });
-    await appointments.doctorCompleteAppointment(ctx, id.data, {
-      treatment_type_id: parsed.data.treatment_type_id || undefined,
-      cost: parsed.data.cost,
-      notes: parsed.data.notes,
-    });
-    revalidatePath("/appointments");
-    revalidatePath("/dashboard");
-  });
-}
-
 export async function doctorMarkNoShowAction(
   appointmentId: string
 ): Promise<ActionResult> {

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { transitionLeadAction } from "@/actions/leads";
@@ -23,12 +24,9 @@ import { Textarea } from "@/components/ui/textarea";
 import type { LeadStatus, UserRole } from "@/lib/database.types";
 
 type Option = { id: string; label: string };
-type TreatmentOption = { id: string; label: string; cost: number | null };
-
 type DialogKind =
   | "assign"
   | "book"
-  | "treat"
   | "follow_up"
   | "drop"
   | "reengage"
@@ -48,28 +46,19 @@ export function TransitionActions({
   activeAppointmentId,
   assignableUsers,
   doctors,
-  treatmentTypes,
   role,
   userId,
-  defaultTreatmentTypeId,
 }: {
   lead: { id: string; status: LeadStatus };
   activeAppointmentId: string | null;
   assignableUsers: Option[];
   doctors: Option[];
-  treatmentTypes: TreatmentOption[];
   role: UserRole;
   userId: string;
-  defaultTreatmentTypeId?: string | null;
 }) {
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [confirmation, setConfirmation] = useState<QuickConfirmation | null>(null);
   const [pending, startTransition] = useTransition();
-  // Default the treatment stage to the lead's captured interest.
-  const defaultTreatment = treatmentTypes.find((t) => t.id === defaultTreatmentTypeId);
-  const [treatCost, setTreatCost] = useState(
-    defaultTreatment?.cost != null ? String(defaultTreatment.cost) : ""
-  );
 
   function run(to: LeadStatus, formData: FormData) {
     startTransition(async () => {
@@ -120,9 +109,13 @@ export function TransitionActions({
 
       {s === "appointment_booked" && (
         <>
-          <Button size="sm" onClick={() => setDialog("treat")}>
-            Mark visited / treated
-          </Button>
+          {(role === "admin" || role === "clinical_head") && activeAppointmentId && (
+            <Button size="sm" asChild>
+              <Link href={`/case-sheets/new?lead=${lead.id}&appointment=${activeAppointmentId}`}>
+                Open digital case sheet
+              </Link>
+            </Button>
+          )}
           <Button
             size="sm"
             variant="outline"
@@ -275,68 +268,6 @@ export function TransitionActions({
               <Textarea id="notes" name="notes" rows={2} />
             </div>
             <SubmitRow pending={pending} label="Book" />
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={dialog === "treat"} onOpenChange={(o) => !o && setDialog(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Record visit &amp; treatment</DialogTitle>
-          </DialogHeader>
-          <form action={(fd) => run("visited_treated", fd)} className="space-y-4">
-            {activeAppointmentId && (
-              <input type="hidden" name="appointment_id" value={activeAppointmentId} />
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="treatment_type_id">Treatment</Label>
-              <select
-                id="treatment_type_id"
-                name="treatment_type_id"
-                className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-                defaultValue={defaultTreatmentTypeId ?? ""}
-                onChange={(e) => {
-                  const t = treatmentTypes.find((x) => x.id === e.target.value);
-                  if (t && t.cost != null) setTreatCost(String(t.cost));
-                }}
-              >
-                <option value="">— Select —</option>
-                {treatmentTypes.map((t) => (
-                  <option key={t.id} value={t.id}>{t.label}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="t_doctor_id">Doctor</Label>
-              <select
-                id="t_doctor_id"
-                name="doctor_id"
-                className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-                defaultValue=""
-              >
-                <option value="">— Select —</option>
-                {doctors.map((d) => (
-                  <option key={d.id} value={d.id}>{d.label}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cost">Cost (₹) — auto-filled from catalog, editable</Label>
-              <Input
-                id="cost"
-                name="cost"
-                type="number"
-                min="0"
-                step="0.01"
-                value={treatCost}
-                onChange={(e) => setTreatCost(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="t_notes">Treatment notes</Label>
-              <Textarea id="t_notes" name="notes" rows={2} />
-            </div>
-            <SubmitRow pending={pending} label="Save" />
           </form>
         </DialogContent>
       </Dialog>

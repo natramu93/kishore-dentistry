@@ -34,6 +34,7 @@ declare
   v_repaired_count bigint;
   v_old_version bigint;
 begin
+  perform set_config('crm.allow_legacy_test_records', 'on', true);
   insert into auth.users (id, email, raw_user_meta_data)
   values
     (v_admin, 'hardening-admin@example.test', '{"full_name":"Hardening Admin"}'),

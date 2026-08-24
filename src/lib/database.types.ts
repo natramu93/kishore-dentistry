@@ -111,6 +111,15 @@ export type TreatmentType = Timestamps & {
   is_active: boolean;
 };
 
+export type TreatmentCode = Timestamps & {
+  code: string;
+  name: string;
+  category: string | null;
+  status: string;
+  raw_metadata: string | null;
+  source: string | null;
+};
+
 export type Lead = Timestamps & {
   id: string;
   branch_id: string;
@@ -156,6 +165,37 @@ export type Treatment = Timestamps & {
   notes: string | null;
   treated_at: string;
   created_by: string | null;
+  case_sheet_id: string | null;
+  treatment_code: string | null;
+  treatment_name: string | null;
+  treatment_category: string | null;
+  clinical_status: "planned" | "completed" | null;
+  site_scope: "not_applicable" | "full_mouth" | "arch" | "quadrant" | "tooth" | null;
+  site_detail: string | null;
+  tooth_number: string | null;
+  surfaces: string[] | null;
+  diagnosis: string | null;
+  quantity: number | null;
+  performed_at: string | null;
+  signed_at: string | null;
+  signed_by: string | null;
+};
+
+export type CaseSheet = Timestamps & {
+  id: string;
+  lead_id: string;
+  branch_id: string;
+  appointment_id: string;
+  doctor_id: string;
+  visit_at: string;
+  chief_complaint: string | null;
+  findings: string | null;
+  diagnosis: string | null;
+  plan: string | null;
+  medical_alerts: string | null;
+  finalized_at: string;
+  signed_by: string;
+  created_by: string;
 };
 
 export type FollowUp = Timestamps & {
@@ -193,6 +233,7 @@ export type Invoice = Timestamps & {
   deleted_by: string | null;
   delete_reason: string | null;
   version: number;
+  code_enforced: boolean;
 };
 
 export type InvoiceItem = Timestamps & {
@@ -202,6 +243,16 @@ export type InvoiceItem = Timestamps & {
   quantity: number;
   unit_price: number;
   amount: number;
+  treatment_id: string | null;
+  treatment_code: string | null;
+  treatment_name: string | null;
+  treatment_category: string | null;
+  case_sheet_id: string | null;
+  tooth_number: string | null;
+  site_scope: string | null;
+  site_detail: string | null;
+  surfaces: string[] | null;
+  active_billing: boolean;
 };
 
 export type LeadActivity = Timestamps & {
@@ -239,7 +290,8 @@ export type AuditLog = {
     | "follow_up"
     | "invoice"
     | "comment"
-    | "profile";
+    | "profile"
+    | "case_sheet";
   entity_id: string;
   action: string;
   actor_id: string | null;
@@ -306,6 +358,11 @@ export type Database = {
         ]
       >;
       treatment_types: TableDef<TreatmentType, "name", "id" | "created_at">;
+      treatment_codes: TableDef<
+        TreatmentCode,
+        "code" | "name" | "status",
+        "created_at"
+      >;
       leads: TableDef<
         Lead,
         "branch_id" | "name" | "mobile",
@@ -334,6 +391,26 @@ export type Database = {
           FK<"appointments_doctor_id_fkey", "doctor_id", "doctors">
         ]
       >;
+      case_sheets: TableDef<
+        CaseSheet,
+        | "lead_id"
+        | "branch_id"
+        | "appointment_id"
+        | "doctor_id"
+        | "visit_at"
+        | "finalized_at"
+        | "signed_by"
+        | "created_by",
+        "id" | "created_at",
+        [
+          FK<"case_sheets_lead_id_fkey", "lead_id", "leads">,
+          FK<"case_sheets_branch_id_fkey", "branch_id", "branches">,
+          FK<"case_sheets_appointment_id_fkey", "appointment_id", "appointments">,
+          FK<"case_sheets_doctor_id_fkey", "doctor_id", "doctors">,
+          FK<"case_sheets_signed_by_fkey", "signed_by", "profiles">,
+          FK<"case_sheets_created_by_fkey", "created_by", "profiles">
+        ]
+      >;
       treatments: TableDef<
         Treatment,
         "lead_id",
@@ -343,7 +420,15 @@ export type Database = {
           FK<"treatments_branch_id_fkey", "branch_id", "branches">,
           FK<"treatments_appointment_id_fkey", "appointment_id", "appointments">,
           FK<"treatments_treatment_type_id_fkey", "treatment_type_id", "treatment_types">,
-          FK<"treatments_doctor_id_fkey", "doctor_id", "doctors">
+          FK<"treatments_doctor_id_fkey", "doctor_id", "doctors">,
+          FK<"treatments_case_sheet_id_fkey", "case_sheet_id", "case_sheets">,
+          {
+            foreignKeyName: "treatments_treatment_code_fkey";
+            columns: ["treatment_code"];
+            isOneToOne: false;
+            referencedRelation: "treatment_codes";
+            referencedColumns: ["code"];
+          }
         ]
       >;
       follow_ups: TableDef<
@@ -379,8 +464,11 @@ export type Database = {
       invoice_items: TableDef<
         InvoiceItem,
         "invoice_id" | "description",
-        "id" | "created_at",
-        [FK<"invoice_items_invoice_id_fkey", "invoice_id", "invoices">]
+        "id" | "created_at" | "active_billing",
+        [
+          FK<"invoice_items_invoice_id_fkey", "invoice_id", "invoices">,
+          FK<"invoice_items_treatment_id_fkey", "treatment_id", "treatments">
+        ]
       >;
       lead_activity: TableDef<
         LeadActivity,
@@ -432,6 +520,22 @@ export type Database = {
       transition_lead: {
         Args: { p_lead_id: string; p_to: LeadStatus; p_actor: string; p_payload?: Json };
         Returns: Lead;
+      };
+      finalize_case_sheet: {
+        Args: {
+          p_lead_id: string;
+          p_appointment_id: string;
+          p_doctor_id: string;
+          p_visit_at: string;
+          p_chief_complaint: string | null;
+          p_findings: string | null;
+          p_diagnosis: string | null;
+          p_plan: string | null;
+          p_medical_alerts: string | null;
+          p_treatments: Json;
+          p_actor: string;
+        };
+        Returns: CaseSheet;
       };
       create_invoice: {
         Args: {

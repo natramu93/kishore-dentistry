@@ -31,6 +31,7 @@ declare
   v_from constant timestamptz := '2026-07-01 18:30:00+00';
   v_to constant timestamptz := '2026-07-03 18:30:00+00';
 begin
+  perform set_config('crm.allow_legacy_test_records', 'on', true);
   insert into auth.users (id, email, raw_user_meta_data)
   values
     (v_admin, 'report-admin@example.test', '{"full_name":"Report Admin"}'),
