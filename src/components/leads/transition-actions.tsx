@@ -46,6 +46,7 @@ export function TransitionActions({
   activeAppointmentId,
   assignableUsers,
   doctors,
+  availabilityMessage,
   role,
   userId,
 }: {
@@ -53,6 +54,7 @@ export function TransitionActions({
   activeAppointmentId: string | null;
   assignableUsers: Option[];
   doctors: Option[];
+  availabilityMessage: string | null;
   role: UserRole;
   userId: string;
 }) {
@@ -243,7 +245,19 @@ export function TransitionActions({
           <form action={(fd) => run("appointment_booked", fd)} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="scheduled_at">Date &amp; time (IST)</Label>
-              <Input id="scheduled_at" name="scheduled_at" type="datetime-local" required />
+              <Input
+                id="scheduled_at"
+                name="scheduled_at"
+                type="datetime-local"
+                step={300}
+                aria-describedby={availabilityMessage ? "appointment-availability" : undefined}
+                required
+              />
+              {availabilityMessage && (
+                <p id="appointment-availability" className="text-sm text-muted-foreground">
+                  {availabilityMessage}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="doctor_id">Doctor</Label>

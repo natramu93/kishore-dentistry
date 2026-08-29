@@ -22,6 +22,10 @@ export function throwMappedDatabaseError(
     typeof error === "object" && error !== null && "code" in error
       ? String(error.code)
       : "";
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String(error.message)
+      : "";
   if (code === "40001") {
     throw new ConflictError(`${resource} changed in another request. Refresh and try again.`);
   }
@@ -30,6 +34,13 @@ export function throwMappedDatabaseError(
   }
   if (code === "P0002") throw new NotFoundError(resource);
   if (code === "42501") throw new AuthorizationError();
+  if (
+    code === "23514" &&
+    (message.startsWith("Appointments are available") ||
+      message === "The clinic is closed on the selected day")
+  ) {
+    throw new ValidationError(message);
+  }
   if (code === "23514" || code === "22023" || code === "55000") {
     throw new ConflictError(`${resource} cannot be changed in its current state`);
   }

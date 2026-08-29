@@ -39,7 +39,7 @@ import {
 import type { Json, Lead, LeadStatus } from "@/lib/database.types";
 
 export type LeadWithRefs = Lead & {
-  branch: { name: string; code: string } | null;
+  branch: { name: string; code: string; timezone: string } | null;
   source: { name: string } | null;
   assignee: { full_name: string } | null;
   interest: { name: string; category: string | null } | null;
@@ -59,7 +59,7 @@ function scopedQuery(ctx: AuthContext) {
   let query = db
     .from("leads")
     .select(
-      "*, branch:branches(name, code), source:lead_sources(name), assignee:profiles!leads_assignee_id_fkey(full_name), interest:treatment_types!leads_interest_id_fkey(name, category)",
+      "*, branch:branches(name, code, timezone), source:lead_sources(name), assignee:profiles!leads_assignee_id_fkey(full_name), interest:treatment_types!leads_interest_id_fkey(name, category)",
       { count: "exact" }
     )
     .is("deleted_at", null);
@@ -113,7 +113,7 @@ export const getLead = cache(
     const { data, error } = await db
       .from("leads")
       .select(
-        "*, branch:branches(name, code), source:lead_sources(name), assignee:profiles!leads_assignee_id_fkey(full_name), interest:treatment_types!leads_interest_id_fkey(name, category)"
+        "*, branch:branches(name, code, timezone), source:lead_sources(name), assignee:profiles!leads_assignee_id_fkey(full_name), interest:treatment_types!leads_interest_id_fkey(name, category)"
       )
       .eq("id", leadId)
       .is("deleted_at", null)
