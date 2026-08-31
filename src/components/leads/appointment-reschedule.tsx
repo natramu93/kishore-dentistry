@@ -22,7 +22,6 @@ export function AppointmentReschedule({
   defaultDoctorId,
   defaultDuration,
   defaultNotes,
-  availabilityMessage,
 }: {
   appointmentId: string;
   leadId: string;
@@ -31,7 +30,6 @@ export function AppointmentReschedule({
   defaultDoctorId: string | null;
   defaultDuration: number;
   defaultNotes: string | null;
-  availabilityMessage: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -70,20 +68,8 @@ export function AppointmentReschedule({
               name="scheduled_at"
               type="datetime-local"
               defaultValue={defaultScheduledAt}
-              step={300}
-              aria-describedby={
-                availabilityMessage ? `resched-availability-${appointmentId}` : undefined
-              }
               required
             />
-            {availabilityMessage && (
-              <p
-                id={`resched-availability-${appointmentId}`}
-                className="text-sm text-muted-foreground"
-              >
-                {availabilityMessage}
-              </p>
-            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor={`resched-doc-${appointmentId}`}>Doctor</Label>

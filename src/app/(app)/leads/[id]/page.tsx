@@ -9,7 +9,6 @@ import { listComments } from "@/data/comments";
 import { listCaseSheetsForLead } from "@/data/case-sheets";
 import { listAssignableUsers } from "@/data/users";
 import { listDoctors, listTreatmentTypes, listLeadSources } from "@/data/catalogs";
-import { getBranchBusinessHours } from "@/data/availability";
 import { LeadStatusBadge } from "@/components/lead-status-badge";
 import { StatusStepper } from "@/components/leads/status-stepper";
 import { TransitionActions } from "@/components/leads/transition-actions";
@@ -29,7 +28,6 @@ import { STATUS_LABELS } from "@/lib/leads/transitions";
 import { groupByCategory } from "@/lib/dental";
 import { formatClinicalSite } from "@/lib/clinical";
 import { fmt, fmtDate, formatINR, toClinicInputValue } from "@/lib/tz";
-import { formatAppointmentAvailability } from "@/lib/appointment-availability";
 import { ClipboardPlus, ReceiptText } from "lucide-react";
 
 const getLeadPageData = cache(async (id: string) => {
@@ -73,16 +71,7 @@ export default async function LeadDetailPage({
   const followUps = followUpRows ?? [];
   const invoices = invoiceRows ?? [];
 
-  const [
-    activity,
-    comments,
-    caseSheets,
-    assignableUsers,
-    doctors,
-    treatmentTypes,
-    sources,
-    businessHours,
-  ] = await Promise.all([
+  const [activity, comments, caseSheets, assignableUsers, doctors, treatmentTypes, sources] = await Promise.all([
     getLeadActivity(ctx, id),
     listComments(ctx, id),
     listCaseSheetsForLead(ctx, id),
@@ -90,12 +79,7 @@ export default async function LeadDetailPage({
     listDoctors(ctx, { branchId: lead.branch_id }),
     listTreatmentTypes(ctx),
     listLeadSources(ctx),
-    getBranchBusinessHours(ctx, lead.branch_id),
   ]);
-  const appointmentAvailability = formatAppointmentAvailability(
-    businessHours,
-    lead.branch?.timezone ?? "Asia/Kolkata"
-  );
   const canManage = canDelete(ctx.role);
   const canAuthorCaseSheet = ctx.role === "admin" || ctx.role === "clinical_head";
   const canViewClinicalNarrative = canAuthorCaseSheet;
@@ -147,7 +131,6 @@ export default async function LeadDetailPage({
               label: `${u.full_name || u.email} (${u.role})`,
             }))}
             doctors={doctors.map((d) => ({ id: d.id, label: d.full_name }))}
-            availabilityMessage={appointmentAvailability}
             role={ctx.role}
             userId={ctx.userId}
           />
@@ -299,7 +282,6 @@ export default async function LeadDetailPage({
                         defaultDoctorId={a.doctor_id}
                         defaultDuration={a.duration_minutes}
                         defaultNotes={a.notes}
-                        availabilityMessage={appointmentAvailability}
                       />
                     </div>
                   )}

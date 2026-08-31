@@ -69,13 +69,6 @@ export type Branch = Timestamps & {
   updated_at: string;
 };
 
-export type BranchBusinessHour = {
-  branch_id: string;
-  iso_weekday: number;
-  opens_at: string;
-  closes_at: string;
-};
-
 export type Profile = Timestamps & {
   id: string;
   full_name: string;
@@ -344,12 +337,6 @@ export type Database = {
   crm: {
     Tables: {
       branches: TableDef<Branch, "name" | "code", "id" | "created_at" | "updated_at">;
-      branch_business_hours: TableDef<
-        BranchBusinessHour,
-        "branch_id" | "iso_weekday" | "opens_at" | "closes_at",
-        never,
-        [FK<"branch_business_hours_branch_id_fkey", "branch_id", "branches">]
-      >;
       profiles: TableDef<Profile, "id", "created_at" | "updated_at">;
       user_branches: TableDef<
         UserBranch,
