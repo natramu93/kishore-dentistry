@@ -70,8 +70,8 @@ token_verifications = 20
 max_enrolled_factors = 10
 
 [auth.mfa.totp]
-enroll_enabled = true
-verify_enabled = true
+enroll_enabled = false
+verify_enabled = false
 
 [auth.email]
 enable_signup = false

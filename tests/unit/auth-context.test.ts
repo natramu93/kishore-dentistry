@@ -4,7 +4,6 @@ const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   getUser: vi.fn(),
   getProfileWithBranches: vi.fn(),
-  getAuthenticatorAssuranceLevel: vi.fn(),
   cookies: vi.fn(),
   redirect: vi.fn(),
 }));
@@ -26,10 +25,7 @@ vi.mock("@/data/users", () => ({
   getProfileWithBranches: mocks.getProfileWithBranches,
 }));
 
-import {
-  getAuthContext,
-  getMfaSetupContext,
-} from "@/lib/auth/context";
+import { getAuthContext } from "@/lib/auth/context";
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const BRANCH_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -58,10 +54,6 @@ describe("request authentication context", () => {
     mocks.createClient.mockResolvedValue({
       auth: {
         getUser: mocks.getUser,
-        mfa: {
-          getAuthenticatorAssuranceLevel:
-            mocks.getAuthenticatorAssuranceLevel,
-        },
       },
     });
     mocks.getUser.mockResolvedValue({
@@ -69,14 +61,6 @@ describe("request authentication context", () => {
       error: null,
     });
     mocks.getProfileWithBranches.mockResolvedValue(activeProfile);
-    mocks.getAuthenticatorAssuranceLevel.mockResolvedValue({
-      data: {
-        currentLevel: "aal2",
-        nextLevel: "aal2",
-        currentAuthenticationMethods: [],
-      },
-      error: null,
-    });
     mocks.cookies.mockResolvedValue({ getAll: () => [] });
     mocks.redirect.mockImplementation((path: string) => {
       throw new Error(`NEXT_REDIRECT:${path}`);
@@ -87,7 +71,6 @@ describe("request authentication context", () => {
     const ctx = await getAuthContext();
 
     expect(mocks.getUser).toHaveBeenCalledTimes(1);
-    expect(mocks.getAuthenticatorAssuranceLevel).toHaveBeenCalledTimes(1);
     expect(mocks.getProfileWithBranches).toHaveBeenCalledWith(USER_ID);
     expect(ctx).toMatchObject({
       userId: USER_ID,
@@ -159,70 +142,19 @@ describe("request authentication context", () => {
     );
   });
 
-  it("requires AAL2 for every privileged role and fails closed on assurance errors", async () => {
-    for (const role of ["admin", "operations", "clinical_head"] as const) {
-      mocks.getProfileWithBranches.mockResolvedValueOnce({
-        ...activeProfile,
-        role,
-      });
-      mocks.getAuthenticatorAssuranceLevel.mockResolvedValueOnce({
-        data: {
-          currentLevel: "aal1",
-          nextLevel: "aal2",
-          currentAuthenticationMethods: [],
-        },
-        error: null,
-      });
-
-      await expect(getAuthContext()).rejects.toThrow("NEXT_REDIRECT:/mfa");
-    }
-
-    mocks.getAuthenticatorAssuranceLevel.mockResolvedValueOnce({
-      data: null,
-      error: { status: 503 },
-    });
-    await expect(getAuthContext()).rejects.toThrow("NEXT_REDIRECT:/mfa");
-  });
-
-  it("allows non-privileged roles to continue at AAL1 without an MFA lookup", async () => {
-    for (const role of ["front_office", "doctor"] as const) {
+  it("allows every active role to continue after primary authentication", async () => {
+    for (const role of [
+      "admin",
+      "operations",
+      "front_office",
+      "clinical_head",
+      "doctor",
+    ] as const) {
       mocks.getProfileWithBranches.mockResolvedValueOnce({
         ...activeProfile,
         role,
       });
       await expect(getAuthContext()).resolves.toMatchObject({ role });
     }
-
-    expect(mocks.getAuthenticatorAssuranceLevel).not.toHaveBeenCalled();
-  });
-
-  it("lets an AAL1 privileged user enter MFA setup without a redirect loop", async () => {
-    mocks.getAuthenticatorAssuranceLevel.mockResolvedValueOnce({
-      data: {
-        currentLevel: "aal1",
-        nextLevel: "aal2",
-        currentAuthenticationMethods: [],
-      },
-      error: null,
-    });
-
-    await expect(getMfaSetupContext()).resolves.toMatchObject({
-      userId: USER_ID,
-      role: "operations",
-    });
-  });
-
-  it("redirects completed or non-privileged MFA-page visits to the dashboard", async () => {
-    await expect(getMfaSetupContext()).rejects.toThrow(
-      "NEXT_REDIRECT:/dashboard"
-    );
-
-    mocks.getProfileWithBranches.mockResolvedValueOnce({
-      ...activeProfile,
-      role: "front_office",
-    });
-    await expect(getMfaSetupContext()).rejects.toThrow(
-      "NEXT_REDIRECT:/dashboard"
-    );
   });
 });

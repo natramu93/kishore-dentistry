@@ -28,7 +28,7 @@ replacement rule, command line, commit message, or this document.
    - replace exposed user passwords and require individual recovery;
    - rotate exposed Supabase privileged keys;
    - replace affected Firebase or Google credentials;
-   - remove and re-enroll an exposed TOTP factor; and
+   - revoke any exposed authentication factor; and
    - invalidate invitation/recovery links where supported, otherwise contain
      the account until the one-time link has expired and recovery is complete.
 

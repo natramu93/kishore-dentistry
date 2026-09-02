@@ -26,20 +26,12 @@ describe("authentication route policy", () => {
     }
   );
 
-  it("keeps the MFA route authenticated without redirecting an AAL1 user away", () => {
-    expect(getAuthPathPolicy("/mfa")).toEqual({
-      allowWithoutSession: false,
-      redirectAuthenticatedToDashboard: false,
-    });
-  });
-
   it.each([
     "/dashboard",
     "/api/reports",
     "/authentication-lookalike",
     "/auth/callback-evil",
     "/login-evil",
-    "/mfa-evil",
   ])(
     "protects ordinary and lookalike paths such as %s",
     (pathname) => {

@@ -77,7 +77,7 @@ installation therefore needs one controlled bootstrap:
    managed secrets described below.
 2. Apply all migrations through version `20260726070825`.
 3. Deploy the matching application revision and verify its liveness, login,
-   callback, set-password, and MFA routes.
+   callback, and set-password routes.
 4. From the trusted Supabase Auth administration interface, send an invitation
    to the individually owned first-Admin address. Do not create or share a
    preset password.
@@ -87,9 +87,9 @@ installation therefore needs one controlled bootstrap:
    Migration `20260726070825_admin_and_history_invariants.sql` permits this
    zero-Admin bootstrap while protecting an established environment from
    losing its last active Admin.
-6. The invitee accepts the link, chooses their own password, enrolls TOTP, and
-   creates a second independently owned Admin account through the application.
-   Confirm that both Admin accounts can complete an `aal2` challenge.
+6. The invitee accepts the link, chooses their own password, and creates a
+   second independently owned Admin account through the application. Confirm
+   that both Admin accounts can sign in and administer the application.
 
 The concrete transaction and rollback checks are in
 [`docs/OPERATIONS.md`](docs/OPERATIONS.md). Never add a bootstrap password,
@@ -125,22 +125,12 @@ authentication links. See the official
 and
 [email-template guide](https://supabase.com/docs/guides/auth/auth-email-templates).
 
-### Privileged TOTP
+### Sign-in assurance
 
-Admin, Operations, and Clinical Head accounts cannot enter the application
-until their current session reaches Supabase Auth assurance level `aal2`.
-First use enrolls a TOTP authenticator at `/mfa`; later sign-ins challenge the
-verified factor. Front Office and Doctor accounts are not currently forced
-through this role-based TOTP policy.
-
-There is no self-service lost-device bypass. Keep at least two separately
-owned, active Admin accounts with working TOTP. Factor recovery requires
-identity verification, session revocation, administrative factor removal, and
-fresh enrollment; never weaken the role policy to recover one account. The
-full procedure is in [`docs/OPERATIONS.md`](docs/OPERATIONS.md). See the
-official
-[Supabase TOTP guide](https://supabase.com/docs/guides/auth/auth-mfa/totp)
-for the provider-side enrollment, challenge, and assurance-level model.
+All roles use primary Supabase sign-in together with the application's existing
+role and branch authorization. Application-managed TOTP setup and challenge
+are disabled. Keep hosted TOTP enrollment and verification disabled to match
+the explicit local settings in `supabase/config.toml`.
 
 ## Roles and authorization
 
@@ -243,7 +233,7 @@ for automatic and manual rollouts.
 ## Security
 
 Never commit passwords, API keys, invitation/recovery links, production
-account lists, patient data, exported cookies, TOTP secrets, or database
-backups. Follow [`SECURITY.md`](SECURITY.md) for private reporting and
+account lists, patient data, exported cookies, or database backups. Follow
+[`SECURITY.md`](SECURITY.md) for private reporting and
 [`docs/GIT_HISTORY_CLEANUP.md`](docs/GIT_HISTORY_CLEANUP.md) for the required
 coordinated cleanup of previously exposed repository history.

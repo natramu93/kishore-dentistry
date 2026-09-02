@@ -4,8 +4,8 @@ This repository contains an internal healthcare CRM. Treat patient and clinic
 data, authentication material, and operational metadata as sensitive.
 
 Do not open a public issue with credentials, patient data, production project
-identifiers, database exports, cookies, TOTP material, invitation/recovery
-links, or detailed exploit steps.
+identifiers, database exports, cookies, invitation/recovery links, or detailed
+exploit steps.
 
 ## Private reporting
 
@@ -29,9 +29,8 @@ through the organization's approved restricted channel.
 ## Data and secret handling
 
 - Never commit or upload passwords, API keys, service-role credentials,
-  session cookies, TOTP seeds or QR codes, invitation/recovery links, production
-  account lists, patient exports, screenshots containing patient data, or
-  database backups.
+  session cookies, invitation/recovery links, production account lists, patient
+  exports, screenshots containing patient data, or database backups.
 - Use synthetic patient records in development, tests, demos, issues, and load
   tests.
 - Keep development, staging, recovery, and production isolated. Production
@@ -42,15 +41,15 @@ through the organization's approved restricted channel.
   project-specific values out of documentation and Git.
 - Treat invitation and recovery URLs as passwords until they are consumed or
   expired.
-- Do not log passwords, tokens, cookies, TOTP material, authentication email
-  links, full request bodies, or unrestricted patient records.
+- Do not log passwords, tokens, cookies, authentication email links, full
+  request bodies, or unrestricted patient records.
 
 ## Deployed access baseline
 
 - Public signup and anonymous sign-in remain disabled.
 - Accounts are individually invited and choose their own password.
-- Admin, Operations, and Clinical Head sessions must reach Supabase Auth
-  assurance level `aal2` with TOTP.
+- Application-managed second-factor setup and challenge are disabled for every
+  role; hosted TOTP enrollment and verification must remain disabled.
 - Browser `anon` and `authenticated` roles have no direct grants or policies on
   `crm` data; the service-role data client is server-only.
 - Server-side authorization rechecks role, branch, assignment, ownership,
@@ -79,9 +78,9 @@ Containment must precede repository cleanup:
 4. Revoke all sessions for affected users. If the scope is uncertain or a
    privileged server credential was disclosed, revoke all application user
    sessions and require fresh sign-in.
-5. Reset affected passwords through the normal one-time recovery flow. Remove
-   and freshly enroll any exposed TOTP factor. Invalidate invitation/recovery
-   links where supported or contain the account until they expire.
+5. Reset affected passwords through the normal one-time recovery flow.
+   Invalidate invitation/recovery links where supported or contain the account
+   until they expire.
 6. Review authentication, administrative, export, mutation, deletion,
    deployment, and database logs. Preserve evidence in restricted storage.
 7. Remove the material from the current tree, build and CI output, artifacts,
@@ -110,20 +109,6 @@ revocation.
 
 Do not delete audit evidence, soft-deleted records, or backups during an active
 investigation or legal hold.
-
-## Privileged TOTP recovery
-
-There is no self-service lost-device bypass. Recovery for an Admin, Operations,
-or Clinical Head requires out-of-band identity verification, a second
-authorized reviewer, session revocation, removal of only the lost factor from a
-trusted Supabase Auth administration interface, and fresh enrollment. If
-compromise is possible, deactivate the application profile until the verified
-user is ready to enroll again.
-
-Never recover access by weakening the TOTP policy, assigning a temporary
-non-privileged role, sharing another account, or asking for a TOTP seed. Follow
-the complete, auditable procedure in the
-[operations runbook](docs/OPERATIONS.md).
 
 ## Record integrity and retention boundary
 

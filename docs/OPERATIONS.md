@@ -14,8 +14,8 @@ and a recorded migration list.
   access-controlled recovery environment.
 - Keep public signup and anonymous sign-in disabled. Provision accounts
   individually with expiring invitations.
-- Give each person an individual account. Never share passwords, TOTP seeds,
-  sessions, or recovery links.
+- Give each person an individual account. Never share passwords, sessions, or
+  recovery links.
 - Keep all `crm` data inaccessible to browser Supabase roles. The server-side
   service role is the application's only data path.
 - Treat migrations as forward-only. Correct a production migration with a new,
@@ -81,8 +81,8 @@ do not need additional Supabase allowlist entries.
 
 The exact localhost callback and set-password paths are recorded in
 `supabase/config.toml`. Keep hosted settings aligned with that file for signup,
-password length, refresh-token rotation, and TOTP, while substituting the
-hosted origins.
+password length, and refresh-token rotation while substituting the hosted
+origins.
 
 ### SMTP and authentication email links
 
@@ -129,21 +129,14 @@ and
 [redirect URL guide](https://supabase.com/docs/guides/auth/redirect-urls)
 describe the provider-side settings.
 
-### Privileged TOTP policy
+### Sign-in assurance
 
-Admin, Operations, and Clinical Head accounts must reach assurance level
-`aal2` before entering the application. Hosted Supabase Auth must allow TOTP
-enrollment and verification. Test both first-time enrollment and subsequent
-challenge after every Auth configuration change. See the official
-[Supabase TOTP guide](https://supabase.com/docs/guides/auth/auth-mfa/totp).
-
-Front Office and Doctor are not currently forced through the role-based TOTP
-policy. Do not temporarily change a privileged user to either role as an MFA
-recovery mechanism.
-
-Keep at least two separately owned active Admin accounts, each with an
-independent TOTP authenticator. Never retain QR codes or TOTP seeds for another
-person.
+The application does not offer or require a second-factor setup for any role.
+Keep hosted Supabase TOTP enrollment and verification disabled to match
+`supabase/config.toml`. Change only those two hosted Auth flags; do not push the
+complete local Auth configuration because its site and callback URLs are for
+localhost. After an Auth configuration change, verify that every active role
+can sign in and that ordinary role and branch restrictions still apply.
 
 ## First Admin bootstrap
 
@@ -154,11 +147,10 @@ promotion from a zero-Admin state, then prevents an established environment
 from losing its last active Admin.
 
 1. Configure and verify the exact hosted Auth redirects, SMTP sender and
-   templates, hosted TOTP settings, and Firebase managed secrets described
-   above.
+   templates, and Firebase managed secrets described above.
 2. Apply every migration through version `20260726070825`.
 3. Deploy the matching application revision. Verify its liveness, login,
-   callback, set-password, and MFA routes before generating a live invitation.
+   callback, and set-password routes before generating a live invitation.
 4. From the trusted Supabase Auth administration interface, invite the
    individually owned first-Admin email address. Do not create a preset
    password.
@@ -216,10 +208,10 @@ from losing its last active Admin.
 
 7. Record the operator, reviewer, UTC time, exact UUID, and result in the
    protected change log. Do not record the invitation URL.
-8. The invitee opens the invitation, chooses their own password, enrolls TOTP
-   at `/mfa`, and confirms that their session reaches `aal2`.
+8. The invitee opens the invitation, chooses their own password, and verifies
+   access to the Admin workflow.
 9. Through the application, create a second independently owned Admin and
-   verify that account's TOTP before ending the bootstrap window.
+   verify that account's access before ending the bootstrap window.
 
 If any identity, row state, result count, or environment is unexpected, roll
 back and investigate. Never add a bootstrap account, password, or reusable
@@ -285,8 +277,8 @@ that version, database lint, and SQL tests before applying it to staging.
 ### Development and staging
 
 1. Start from the exact revision proposed for release. Confirm the working tree
-   contains no credentials, patient data, database exports, session cookies,
-   TOTP material, or invitation/recovery links.
+   contains no credentials, patient data, database exports, session cookies, or
+   invitation/recovery links.
 2. Run the repository secret scan and dependency review.
 3. Install from the lockfile and run the full application checks:
 
@@ -311,7 +303,6 @@ that version, database lint, and SQL tests before applying it to staging.
 7. Exercise at least:
 
    - invite, set-password, recovery, expiry, and replay behavior;
-   - privileged TOTP enrollment and challenge;
    - every role and branch-scope boundary in the
      [authorization matrix](AUTHORIZATION_MATRIX.md);
    - appointment collision and Doctor ownership rules;
@@ -348,9 +339,9 @@ that version, database lint, and SQL tests before applying it to staging.
      firebase apphosting:rollouts:create <backend-id> --git_commit <reviewed-commit-id> --project <firebase-project-id>
      ```
 
-6. Verify `/api/health`, sign-in, privileged MFA, a least-privilege dashboard,
-   branch scoping, appointment scheduling, comment history, invoice
-   creation/printing, and paid-invoice rejection.
+6. Verify `/api/health`, sign-in, a least-privilege dashboard, branch scoping,
+   appointment scheduling, comment history, invoice creation/printing, and
+   paid-invoice rejection.
 7. Watch authentication, application, and database errors, latency, instance
    utilization, connection use, rate-limit rejections, and unexpected
    privilege changes through the agreed observation window.
@@ -469,36 +460,6 @@ verification. Do not infer a retention period from application timestamps or
 this repository. Do not add a scheduled purge, delete protected history, or
 purge backups ad hoc.
 
-## Privileged TOTP recovery
-
-There is no self-service lost-device bypass. Use this procedure for Admin,
-Operations, or Clinical Head accounts:
-
-1. Open a security case without including patient data, session cookies,
-   recovery links, QR codes, or TOTP seeds.
-2. Have an authorized person verify the user's identity out of band. Require a
-   second Admin or designated security reviewer to approve the recovery.
-3. If compromise is possible, deactivate the application profile immediately.
-   Keep another independently owned Admin available so this does not remove the
-   last active Admin.
-4. Revoke all sessions for the affected Auth user. If the password may be
-   compromised, use the normal one-time password-recovery flow as well.
-5. From a trusted Supabase Auth administration interface or Admin API, remove
-   only the lost TOTP factor. Never ask the user to disclose an existing TOTP
-   seed or code history.
-6. When the verified user is present and ready, reactivate the profile if it
-   was deactivated.
-7. The user signs in, is forced to `/mfa`, enrolls a new authenticator, and
-   completes a challenge. Confirm the new session is `aal2` before allowing
-   privileged work.
-8. Review authentication and privileged activity around the incident. Record
-   approvers, UTC times, factor identifier, session revocation, password action,
-   reactivation, and successful `aal2` verification without recording secrets.
-
-Never bypass recovery by disabling the privileged TOTP policy, changing the
-user to a non-privileged role, sharing another Admin account, or creating a
-reusable recovery credential.
-
 ## Paid-invoice operational boundary
 
 `draft` invoices may advance to `sent` or `paid`; `sent` may advance to
@@ -553,13 +514,13 @@ supports the patched API directly.
 
 ## Monitoring and incident evidence
 
-Alert on repeated login failures, MFA recovery, privileged profile changes,
-bulk reads or exports, unusual invoice status changes, rejected destructive
-actions, database/RPC errors, rate-limit spikes, and sustained latency,
-connection, memory, or instance pressure.
+Alert on repeated login failures, recovery attempts, privileged profile
+changes, bulk reads or exports, unusual invoice status changes, rejected
+destructive actions, database/RPC errors, rate-limit spikes, and sustained
+latency, connection, memory, or instance pressure.
 
-Never log passwords, TOTP material, tokens, cookies, complete request bodies,
-full patient records, or authentication email links. Incident records should
-capture the timeline, affected identities and records, evidence sources,
-containment, rotations, session revocations, remediation, validation, and
-required notifications without reproducing sensitive values.
+Never log passwords, tokens, cookies, complete request bodies, full patient
+records, or authentication email links. Incident records should capture the
+timeline, affected identities and records, evidence sources, containment,
+rotations, session revocations, remediation, validation, and required
+notifications without reproducing sensitive values.

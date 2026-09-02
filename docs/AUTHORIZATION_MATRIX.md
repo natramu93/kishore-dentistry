@@ -25,7 +25,6 @@ physical deletion.
 | Treatment catalog | Manage | Read active choices | Read active choices | Manage | Read active choices needed for own completion |
 | Lead archive | All; soft archive | Allocated; soft archive | No access | No access | No access |
 | Invoice archive | Non-paid only | Allocated non-paid only | No access | No access | No access |
-| Privileged TOTP | Required | Required | Not role-mandated | Required | Not role-mandated |
 
 ## Shared enforcement rules
 
@@ -41,8 +40,6 @@ physical deletion.
   identifier is never trusted as identity.
 - Referenced Doctors, assignees, treatments, appointments, invoice items, and
   comment targets must belong to the same active branch and parent record.
-- Admin, Operations, and Clinical Head require a current `aal2` Supabase Auth
-  session. Role changes must not be used to bypass TOTP recovery.
 - Server Actions validate all arguments, reload the target record, and
   re-authorize the specific branch, lead, assignment, ownership, and version.
 - Browser `anon` and `authenticated` roles have no direct `crm` data path. The
@@ -85,4 +82,4 @@ CRM. Preserve the paid CRM invoice and follow the clinic's approved external
 procedure; never rewrite it with direct SQL.
 
 See the [operations runbook](OPERATIONS.md) for the release checks, first-Admin
-bootstrap, privileged TOTP recovery, and paid-invoice operating procedure.
+bootstrap, account recovery, and paid-invoice operating procedure.

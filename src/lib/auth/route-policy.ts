@@ -10,8 +10,7 @@ function matchesPath(pathname: string, path: string): boolean {
 /**
  * Authentication route behavior is intentionally explicit. Callback and
  * password routes must remain reachable while an invite/recovery session is
- * being established, whereas MFA is authenticated-only and must never be
- * treated as a guest page.
+ * being established.
  */
 export function getAuthPathPolicy(pathname: string): AuthPathPolicy {
   if (
@@ -31,13 +30,6 @@ export function getAuthPathPolicy(pathname: string): AuthPathPolicy {
   ) {
     return {
       allowWithoutSession: true,
-      redirectAuthenticatedToDashboard: false,
-    };
-  }
-
-  if (matchesPath(pathname, "/mfa")) {
-    return {
-      allowWithoutSession: false,
       redirectAuthenticatedToDashboard: false,
     };
   }

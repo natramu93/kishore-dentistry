@@ -68,7 +68,7 @@ export function buildContentSecurityPolicy(
     // React style attributes are used for chart widths, image placeholders,
     // and toast variables. Production <style> elements still require a nonce.
     "style-src-attr 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    "img-src 'self'",
     "font-src 'self' data:",
     `connect-src 'self' ${supabaseSources.join(" ")}${
       isDevelopment

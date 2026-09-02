@@ -38,7 +38,9 @@ describe("nonce Content Security Policy", () => {
       "connect-src 'self' https://project-ref.supabase.co wss://project-ref.supabase.co"
     );
     expect(policy).not.toContain("*.supabase.co");
-    expect(policy).toContain("img-src 'self' data: blob:");
+    expect(policy).toContain("img-src 'self'");
+    expect(policy).not.toContain("img-src 'self' data:");
+    expect(policy).not.toContain("img-src 'self' blob:");
     expect(policy).toContain("object-src 'none'");
     expect(policy).toContain("frame-ancestors 'none'");
     expect(policy).toContain("upgrade-insecure-requests");

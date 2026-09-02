@@ -7,7 +7,6 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfileWithBranches } from "@/data/users";
 import type { UserRole } from "@/lib/database.types";
 import { AuthorizationError } from "@/lib/errors";
-import { requiresMfa } from "@/lib/auth/mfa-policy";
 
 const authContextBrand: unique symbol = Symbol("AuthContext");
 
@@ -24,14 +23,9 @@ export type AuthContext = Readonly<{
 
 export { AuthorizationError };
 
-type VerifiedAuthRequest = Readonly<{
-  context: AuthContext;
-  supabase: Awaited<ReturnType<typeof createClient>>;
-}>;
-
 // Cached per request. Validates the session JWT with Supabase (getUser, never
 // getSession) and loads the profile + branch allocations.
-const getVerifiedAuthRequest = cache(async (): Promise<VerifiedAuthRequest> => {
+export const getAuthContext = cache(async (): Promise<AuthContext> => {
   const supabase = await createClient();
   let userResult = await supabase.auth.getUser();
   let user = userResult.data.user;
@@ -56,7 +50,7 @@ const getVerifiedAuthRequest = cache(async (): Promise<VerifiedAuthRequest> => {
   const profile = await getProfileWithBranches(user.id);
   if (!profile || !profile.is_active) redirect("/login?error=inactive");
 
-  const context = Object.freeze({
+  return Object.freeze({
     [authContextBrand]: true as const,
     userId: user.id,
     role: profile.role,
@@ -65,38 +59,4 @@ const getVerifiedAuthRequest = cache(async (): Promise<VerifiedAuthRequest> => {
     email: profile.email,
     doctorId: profile.doctorId,
   });
-
-  return Object.freeze({ context, supabase });
-});
-
-/**
- * The central secure authorization context. Privileged roles fail closed and
- * cannot reach pages, actions, or DAL operations until this session is AAL2.
- */
-export const getAuthContext = cache(async (): Promise<AuthContext> => {
-  const { context, supabase } = await getVerifiedAuthRequest();
-  if (!requiresMfa(context.role)) return context;
-
-  const assurance = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (assurance.error || assurance.data.currentLevel !== "aal2") {
-    redirect("/mfa");
-  }
-
-  return context;
-});
-
-/**
- * Entry point used only by the dedicated MFA route. It deliberately bypasses
- * the AAL2 redirect so an AAL1 privileged user can complete the challenge.
- */
-export const getMfaSetupContext = cache(async (): Promise<AuthContext> => {
-  const { context, supabase } = await getVerifiedAuthRequest();
-  if (!requiresMfa(context.role)) redirect("/dashboard");
-
-  const assurance = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (!assurance.error && assurance.data.currentLevel === "aal2") {
-    redirect("/dashboard");
-  }
-
-  return context;
 });

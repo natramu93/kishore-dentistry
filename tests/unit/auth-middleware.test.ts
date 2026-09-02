@@ -67,45 +67,6 @@ describe("auth session middleware", () => {
     }
   );
 
-  it("allows an authenticated AAL1 user to reach the MFA challenge route", async () => {
-    mocks.getClaims.mockResolvedValue({
-      data: { claims: { sub: "authenticated-user" } },
-      error: null,
-    });
-
-    const response = await updateSession(
-      new NextRequest("https://crm.example.test/mfa"),
-      TEST_CSP
-    );
-
-    expect(response.headers.get("location")).toBeNull();
-  });
-
-  it("keeps MFA protected from unauthenticated requests", async () => {
-    mocks.getClaims.mockResolvedValue({
-      data: null,
-      error: { status: 401 },
-    });
-
-    const response = await updateSession(
-      new NextRequest(
-        "https://crm.example.test/mfa?patient=secret&search=private"
-      ),
-      TEST_CSP
-    );
-
-    expect(response.status).toBe(307);
-    expect(response.headers.get("content-security-policy")).toBe(
-      TEST_CSP.policy
-    );
-    expect(response.headers.get("cache-control")).toBe(
-      "private, no-store, max-age=0"
-    );
-    expect(response.headers.get("location")).toBe(
-      "https://crm.example.test/login"
-    );
-  });
-
   it("preserves the convenience redirect only for guest-only pages", async () => {
     mocks.getClaims.mockResolvedValue({
       data: { claims: { sub: "authenticated-user" } },
@@ -156,10 +117,16 @@ describe("auth session middleware", () => {
     });
 
     const response = await updateSession(
-      new NextRequest("https://crm.example.test/dashboard"),
+      new NextRequest(
+        "https://crm.example.test/dashboard?patient=secret&search=private"
+      ),
       TEST_CSP
     );
 
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "https://crm.example.test/login"
+    );
     expect(response.cookies.get("sb-refresh")?.value).toBe("rotated");
     expect(response.headers.get("cache-control")).toBe(
       "private, no-store, max-age=0"
