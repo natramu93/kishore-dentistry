@@ -11,27 +11,43 @@ import type { Treatment } from "@/lib/database.types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PaginationNav } from "@/components/pagination-nav";
+import {
+  ToothAssessmentHistory,
+  type ToothAssessmentHistoryItem,
+} from "@/components/clinical/tooth-assessment-history";
 
 export const metadata = { title: "Patient History — Dr. Kishor's Dentistry CRM" };
 
 export default async function MyPatientHistoryPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const { id } = await params;
+  const queryParams = await searchParams;
   const ctx = await getAuthContext();
   if (ctx.role !== "doctor") redirect("/dashboard");
 
   let history: Awaited<ReturnType<typeof getMyPatientHistory>>;
   try {
-    history = await getMyPatientHistory(ctx, id);
+    history = await getMyPatientHistory(ctx, id, { page: Number(queryParams.page) });
   } catch (error) {
     if (error instanceof NotFoundError) notFound();
     throw error;
   }
 
-  const { lead, caseSheets, legacyTreatments } = history;
+  const {
+    lead,
+    caseSheets,
+    legacyTreatments,
+    currentToothAssessments,
+    caseSheetTotal,
+    caseSheetPage,
+    caseSheetPageSize,
+  } = history;
   const branch = lead.branch as { name: string } | null;
 
   return (
@@ -73,6 +89,16 @@ export default async function MyPatientHistoryPage({
         </CardContent>
       </Card>
 
+      {currentToothAssessments.length > 0 && (
+        <section aria-labelledby="current-tooth-summary" className="space-y-3">
+          <div>
+            <h2 id="current-tooth-summary" className="text-lg font-semibold">Latest recorded whole-mouth tooth summary</h2>
+            <p className="text-sm text-muted-foreground">Most recent signed assessment for each recorded tooth, with its examination date and clinician.</p>
+          </div>
+          <ToothAssessmentHistory assessments={currentToothAssessments} />
+        </section>
+      )}
+
       <section aria-labelledby="digital-history-heading" className="space-y-3">
         <div>
           <h2 id="digital-history-heading" className="text-lg font-semibold">Finalized digital case sheets</h2>
@@ -90,6 +116,9 @@ export default async function MyPatientHistoryPage({
         {caseSheets.map((sheet) => {
           const doctor = sheet.doctor as { full_name: string } | null;
           const treatments = (sheet.treatments ?? []) as Treatment[];
+          const toothAssessments = ((sheet.tooth_assessments ?? []) as ToothAssessmentHistoryItem[]).map(
+            (assessment) => ({ ...assessment, doctor_name: doctor?.full_name ?? null })
+          );
           return (
             <Card key={sheet.id}>
               <CardHeader className="gap-1">
@@ -111,7 +140,20 @@ export default async function MyPatientHistoryPage({
                   <Field label="Treatment plan" value={sheet.plan} />
                   <Field label="Medical alerts" value={sheet.medical_alerts} />
                 </dl>
+                {toothAssessments.length > 0 && (
+                  <details className="rounded-md border bg-muted/20 p-3">
+                    <summary className="cursor-pointer text-sm font-semibold">
+                      General tooth examination ({toothAssessments.length})
+                    </summary>
+                    <ToothAssessmentHistory assessments={toothAssessments} className="mt-3" />
+                  </details>
+                )}
                 <div className="space-y-2">
+                  {treatments.length === 0 && (
+                    <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                      Examination-only visit — no coded treatment was recorded.
+                    </p>
+                  )}
                   {treatments.map((treatment) => (
                     <div key={treatment.id} className="rounded-md border p-3">
                       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -142,6 +184,13 @@ export default async function MyPatientHistoryPage({
             </Card>
           );
         })}
+        <PaginationNav
+          pathname={`/my-patients/${id}`}
+          searchParams={queryParams}
+          page={caseSheetPage}
+          pageSize={caseSheetPageSize}
+          total={caseSheetTotal}
+        />
       </section>
 
       {legacyTreatments.length > 0 && (

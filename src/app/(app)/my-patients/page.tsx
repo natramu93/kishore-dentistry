@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/auth/context";
-import { listMyTreatments, countMyPatients } from "@/data/doctor-portal";
+import { listMyCaseSheets, listMyTreatments, countMyPatients } from "@/data/doctor-portal";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PaginationNav } from "@/components/pagination-nav";
 import {
@@ -33,7 +33,7 @@ export default async function MyPatientsPage({
   const from = isValidDateParam(params.from) ? clinicDayRange(params.from).start : undefined;
   const to = isValidDateParam(params.to) ? clinicDayRange(params.to).end : undefined;
 
-  const [result, patientCount] = await Promise.all([
+  const [result, patientCount, clinicalFiles] = await Promise.all([
     listMyTreatments(ctx, {
       from,
       to,
@@ -42,6 +42,12 @@ export default async function MyPatientsPage({
       page: Number(params.page),
     }),
     countMyPatients(ctx),
+    listMyCaseSheets(ctx, {
+      from,
+      to,
+      search: params.q || undefined,
+      page: Number(params.case_page),
+    }),
   ]);
   const { records, total, page, pageSize } = result;
   const totalRevenue = records.reduce(
@@ -113,6 +119,48 @@ export default async function MyPatientsPage({
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Clinical case sheets</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            {clinicalFiles.total} examination record{clinicalFiles.total === 1 ? "" : "s"}; includes visits without treatment.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {clinicalFiles.records.length === 0 ? (
+            <p className="py-3 text-sm text-muted-foreground">No clinical case sheets match these patient and date filters.</p>
+          ) : (
+            <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {clinicalFiles.records.map((sheet) => (
+                <li key={sheet.id}>
+                  <Link
+                    href={`/my-patients/${sheet.lead_id}`}
+                    className="block h-full rounded-lg border p-3 outline-none transition-colors hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    <span className="block font-medium">{sheet.lead?.name ?? "Patient"}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {fmt(sheet.visit_at)} · {sheet.branch?.name ?? "Clinic"}
+                    </span>
+                    <span className="mt-2 block text-xs">
+                      {sheet.tooth_assessments.length} tooth record{sheet.tooth_assessments.length === 1 ? "" : "s"}
+                      {` · ${sheet.treatments.length} treatment${sheet.treatments.length === 1 ? "" : "s"}`}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          <PaginationNav
+            pathname="/my-patients"
+            searchParams={params}
+            page={clinicalFiles.page}
+            pageSize={clinicalFiles.pageSize}
+            total={clinicalFiles.total}
+            pageParam="case_page"
+          />
+        </CardContent>
+      </Card>
+
       <Table aria-label="My treatment records">
         <TableHeader>
           <TableRow>
@@ -171,7 +219,7 @@ export default async function MyPatientsPage({
                 )}
                 {r.tooth_number && (
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    FDI tooth {r.tooth_number}
+                    Tooth {r.tooth_number} · Indian Standard IS 8815
                     {r.surfaces?.length ? ` · ${r.surfaces.join(", ")}` : ""}
                   </p>
                 )}

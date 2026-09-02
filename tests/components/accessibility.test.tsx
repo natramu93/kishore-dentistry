@@ -244,4 +244,26 @@ describe("pagination semantics", () => {
     expect(screen.queryByRole("link", { name: "Previous" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Next" })).toBeNull();
   });
+
+  it("supports an independent page parameter without discarding other pagination", () => {
+    render(
+      <PaginationNav
+        pathname="/my-patients"
+        searchParams={{ page: "3", case_page: "2", q: "Anu" }}
+        page={2}
+        pageSize={12}
+        total={30}
+        pageParam="case_page"
+      />
+    );
+
+    expect(screen.getByRole("link", { name: "Previous" })).toHaveAttribute(
+      "href",
+      "/my-patients?page=3&q=Anu"
+    );
+    expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute(
+      "href",
+      "/my-patients?page=3&q=Anu&case_page=3"
+    );
+  });
 });

@@ -27,6 +27,20 @@ export type AppointmentStatus = "scheduled" | "completed" | "cancelled" | "no_sh
 export type InvoiceStatus = "draft" | "sent" | "paid";
 export type FollowUpStatus = "pending" | "done" | "cancelled";
 export type CommentEntity = "lead" | "appointment" | "treatment" | "follow_up" | "invoice";
+export type ToothState = "sound" | "present" | "missing" | "unerupted" | "impacted" | "retained_root" | "implant";
+export type ToothPrognosis = "good" | "fair" | "guarded" | "poor" | "hopeless";
+export type ToothRecommendedAction =
+  | "monitor"
+  | "investigate"
+  | "preventive"
+  | "restorative"
+  | "endodontic"
+  | "periodontal"
+  | "surgical"
+  | "prosthetic"
+  | "orthodontic"
+  | "referral"
+  | "other";
 export type ReportAggregateRpcPayload = {
   by_doctor: Json;
   by_center: Json;
@@ -198,6 +212,29 @@ export type CaseSheet = Timestamps & {
   created_by: string;
 };
 
+export type ToothAssessment = Timestamps & {
+  id: string;
+  case_sheet_id: string;
+  lead_id: string;
+  branch_id: string;
+  appointment_id: string;
+  doctor_id: string;
+  tooth_number: string;
+  tooth_state: ToothState;
+  conditions: string[];
+  surfaces: string[];
+  clinical_findings: string | null;
+  diagnosis: string | null;
+  prognosis: ToothPrognosis | null;
+  recommended_action: ToothRecommendedAction | null;
+  future_plan: string | null;
+  notes: string | null;
+  assessed_at: string;
+  signed_at: string;
+  signed_by: string;
+  created_by: string;
+};
+
 export type FollowUp = Timestamps & {
   id: string;
   lead_id: string;
@@ -291,7 +328,8 @@ export type AuditLog = {
     | "invoice"
     | "comment"
     | "profile"
-    | "case_sheet";
+    | "case_sheet"
+    | "tooth_assessment";
   entity_id: string;
   action: string;
   actor_id: string | null;
@@ -411,6 +449,32 @@ export type Database = {
           FK<"case_sheets_created_by_fkey", "created_by", "profiles">
         ]
       >;
+      tooth_assessments: TableDef<
+        ToothAssessment,
+        | "case_sheet_id"
+        | "lead_id"
+        | "branch_id"
+        | "appointment_id"
+        | "doctor_id"
+        | "tooth_number"
+        | "tooth_state"
+        | "conditions"
+        | "surfaces"
+        | "assessed_at"
+        | "signed_at"
+        | "signed_by"
+        | "created_by",
+        "id" | "created_at",
+        [
+          FK<"tooth_assessments_case_sheet_id_fkey", "case_sheet_id", "case_sheets">,
+          FK<"tooth_assessments_lead_id_fkey", "lead_id", "leads">,
+          FK<"tooth_assessments_branch_id_fkey", "branch_id", "branches">,
+          FK<"tooth_assessments_appointment_id_fkey", "appointment_id", "appointments">,
+          FK<"tooth_assessments_doctor_id_fkey", "doctor_id", "doctors">,
+          FK<"tooth_assessments_signed_by_fkey", "signed_by", "profiles">,
+          FK<"tooth_assessments_created_by_fkey", "created_by", "profiles">
+        ]
+      >;
       treatments: TableDef<
         Treatment,
         "lead_id",
@@ -516,6 +580,10 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      current_tooth_assessments: {
+        Args: { p_lead_id: string };
+        Returns: ToothAssessment[];
+      };
       next_invoice_number: { Args: { p_branch_id: string }; Returns: string };
       transition_lead: {
         Args: { p_lead_id: string; p_to: LeadStatus; p_actor: string; p_payload?: Json };
@@ -532,6 +600,23 @@ export type Database = {
           p_diagnosis: string | null;
           p_plan: string | null;
           p_medical_alerts: string | null;
+          p_treatments: Json;
+          p_actor: string;
+        };
+        Returns: CaseSheet;
+      };
+      finalize_case_sheet_with_odontogram: {
+        Args: {
+          p_lead_id: string;
+          p_appointment_id: string;
+          p_doctor_id: string;
+          p_visit_at: string;
+          p_chief_complaint: string | null;
+          p_findings: string | null;
+          p_diagnosis: string | null;
+          p_plan: string | null;
+          p_medical_alerts: string | null;
+          p_tooth_assessments: Json;
           p_treatments: Json;
           p_actor: string;
         };

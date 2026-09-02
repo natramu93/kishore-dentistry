@@ -11,7 +11,7 @@ import {
   normalizePagination,
   normalizeSearch,
 } from "@/lib/validation";
-import type { Treatment } from "@/lib/database.types";
+import type { ToothAssessment, Treatment } from "@/lib/database.types";
 
 export type DoctorTreatmentRecord = Treatment & {
   lead: { id: string; name: string; mobile: string } | null;
@@ -26,6 +26,17 @@ export type DoctorPatientFilters = {
   search?: string;
   page?: number;
   pageSize?: number;
+};
+
+export type DoctorCaseSheetRecord = {
+  id: string;
+  lead_id: string;
+  visit_at: string;
+  finalized_at: string;
+  lead: { id: string; name: string; mobile: string } | null;
+  branch: { name: string } | null;
+  tooth_assessments: Array<{ id: string }>;
+  treatments: Array<{ id: string }>;
 };
 
 function requireLinkedDoctor(ctx: AuthContext): string {
@@ -93,21 +104,89 @@ export async function listMyTreatments(
   };
 }
 
+export async function listMyCaseSheets(
+  ctx: AuthContext,
+  filters: Pick<DoctorPatientFilters, "from" | "to" | "search" | "page" | "pageSize"> = {}
+): Promise<{
+  records: DoctorCaseSheetRecord[];
+  total: number;
+  page: number;
+  pageSize: number;
+}> {
+  const doctorId = requireLinkedDoctor(ctx);
+  const pagination = normalizePagination(filters.page, filters.pageSize, 12);
+  let page = pagination.page;
+  const { pageSize } = pagination;
+  let query = db
+    .from("case_sheets")
+    .select(
+      "id, lead_id, visit_at, finalized_at, lead:leads!inner(id, name, mobile), branch:branches(name), tooth_assessments(id), treatments(id)",
+      { count: "exact" }
+    )
+    .eq("doctor_id", doctorId)
+    .order("visit_at", { ascending: false })
+    .order("finalized_at", { ascending: false })
+    .order("id", { ascending: false });
+
+  if (filters.from) query = query.gte("visit_at", assertIsoDateTime(filters.from, "Start date"));
+  if (filters.to) query = query.lt("visit_at", assertIsoDateTime(filters.to, "End date"));
+  const search = normalizeSearch(filters.search);
+  if (search) {
+    query = query.or(`name.ilike.%${search}%,mobile.ilike.%${search}%`, {
+      referencedTable: "lead",
+    });
+  }
+
+  const from = (page - 1) * pageSize;
+  let result = await query.range(from, from + pageSize - 1);
+  if (result.error) throw result.error;
+  const pageCount = Math.max(1, Math.ceil((result.count ?? 0) / pageSize));
+  if (page > pageCount) {
+    page = pageCount;
+    const clampedFrom = (page - 1) * pageSize;
+    result = await query.range(clampedFrom, clampedFrom + pageSize - 1);
+    if (result.error) throw result.error;
+  }
+  return {
+    records: (result.data ?? []) as DoctorCaseSheetRecord[],
+    total: result.count ?? 0,
+    page,
+    pageSize,
+  };
+}
+
 /** Distinct patients this doctor has treated (for the summary header). */
 export async function countMyPatients(ctx: AuthContext): Promise<number> {
   const doctorId = requireLinkedDoctor(ctx);
-  const { data, error } = await db
-    .from("treatments")
-    .select("lead_id")
-    .eq("doctor_id", doctorId ?? EMPTY_UUID)
-    .or("case_sheet_id.is.null,clinical_status.eq.completed");
-  if (error) throw error;
-  return new Set((data ?? []).map((t) => t.lead_id)).size;
+  const [treatments, sheets] = await Promise.all([
+    db
+      .from("treatments")
+      .select("lead_id")
+      .eq("doctor_id", doctorId ?? EMPTY_UUID)
+      .or("case_sheet_id.is.null,clinical_status.eq.completed"),
+    db
+      .from("case_sheets")
+      .select("lead_id")
+      .eq("doctor_id", doctorId ?? EMPTY_UUID),
+  ]);
+  if (treatments.error) throw treatments.error;
+  if (sheets.error) throw sheets.error;
+  return new Set([
+    ...(treatments.data ?? []).map((row) => row.lead_id),
+    ...(sheets.data ?? []).map((row) => row.lead_id),
+  ]).size;
 }
 
-export async function getMyPatientHistory(ctx: AuthContext, leadIdValue: string) {
+export async function getMyPatientHistory(
+  ctx: AuthContext,
+  leadIdValue: string,
+  opts: { page?: number; pageSize?: number } = {}
+) {
   const doctorId = requireLinkedDoctor(ctx);
   const leadId = assertUuid(leadIdValue, "Patient");
+  const pagination = normalizePagination(opts.page, opts.pageSize, 10);
+  let page = pagination.page;
+  const { pageSize } = pagination;
   const [appointmentLink, treatmentLink] = await Promise.all([
     db
       .from("appointments")
@@ -131,7 +210,16 @@ export async function getMyPatientHistory(ctx: AuthContext, leadIdValue: string)
   if (!relationship) throw new NotFoundError("Patient history");
   assertBranchAccess(ctx, relationship.branch_id);
 
-  const [leadResult, sheetsResult, legacyResult] = await Promise.all([
+  const from = (page - 1) * pageSize;
+  const sheetsQuery = db
+    .from("case_sheets")
+    .select("*, doctor:doctors(full_name), tooth_assessments(*), treatments(*)", { count: "exact" })
+    .eq("lead_id", leadId)
+    .eq("branch_id", relationship.branch_id)
+    .order("visit_at", { ascending: false })
+    .order("finalized_at", { ascending: false })
+    .order("id", { ascending: false });
+  const results = await Promise.all([
     db
       .from("leads")
       .select("id, name, mobile, email, dob, age, branch_id, branch:branches(name)")
@@ -139,13 +227,7 @@ export async function getMyPatientHistory(ctx: AuthContext, leadIdValue: string)
       .eq("branch_id", relationship.branch_id)
       .is("deleted_at", null)
       .maybeSingle(),
-    db
-      .from("case_sheets")
-      .select("*, doctor:doctors(full_name), treatments(*)")
-      .eq("lead_id", leadId)
-      .eq("branch_id", relationship.branch_id)
-      .order("visit_at", { ascending: false })
-      .limit(200),
+    sheetsQuery.range(from, from + pageSize - 1),
     db
       .from("treatments")
       .select("*, doctor:doctors(full_name), treatment_type:treatment_types(name, category)")
@@ -154,14 +236,46 @@ export async function getMyPatientHistory(ctx: AuthContext, leadIdValue: string)
       .is("case_sheet_id", null)
       .order("treated_at", { ascending: false })
       .limit(200),
+    db.rpc("current_tooth_assessments", { p_lead_id: leadId }),
   ]);
+  const leadResult = results[0];
+  let sheetsResult = results[1];
+  const legacyResult = results[2];
+  const currentResult = results[3];
   if (leadResult.error) throw leadResult.error;
   if (!leadResult.data) throw new NotFoundError("Patient");
   if (sheetsResult.error) throw sheetsResult.error;
+  const pageCount = Math.max(1, Math.ceil((sheetsResult.count ?? 0) / pageSize));
+  if (page > pageCount) {
+    page = pageCount;
+    const clampedFrom = (page - 1) * pageSize;
+    sheetsResult = await sheetsQuery.range(clampedFrom, clampedFrom + pageSize - 1);
+    if (sheetsResult.error) throw sheetsResult.error;
+  }
   if (legacyResult.error) throw legacyResult.error;
+  if (currentResult.error) throw currentResult.error;
+
+  const currentRows = (currentResult.data ?? []) as ToothAssessment[];
+  const doctorIds = [...new Set(currentRows.map((row) => row.doctor_id))];
+  let doctorNames = new Map<string, string>();
+  if (doctorIds.length > 0) {
+    const { data: doctors, error: doctorError } = await db
+      .from("doctors")
+      .select("id, full_name")
+      .in("id", doctorIds);
+    if (doctorError) throw doctorError;
+    doctorNames = new Map((doctors ?? []).map((doctor) => [doctor.id, doctor.full_name]));
+  }
   return {
     lead: leadResult.data,
     caseSheets: sheetsResult.data ?? [],
+    caseSheetTotal: sheetsResult.count ?? 0,
+    caseSheetPage: page,
+    caseSheetPageSize: pageSize,
+    currentToothAssessments: currentRows.map((row) => ({
+      ...row,
+      doctor_name: doctorNames.get(row.doctor_id) ?? null,
+    })),
     legacyTreatments: legacyResult.data ?? [],
   };
 }

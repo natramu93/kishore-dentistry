@@ -79,7 +79,7 @@ function formatTreatmentSite(item: {
   surfaces: string[] | null;
 }): string {
   if (item.site_scope === "tooth") {
-    return `FDI tooth ${item.tooth_number}${
+    return `IS 8815 tooth ${item.tooth_number}${
       item.surfaces?.length ? ` (${item.surfaces.join(", ")})` : ""
     }`;
   }

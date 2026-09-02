@@ -1,39 +1,106 @@
 import { describe, expect, it } from "vitest";
 import {
   caseSheetTreatmentSchema,
-  FDI_PERMANENT_TEETH,
-  FDI_PRIMARY_TEETH,
-  isFdiToothNumber,
-  isPermanentFdiTooth,
-  isPrimaryFdiTooth,
+  caseSheetPayloadSchema,
+  describeIndianTooth,
+  INDIAN_PERMANENT_TEETH,
+  INDIAN_PRIMARY_TEETH,
+  isIndianToothNumber,
+  isPermanentIndianTooth,
+  isPrimaryIndianTooth,
   treatmentSiteSchema,
+  toothAssessmentSchema,
   validateTreatmentSite,
 } from "@/lib/clinical";
 
-describe("FDI dental notation", () => {
+describe("Indian Standard IS 8815 dental notation", () => {
   it("contains each valid permanent and primary tooth exactly once", () => {
-    expect(FDI_PERMANENT_TEETH).toHaveLength(32);
-    expect(FDI_PRIMARY_TEETH).toHaveLength(20);
-    expect(new Set([...FDI_PERMANENT_TEETH, ...FDI_PRIMARY_TEETH]).size).toBe(52);
-    expect([...FDI_PERMANENT_TEETH, ...FDI_PRIMARY_TEETH].every(isFdiToothNumber)).toBe(true);
+    expect(INDIAN_PERMANENT_TEETH).toHaveLength(32);
+    expect(INDIAN_PRIMARY_TEETH).toHaveLength(20);
+    expect(new Set([...INDIAN_PERMANENT_TEETH, ...INDIAN_PRIMARY_TEETH]).size).toBe(52);
+    expect([...INDIAN_PERMANENT_TEETH, ...INDIAN_PRIMARY_TEETH].every(isIndianToothNumber)).toBe(true);
   });
 
   it("distinguishes permanent and primary tooth numbers", () => {
-    expect(isPermanentFdiTooth("11")).toBe(true);
-    expect(isPermanentFdiTooth("48")).toBe(true);
-    expect(isPrimaryFdiTooth("51")).toBe(true);
-    expect(isPrimaryFdiTooth("85")).toBe(true);
-    expect(isPrimaryFdiTooth("11")).toBe(false);
+    expect(isPermanentIndianTooth("11")).toBe(true);
+    expect(isPermanentIndianTooth("48")).toBe(true);
+    expect(isPrimaryIndianTooth("51")).toBe(true);
+    expect(isPrimaryIndianTooth("85")).toBe(true);
+    expect(isPrimaryIndianTooth("11")).toBe(false);
+  });
+
+  it("provides the Indian-standard quadrant and anatomical tooth name", () => {
+    expect(describeIndianTooth("11")).toBe("Upper right central incisor");
+    expect(describeIndianTooth("36")).toBe("Lower left first molar");
+    expect(describeIndianTooth("74")).toBe("Lower left first molar");
   });
 
   it.each(["", "0", "19", "49", "50", "56", "68", "75 ", 11, null])(
     "rejects invalid tooth number %j",
-    (value) => expect(isFdiToothNumber(value)).toBe(false),
+    (value) => expect(isIndianToothNumber(value)).toBe(false),
   );
 });
 
+describe("general tooth examination validation", () => {
+  const assessment = {
+    tooth_number: "16",
+    tooth_state: "present" as const,
+    conditions: ["caries" as const],
+    surfaces: ["occlusal" as const],
+    clinical_findings: "Occlusal cavitation",
+    diagnosis: "Dentinal caries",
+    prognosis: "good" as const,
+    recommended_action: "restorative" as const,
+    future_plan: "Review for restoration",
+    notes: "",
+  };
+
+  it("accepts a structured tooth assessment independent of treatment", () => {
+    expect(toothAssessmentSchema.safeParse(assessment).success).toBe(true);
+    expect(caseSheetPayloadSchema.safeParse({
+      lead_id: "00000000-0000-4000-8000-000000000001",
+      appointment_id: "00000000-0000-4000-8000-000000000002",
+      doctor_id: "00000000-0000-4000-8000-000000000003",
+      visit_at: "2042-01-14T09:05",
+      chief_complaint: "Routine examination",
+      findings: "",
+      diagnosis: "Dental examination",
+      plan: "",
+      medical_alerts: "",
+      tooth_assessments: [assessment],
+      treatments: [],
+    }).success).toBe(true);
+  });
+
+  it("rejects incompatible states and duplicate tooth entries", () => {
+    expect(toothAssessmentSchema.safeParse({
+      ...assessment,
+      tooth_state: "missing",
+    }).success).toBe(false);
+    expect(toothAssessmentSchema.safeParse({
+      ...assessment,
+      tooth_state: "sound",
+    }).success).toBe(false);
+
+    const payload = {
+      lead_id: "00000000-0000-4000-8000-000000000001",
+      appointment_id: "00000000-0000-4000-8000-000000000002",
+      doctor_id: "00000000-0000-4000-8000-000000000003",
+      visit_at: "2042-01-14T09:05",
+      chief_complaint: "Routine examination",
+      findings: "",
+      diagnosis: "Dental examination",
+      plan: "",
+      medical_alerts: "",
+      tooth_assessments: [assessment, assessment],
+      treatments: [],
+    };
+    expect(caseSheetPayloadSchema.safeParse(payload).success).toBe(false);
+  });
+});
+
 describe("dental treatment site validation", () => {
-  it("requires an FDI tooth for a tooth-level treatment", () => {
+  it("requires an Indian Standard tooth for a tooth-level treatment", () => {
     const invalid = treatmentSiteSchema.safeParse({
       site_scope: "tooth",
       site_detail: null,

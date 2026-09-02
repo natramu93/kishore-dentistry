@@ -6,13 +6,14 @@ type SearchParams = Record<string, string | undefined>;
 function pageHref(
   pathname: string,
   searchParams: SearchParams,
-  page: number
+  page: number,
+  pageParam: string
 ): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(searchParams)) {
-    if (value && key !== "page") params.set(key, value);
+    if (value && key !== pageParam) params.set(key, value);
   }
-  if (page > 1) params.set("page", String(page));
+  if (page > 1) params.set(pageParam, String(page));
   const query = params.toString();
   return query ? `${pathname}?${query}` : pathname;
 }
@@ -23,12 +24,14 @@ export function PaginationNav({
   page,
   pageSize,
   total,
+  pageParam = "page",
 }: {
   pathname: string;
   searchParams: SearchParams;
   page: number;
   pageSize: number;
   total: number;
+  pageParam?: string;
 }) {
   if (total === 0) return null;
 
@@ -54,7 +57,7 @@ export function PaginationNav({
         >
           {safePage > 1 ? (
             <Link
-              href={pageHref(pathname, searchParams, safePage - 1)}
+              href={pageHref(pathname, searchParams, safePage - 1, pageParam)}
               rel="prev"
             >
               Previous
@@ -74,7 +77,7 @@ export function PaginationNav({
         >
           {safePage < pageCount ? (
             <Link
-              href={pageHref(pathname, searchParams, safePage + 1)}
+              href={pageHref(pathname, searchParams, safePage + 1, pageParam)}
               rel="next"
             >
               Next

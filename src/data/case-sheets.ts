@@ -15,9 +15,10 @@ import {
   EMPTY_UUID,
   assertIsoDateTime,
   assertUuid,
+  normalizePagination,
 } from "@/lib/validation";
 import { throwMappedDatabaseError } from "./helpers";
-import type { Json } from "@/lib/database.types";
+import type { Json, ToothAssessment } from "@/lib/database.types";
 
 const CLINICAL_AUTHOR_ROLES = ["admin", "clinical_head", "doctor"] as const;
 
@@ -54,6 +55,18 @@ export type FinalizeCaseSheetInput = {
   diagnosis?: string | null;
   plan?: string | null;
   medical_alerts?: string | null;
+  tooth_assessments: Array<{
+    tooth_number: string;
+    tooth_state: string;
+    conditions: string[];
+    surfaces: string[];
+    clinical_findings: string;
+    diagnosis: string;
+    prognosis: string | null;
+    recommended_action: string | null;
+    future_plan: string;
+    notes: string;
+  }>;
   treatments: Array<{
     treatment_code: string;
     status: "planned" | "completed";
@@ -169,7 +182,7 @@ export async function finalizeCaseSheet(
     throw new ValidationError("Case-sheet doctor must match the booked doctor");
   }
 
-  const { data, error } = await db.rpc("finalize_case_sheet", {
+  const { data, error } = await db.rpc("finalize_case_sheet_with_odontogram", {
     p_lead_id: leadId,
     p_appointment_id: appointmentId,
     p_doctor_id: doctorId,
@@ -179,6 +192,7 @@ export async function finalizeCaseSheet(
     p_diagnosis: input.diagnosis?.trim() || null,
     p_plan: input.plan?.trim() || null,
     p_medical_alerts: input.medical_alerts?.trim() || null,
+    p_tooth_assessments: input.tooth_assessments as unknown as Json,
     p_treatments: input.treatments as unknown as Json,
     p_actor: ctx.userId,
   });
@@ -187,8 +201,15 @@ export async function finalizeCaseSheet(
   return { id: row.id, lead_id: row.lead_id };
 }
 
-export async function listCaseSheetsForLead(ctx: AuthContext, leadIdValue: string) {
+export async function listCaseSheetsForLead(
+  ctx: AuthContext,
+  leadIdValue: string,
+  opts: { page?: number; pageSize?: number } = {}
+) {
   const leadId = assertUuid(leadIdValue, "Patient");
+  const pagination = normalizePagination(opts.page, opts.pageSize, 10);
+  let page = pagination.page;
+  const { pageSize } = pagination;
   if (ctx.role === "doctor") {
     if (!ctx.doctorId) throw new AuthorizationError("Linked doctor access required");
   } else {
@@ -197,18 +218,69 @@ export async function listCaseSheetsForLead(ctx: AuthContext, leadIdValue: strin
       ["admin", "operations", "front_office", "clinical_head"],
       "Patient access required"
     );
+    const { data: lead, error: leadError } = await db
+      .from("leads")
+      .select("branch_id, deleted_at")
+      .eq("id", leadId)
+      .maybeSingle();
+    if (leadError) throw leadError;
+    if (!lead || lead.deleted_at) throw new NotFoundError("Patient");
+    assertBranchAccess(ctx, lead.branch_id);
   }
 
+  const includesClinicalNarrative =
+    ctx.role === "admin" || ctx.role === "clinical_head";
   let query = db
     .from("case_sheets")
     .select(
-      "*, doctor:doctors(full_name), treatments(*, treatment_code_ref:treatment_codes!treatments_treatment_code_fkey(name, category), invoice_items(id, invoice_id, active_billing))"
+      "*, doctor:doctors(full_name), tooth_assessments(*), treatments(*, treatment_code_ref:treatment_codes!treatments_treatment_code_fkey(name, category), invoice_items(id, invoice_id, active_billing))",
+      { count: "exact" }
     )
     .eq("lead_id", leadId)
     .order("visit_at", { ascending: false })
-    .limit(200);
+    .order("finalized_at", { ascending: false })
+    .order("id", { ascending: false });
   if (ctx.role === "doctor") query = query.eq("doctor_id", ctx.doctorId ?? EMPTY_UUID);
-  const { data, error } = await query;
-  if (error) throw error;
-  return data ?? [];
+  const from = (page - 1) * pageSize;
+  const results = await Promise.all([
+    query.range(from, from + pageSize - 1),
+    includesClinicalNarrative
+      ? db.rpc("current_tooth_assessments", { p_lead_id: leadId })
+      : Promise.resolve({ data: [] as ToothAssessment[], error: null }),
+  ]);
+  let sheetResult = results[0];
+  const currentResult = results[1];
+  if (sheetResult.error) throw sheetResult.error;
+  const pageCount = Math.max(1, Math.ceil((sheetResult.count ?? 0) / pageSize));
+  if (page > pageCount) {
+    page = pageCount;
+    const clampedFrom = (page - 1) * pageSize;
+    sheetResult = await query.range(clampedFrom, clampedFrom + pageSize - 1);
+    if (sheetResult.error) throw sheetResult.error;
+  }
+  if (currentResult.error) throw currentResult.error;
+
+  const { data, count } = sheetResult;
+  const currentRows = (currentResult.data ?? []) as ToothAssessment[];
+  const doctorIds = [...new Set(currentRows.map((row) => row.doctor_id))];
+  let doctorNames = new Map<string, string>();
+  if (doctorIds.length > 0) {
+    const { data: doctors, error: doctorError } = await db
+      .from("doctors")
+      .select("id, full_name")
+      .in("id", doctorIds);
+    if (doctorError) throw doctorError;
+    doctorNames = new Map((doctors ?? []).map((doctor) => [doctor.id, doctor.full_name]));
+  }
+
+  return {
+    caseSheets: data ?? [],
+    currentToothAssessments: currentRows.map((row) => ({
+      ...row,
+      doctor_name: doctorNames.get(row.doctor_id) ?? null,
+    })),
+    total: count ?? 0,
+    page,
+    pageSize,
+  };
 }

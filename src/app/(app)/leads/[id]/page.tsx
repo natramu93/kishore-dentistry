@@ -13,6 +13,10 @@ import { LeadStatusBadge } from "@/components/lead-status-badge";
 import { StatusStepper } from "@/components/leads/status-stepper";
 import { TransitionActions } from "@/components/leads/transition-actions";
 import { AppointmentReschedule } from "@/components/leads/appointment-reschedule";
+import {
+  ToothAssessmentHistory,
+  type ToothAssessmentHistoryItem,
+} from "@/components/clinical/tooth-assessment-history";
 import { LeadDeleteButton } from "@/components/leads/lead-delete-button";
 import { ContactActions } from "@/components/contact-actions";
 import { RowEditDialog } from "@/components/admin/row-edit-dialog";
@@ -21,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CommentThread } from "@/components/comment-thread";
+import { PaginationNav } from "@/components/pagination-nav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,10 +58,13 @@ export async function generateMetadata({
 
 export default async function LeadDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const { id } = await params;
+  const queryParams = await searchParams;
   const { ctx, related } = await getLeadPageData(id);
   if (!related) notFound();
   const {
@@ -71,15 +79,22 @@ export default async function LeadDetailPage({
   const followUps = followUpRows ?? [];
   const invoices = invoiceRows ?? [];
 
-  const [activity, comments, caseSheets, assignableUsers, doctors, treatmentTypes, sources] = await Promise.all([
+  const [activity, comments, caseSheetResult, assignableUsers, doctors, treatmentTypes, sources] = await Promise.all([
     getLeadActivity(ctx, id),
     listComments(ctx, id),
-    listCaseSheetsForLead(ctx, id),
+    listCaseSheetsForLead(ctx, id, { page: Number(queryParams.page) }),
     listAssignableUsers(ctx, lead.branch_id),
     listDoctors(ctx, { branchId: lead.branch_id }),
     listTreatmentTypes(ctx),
     listLeadSources(ctx),
   ]);
+  const {
+    caseSheets,
+    currentToothAssessments,
+    total: caseSheetTotal,
+    page: caseSheetPage,
+    pageSize: caseSheetPageSize,
+  } = caseSheetResult;
   const canManage = canDelete(ctx.role);
   const canAuthorCaseSheet = ctx.role === "admin" || ctx.role === "clinical_head";
   const canViewClinicalNarrative = canAuthorCaseSheet;
@@ -321,6 +336,15 @@ export default async function LeadDetailPage({
                   No case sheet has been recorded yet.
                 </p>
               )}
+              {canViewClinicalNarrative && currentToothAssessments.length > 0 && (
+                <section className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3" aria-labelledby="current-tooth-summary">
+                  <div>
+                    <h3 id="current-tooth-summary" className="text-sm font-semibold">Latest recorded whole-mouth tooth summary</h3>
+                    <p className="text-xs text-muted-foreground">Most recent signed assessment for each recorded tooth, with its examination date and clinician.</p>
+                  </div>
+                  <ToothAssessmentHistory assessments={currentToothAssessments} />
+                </section>
+              )}
               {caseSheets.map((sheet) => {
                 const doctor = sheet.doctor as { full_name: string } | null;
                 const lines = (sheet.treatments ?? []) as Array<{
@@ -342,6 +366,9 @@ export default async function LeadDetailPage({
                     active_billing: boolean;
                   }>;
                 }>;
+                const toothAssessments = ((sheet.tooth_assessments ?? []) as ToothAssessmentHistoryItem[]).map(
+                  (assessment) => ({ ...assessment, doctor_name: doctor?.full_name ?? null })
+                );
                 return (
                   <section key={sheet.id} className="rounded-lg border p-3" aria-labelledby={`case-${sheet.id}`}>
                     <div className="flex flex-wrap items-start justify-between gap-2">
@@ -356,13 +383,23 @@ export default async function LeadDetailPage({
                       <Badge variant="secondary">Finalized</Badge>
                     </div>
                     {canViewClinicalNarrative && (
-                      <dl className="mt-3 grid gap-2 rounded-md bg-muted/40 p-3 text-sm sm:grid-cols-2">
-                        <Field label="Chief complaint" value={sheet.chief_complaint} />
-                        <Field label="Findings" value={sheet.findings} />
-                        <Field label="Diagnosis" value={sheet.diagnosis} />
-                        <Field label="Treatment plan" value={sheet.plan} />
-                        <Field label="Medical alerts" value={sheet.medical_alerts} />
-                      </dl>
+                      <>
+                        <dl className="mt-3 grid gap-2 rounded-md bg-muted/40 p-3 text-sm sm:grid-cols-2">
+                          <Field label="Chief complaint" value={sheet.chief_complaint} />
+                          <Field label="Findings" value={sheet.findings} />
+                          <Field label="Diagnosis" value={sheet.diagnosis} />
+                          <Field label="Treatment plan" value={sheet.plan} />
+                          <Field label="Medical alerts" value={sheet.medical_alerts} />
+                        </dl>
+                        {toothAssessments.length > 0 && (
+                          <details className="mt-3 rounded-md border bg-muted/20 p-3">
+                            <summary className="cursor-pointer text-sm font-semibold">
+                              General tooth examination ({toothAssessments.length})
+                            </summary>
+                            <ToothAssessmentHistory assessments={toothAssessments} className="mt-3" />
+                          </details>
+                        )}
+                      </>
                     )}
                     <div className="mt-3 space-y-3">
                       {lines.map((t) => {
@@ -424,6 +461,13 @@ export default async function LeadDetailPage({
                   </section>
                 );
               })}
+              <PaginationNav
+                pathname={`/leads/${id}`}
+                searchParams={queryParams}
+                page={caseSheetPage}
+                pageSize={caseSheetPageSize}
+                total={caseSheetTotal}
+              />
               {treatments.filter((t) => !t.case_sheet_id).length > 0 && (
                 <section className="rounded-lg border border-dashed p-3">
                   <h3 className="text-sm font-semibold">Legacy treatment history</h3>

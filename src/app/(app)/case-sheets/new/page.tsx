@@ -49,8 +49,8 @@ export default async function NewCaseSheetPage({
           {scope.lead.name} · {scope.lead.mobile} · {scope.lead.branch?.name}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Every treatment line must use an approved TMT code. Finalized clinical entries are
-          retained as patient history and cannot be silently overwritten.
+          Use the Indian Standard tooth chart for general findings and future planning. Any
+          treatment added must use an approved TMT code. Finalized entries cannot be overwritten.
         </p>
       </div>
       <CaseSheetEditor

@@ -16,17 +16,20 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ToothChart } from "@/components/clinical/tooth-chart";
+import { OdontogramEditor } from "@/components/clinical/odontogram-editor";
 import {
   ARCH_SITES,
   caseSheetPayloadSchema,
   DENTAL_SURFACES,
-  FDI_PERMANENT_TEETH,
-  FDI_PRIMARY_TEETH,
-  isPrimaryFdiTooth,
+  INDIAN_PERMANENT_TEETH,
+  INDIAN_PRIMARY_TEETH,
+  isPrimaryIndianTooth,
   QUADRANT_SITES,
   type CaseSheetPayload,
   type CaseSheetTreatmentInput,
   type DentalSurface,
+  type ToothAssessmentInput,
   type TreatmentSiteScope,
 } from "@/lib/clinical";
 
@@ -134,9 +137,8 @@ export function CaseSheetEditor({
   const [diagnosis, setDiagnosis] = useState("");
   const [plan, setPlan] = useState("");
   const [medicalAlerts, setMedicalAlerts] = useState("");
-  const [treatments, setTreatments] = useState<EditableTreatment[]>([
-    blankTreatment("treatment-0"),
-  ]);
+  const [toothAssessments, setToothAssessments] = useState<ToothAssessmentInput[]>([]);
+  const [treatments, setTreatments] = useState<EditableTreatment[]>([]);
 
   const searchableTreatmentCodes = useMemo(
     () => treatmentCodes.map((treatment) => ({
@@ -171,6 +173,21 @@ export function CaseSheetEditor({
     setTreatments((current) => [...current, blankTreatment(rowKey)]);
   }
 
+  function addTreatmentForTooth(toothNumber: string) {
+    const rowKey = `treatment-${nextRowKey.current}`;
+    nextRowKey.current += 1;
+    setDirty(true);
+    setTreatments((current) => [
+      ...current,
+      {
+        ...blankTreatment(rowKey),
+        site_scope: "tooth",
+        tooth_number: toothNumber,
+        dentition: isPrimaryIndianTooth(toothNumber) ? "primary" : "permanent",
+      },
+    ]);
+  }
+
   function removeTreatment(rowKey: string) {
     setDirty(true);
     setTreatments((current) => current.filter((treatment) => treatment.rowKey !== rowKey));
@@ -187,6 +204,7 @@ export function CaseSheetEditor({
       diagnosis,
       plan,
       medical_alerts: medicalAlerts,
+      tooth_assessments: toothAssessments,
       treatments: treatments.map(({
         treatment_code,
         status,
@@ -255,7 +273,7 @@ export function CaseSheetEditor({
       <CardHeader>
         <CardTitle>Digital dental case sheet</CardTitle>
         <CardDescription>
-          Record the clinical visit and attach an approved treatment code to every planned or completed procedure.
+          Record the whole-mouth examination first. Treatments are optional, but every planned or completed procedure must use an approved code.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -367,11 +385,21 @@ export function CaseSheetEditor({
             </div>
           </section>
 
+          <OdontogramEditor
+            value={toothAssessments}
+            errors={errors}
+            onChange={(next) => {
+              setDirty(true);
+              setToothAssessments(next);
+            }}
+            onAddTreatment={addTreatmentForTooth}
+          />
+
           <section aria-labelledby={`${idPrefix}-treatments-heading`} className="space-y-4">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 id={`${idPrefix}-treatments-heading`} className="text-base font-semibold">Coded treatments</h2>
-                <p className="text-sm text-muted-foreground">Invoice eligibility is based on completed, coded treatments.</p>
+                <h2 id={`${idPrefix}-treatments-heading`} className="text-base font-semibold">Coded treatments <span className="font-normal text-muted-foreground">(optional)</span></h2>
+                <p className="text-sm text-muted-foreground">Add only planned or completed procedures. Invoice eligibility remains limited to completed, coded treatments.</p>
               </div>
               <Button type="button" variant="outline" size="sm" onClick={addTreatment}>
                 <Plus aria-hidden="true" /> Add treatment
@@ -379,6 +407,11 @@ export function CaseSheetEditor({
             </div>
 
             <div className="space-y-4">
+              {treatments.length === 0 && (
+                <div className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">
+                  No treatment is required to finalize this examination. Add a coded treatment only when applicable.
+                </div>
+              )}
               {treatments.map((treatment, index) => (
                 <TreatmentRow
                   key={treatment.rowKey}
@@ -387,7 +420,7 @@ export function CaseSheetEditor({
                   treatment={treatment}
                   treatmentCodes={searchableTreatmentCodes}
                   errors={errors}
-                  canRemove={treatments.length > 1}
+                  canRemove
                   onChange={(patch) => changeTreatment(treatment.rowKey, patch)}
                   onRemove={() => removeTreatment(treatment.rowKey)}
                 />
@@ -396,11 +429,11 @@ export function CaseSheetEditor({
           </section>
 
           <div className="flex flex-col-reverse gap-2 border-t pt-5 sm:flex-row sm:justify-end">
-            <Button type="submit" disabled={pending || treatmentCodes.length === 0} className="sm:min-w-44">
+            <Button type="submit" disabled={pending || (treatments.length > 0 && treatmentCodes.length === 0)} className="sm:min-w-44">
               {pending ? "Finalizing…" : "Finalize case sheet"}
             </Button>
           </div>
-          {treatmentCodes.length === 0 && (
+          {treatmentCodes.length === 0 && treatments.length > 0 && (
             <p role="alert" className="text-sm text-destructive">
               The approved treatment-code list is unavailable. This case sheet cannot be finalized.
             </p>
@@ -677,7 +710,7 @@ function ToothSiteEditor({
   surfaceError?: string;
   onChange: (patch: Partial<EditableTreatment>) => void;
 }) {
-  const teeth = treatment.dentition === "permanent" ? FDI_PERMANENT_TEETH : FDI_PRIMARY_TEETH;
+  const teeth = treatment.dentition === "permanent" ? INDIAN_PERMANENT_TEETH : INDIAN_PRIMARY_TEETH;
   const half = teeth.length / 2;
 
   function toggleSurface(surface: DentalSurface) {
@@ -691,7 +724,7 @@ function ToothSiteEditor({
   return (
     <div className="space-y-4 rounded-lg border bg-background p-3">
       <fieldset aria-invalid={Boolean(toothError)} className="space-y-3">
-        <legend className="text-sm font-medium">FDI tooth number</legend>
+        <legend className="text-sm font-medium">Tooth number — Indian Standard IS 8815</legend>
         <div className="flex gap-2" aria-label="Dentition">
           {(["permanent", "primary"] as const).map((dentition) => (
             <Button
@@ -703,7 +736,7 @@ function ToothSiteEditor({
               onClick={() => onChange({
                 dentition,
                 tooth_number: treatment.tooth_number && (
-                  dentition === "primary" ? isPrimaryFdiTooth(treatment.tooth_number) : !isPrimaryFdiTooth(treatment.tooth_number)
+                  dentition === "primary" ? isPrimaryIndianTooth(treatment.tooth_number) : !isPrimaryIndianTooth(treatment.tooth_number)
                 ) ? treatment.tooth_number : null,
                 surfaces: [],
               })}
@@ -712,24 +745,36 @@ function ToothSiteEditor({
             </Button>
           ))}
         </div>
-        <div className="overflow-x-auto pb-1" aria-label={`${treatment.dentition} FDI tooth chart`}>
-          <div className="min-w-max space-y-2">
-            <ToothRow
-              label="Upper teeth"
-              teeth={teeth.slice(0, half)}
-              selected={treatment.tooth_number}
-              onSelect={(tooth) => onChange({ tooth_number: tooth, surfaces: [] })}
-            />
-            <div aria-hidden="true" className="border-t border-dashed" />
-            <ToothRow
-              label="Lower teeth"
-              teeth={teeth.slice(half)}
-              selected={treatment.tooth_number}
-              onSelect={(tooth) => onChange({ tooth_number: tooth, surfaces: [] })}
-            />
+        <div className="rounded-xl border bg-muted/20 p-3">
+          <div className="mb-2 flex items-center justify-between gap-4 text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground" aria-hidden="true">
+            <span>Patient&apos;s right</span>
+            <span>Patient&apos;s left</span>
+          </div>
+          <div className="overflow-x-auto pb-2" role="group" aria-label={`${treatment.dentition} Indian Standard tooth chart`}>
+            <div className="min-w-[46rem] space-y-3">
+              <div>
+                <p className="mb-1 text-xs font-medium text-muted-foreground">Upper arch</p>
+                <ToothChart
+                  teeth={teeth.slice(0, half)}
+                  selected={treatment.tooth_number}
+                  arch="upper"
+                  onSelect={(tooth) => onChange({ tooth_number: tooth, surfaces: [] })}
+                />
+              </div>
+              <div aria-hidden="true" className="border-t-2 border-dashed border-primary/20" />
+              <div>
+                <p className="mb-1 text-xs font-medium text-muted-foreground">Lower arch</p>
+                <ToothChart
+                  teeth={teeth.slice(half)}
+                  selected={treatment.tooth_number}
+                  arch="lower"
+                  onSelect={(tooth) => onChange({ tooth_number: tooth, surfaces: [] })}
+                />
+              </div>
+            </div>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">FDI notation: select one tooth. Swipe the chart horizontally on a small screen.</p>
+        <p className="text-xs text-muted-foreground">Select a tooth image. The Indian Standard number is shown beside each tooth; swipe horizontally on a small screen.</p>
         {toothError && <FieldError message={toothError} />}
       </fieldset>
 
@@ -754,36 +799,6 @@ function ToothSiteEditor({
         </div>
         {surfaceError && <FieldError message={surfaceError} />}
       </fieldset>
-    </div>
-  );
-}
-
-function ToothRow({
-  label,
-  teeth,
-  selected,
-  onSelect,
-}: {
-  label: string;
-  teeth: readonly string[];
-  selected: string | null;
-  onSelect: (tooth: string) => void;
-}) {
-  return (
-    <div className="flex items-center gap-1" role="group" aria-label={label}>
-      <span className="sr-only">{label}</span>
-      {teeth.map((tooth) => (
-        <button
-          key={tooth}
-          type="button"
-          aria-label={`FDI tooth ${tooth}`}
-          aria-pressed={selected === tooth}
-          onClick={() => onSelect(tooth)}
-          className="flex size-11 shrink-0 items-center justify-center rounded-lg border bg-background font-mono text-sm font-semibold outline-none hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground"
-        >
-          {tooth}
-        </button>
-      ))}
     </div>
   );
 }

@@ -51,7 +51,7 @@ begin
   values(v_branch,'Coded Patient','9000000014','appointment_booked',v_admin)
   returning id into v_lead;
   insert into crm.appointments(lead_id,branch_id,doctor_id,scheduled_at,status,created_by)
-  values(v_lead,v_branch,v_doctor,'2042-01-14T09:00:00Z','scheduled',v_admin)
+  values(v_lead,v_branch,v_doctor,'2020-01-14T09:00:00Z','scheduled',v_admin)
   returning id into v_appointment;
 
   update crm.security_state set coded_dental_enforced=false where id=1;
@@ -68,7 +68,7 @@ begin
   end if;
 
   select * into v_sheet from crm.finalize_case_sheet(
-    v_lead,v_appointment,v_doctor,'2042-01-14T09:05:00Z',
+    v_lead,v_appointment,v_doctor,'2020-01-14T09:05:00Z',
     'Sensitivity','Localized findings','Clinical diagnosis','Treat and review','None',
     jsonb_build_array(
       jsonb_build_object(
@@ -133,7 +133,7 @@ begin
   select report.by_treatment, report.totals
   into v_by_treatment, v_totals
   from crm.get_report_aggregates(
-    v_admin,'2042-01-01T00:00:00Z','2042-02-01T00:00:00Z',v_branch,null
+    v_admin,'2020-01-01T00:00:00Z','2020-02-01T00:00:00Z',v_branch,null
   ) report;
   if not exists (
     select 1 from jsonb_array_elements(v_by_treatment) item
@@ -177,10 +177,10 @@ begin
   values(v_branch,'Unassigned Appointment Patient','9000000214','appointment_booked',v_admin)
   returning id into v_unassigned_lead;
   insert into crm.appointments(lead_id,branch_id,doctor_id,scheduled_at,status,created_by)
-  values(v_unassigned_lead,v_branch,null,'2042-01-16T09:00:00Z','scheduled',v_admin)
+  values(v_unassigned_lead,v_branch,null,'2020-01-16T09:00:00Z','scheduled',v_admin)
   returning id into v_unassigned_appointment;
   perform crm.finalize_case_sheet(
-    v_unassigned_lead,v_unassigned_appointment,v_doctor,'2042-01-16T09:05:00Z',
+    v_unassigned_lead,v_unassigned_appointment,v_doctor,'2020-01-16T09:05:00Z',
     'Review','Review findings','Review diagnosis','Review plan',null,
     jsonb_build_array(jsonb_build_object(
       'treatment_code','TMT_108','status','planned','site_scope','not_applicable',
@@ -200,7 +200,7 @@ begin
   values(v_branch,'Legacy Shortcut Patient','9000000114','appointment_booked',v_admin)
   returning id into v_legacy_lead;
   insert into crm.appointments(lead_id,branch_id,doctor_id,scheduled_at,status,created_by)
-  values(v_legacy_lead,v_branch,v_doctor,'2042-01-15T09:00:00Z','scheduled',v_admin)
+  values(v_legacy_lead,v_branch,v_doctor,'2020-01-15T09:00:00Z','scheduled',v_admin)
   returning id into v_legacy_appointment;
   begin
     perform crm.transition_lead(v_legacy_lead,'visited_treated',v_admin,
