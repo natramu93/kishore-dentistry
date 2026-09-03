@@ -29,7 +29,7 @@ begin
      or has_table_privilege('service_role', 'crm.tooth_assessments', 'delete') then
     raise exception 'tooth assessment table privileges are unsafe';
   end if;
-  if not has_function_privilege(
+  if has_function_privilege(
        'service_role',
        'crm.finalize_case_sheet_with_odontogram(uuid,uuid,uuid,timestamptz,text,text,text,text,text,jsonb,jsonb,uuid)',
        'execute'
@@ -44,7 +44,7 @@ begin
        'crm.finalize_case_sheet_with_odontogram(uuid,uuid,uuid,timestamptz,text,text,text,text,text,jsonb,jsonb,uuid)',
        'execute'
      )
-     or not has_function_privilege(
+     or has_function_privilege(
        'service_role',
        'crm.finalize_case_sheet(uuid,uuid,uuid,timestamptz,text,text,text,text,text,jsonb,uuid)',
        'execute'
@@ -106,10 +106,10 @@ begin
 
   execute 'set local role service_role';
   begin
-    select * into v_sheet from crm.finalize_case_sheet_with_odontogram(
+    select * into v_sheet from crm.finalize_clinical_visit(
       v_lead,v_appointment,v_doctor,'2021-01-15T09:05:00Z',
       'Routine examination','General examination completed','Dental assessment',
-      'Monitor and review',null,
+      'Monitor and review','reviewed_none',true,array[]::text[],null,
       jsonb_build_array(
         jsonb_build_object(
           'tooth_number','11','tooth_state','present',
@@ -126,6 +126,7 @@ begin
           'recommended_action','monitor'
         )
       ),
+      '[]'::jsonb,
       '[]'::jsonb,
       v_doctor_profile
     );
@@ -467,8 +468,8 @@ begin
     raise exception 'invalid Indian Standard tooth number did not roll back atomically';
   end if;
 
-  -- Existing callers can finalize a visit with an empty treatment array while
-  -- the application moves to the odontogram-aware wrapper RPC.
+  -- Legacy finalizers remain owner-internal for wrapper composition, but the
+  -- service role cannot use them to omit structured medical history.
   insert into crm.leads(branch_id,name,mobile,status,created_by)
   values(v_branch,'Compatible RPC Patient','9000000215','appointment_booked',v_admin)
   returning id into v_legacy_rpc_lead;
@@ -476,22 +477,24 @@ begin
   values(v_legacy_rpc_lead,v_branch,v_doctor,'2021-04-15T09:00:00Z','scheduled',v_admin)
   returning id into v_legacy_rpc_appointment;
 
+  v_rejected := false;
   execute 'set local role service_role';
   begin
-    select * into v_legacy_rpc_sheet from crm.finalize_case_sheet(
-    v_legacy_rpc_lead,v_legacy_rpc_appointment,v_doctor,'2021-04-15T09:05:00Z',
+    perform crm.finalize_case_sheet(
+      v_legacy_rpc_lead,v_legacy_rpc_appointment,v_doctor,'2021-04-15T09:05:00Z',
       'Consultation','General assessment','Observation only','Review later',null,
       '[]'::jsonb,
       v_admin
     );
-  exception when others then
     execute 'reset role';
-    raise;
+  exception when insufficient_privilege then
+    execute 'reset role';
+    v_rejected := true;
   end;
-  execute 'reset role';
-  if v_legacy_rpc_sheet.id is null
-     or exists (select 1 from crm.treatments where case_sheet_id=v_legacy_rpc_sheet.id) then
-    raise exception 'compatible finalization RPC still required a treatment';
+  if not v_rejected
+     or exists (select 1 from crm.case_sheets where appointment_id=v_legacy_rpc_appointment)
+     or (select status from crm.leads where id=v_legacy_rpc_lead) <> 'appointment_booked' then
+    raise exception 'service role could bypass the structured clinical finalizer';
   end if;
 end
 $test$;

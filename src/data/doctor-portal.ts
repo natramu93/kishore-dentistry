@@ -213,7 +213,7 @@ export async function getMyPatientHistory(
   const from = (page - 1) * pageSize;
   const sheetsQuery = db
     .from("case_sheets")
-    .select("*, doctor:doctors(full_name), tooth_assessments(*), treatments(*)", { count: "exact" })
+    .select("*, doctor:doctors(full_name), tooth_assessments(*), treatments(*), medical_history:case_sheet_medical_history(*, history:patient_medical_history_versions(*)), prescription_items(*)", { count: "exact" })
     .eq("lead_id", leadId)
     .eq("branch_id", relationship.branch_id)
     .order("visit_at", { ascending: false })
@@ -237,11 +237,22 @@ export async function getMyPatientHistory(
       .order("treated_at", { ascending: false })
       .limit(200),
     db.rpc("current_tooth_assessments", { p_lead_id: leadId }),
+    db
+      .from("patient_medical_history_versions")
+      .select("*")
+      .eq("lead_id", leadId)
+      .eq("branch_id", relationship.branch_id)
+      .order("recorded_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
   const leadResult = results[0];
   let sheetsResult = results[1];
   const legacyResult = results[2];
   const currentResult = results[3];
+  const medicalHistoryResult = results[4];
   if (leadResult.error) throw leadResult.error;
   if (!leadResult.data) throw new NotFoundError("Patient");
   if (sheetsResult.error) throw sheetsResult.error;
@@ -254,6 +265,27 @@ export async function getMyPatientHistory(
   }
   if (legacyResult.error) throw legacyResult.error;
   if (currentResult.error) throw currentResult.error;
+  if (medicalHistoryResult.error) throw medicalHistoryResult.error;
+
+  const sheetRows = sheetsResult.data ?? [];
+  const ownedSheetIds = sheetRows
+    .filter((sheet) => sheet.doctor_id === doctorId)
+    .map((sheet) => sheet.id);
+  const attachmentResult = ownedSheetIds.length > 0
+    ? await db
+        .from("case_sheet_attachments")
+        .select("id, case_sheet_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at")
+        .in("case_sheet_id", ownedSheetIds)
+        .eq("status", "ready")
+        .order("created_at", { ascending: true })
+    : { data: [], error: null };
+  if (attachmentResult.error) throw attachmentResult.error;
+  const attachmentsBySheet = new Map<string, typeof attachmentResult.data>();
+  for (const attachment of attachmentResult.data ?? []) {
+    const existing = attachmentsBySheet.get(attachment.case_sheet_id) ?? [];
+    existing.push(attachment);
+    attachmentsBySheet.set(attachment.case_sheet_id, existing);
+  }
 
   const currentRows = (currentResult.data ?? []) as ToothAssessment[];
   const doctorIds = [...new Set(currentRows.map((row) => row.doctor_id))];
@@ -268,7 +300,10 @@ export async function getMyPatientHistory(
   }
   return {
     lead: leadResult.data,
-    caseSheets: sheetsResult.data ?? [],
+    caseSheets: sheetRows.map((sheet) => ({
+      ...sheet,
+      case_sheet_attachments: attachmentsBySheet.get(sheet.id) ?? [],
+    })),
     caseSheetTotal: sheetsResult.count ?? 0,
     caseSheetPage: page,
     caseSheetPageSize: pageSize,
@@ -276,6 +311,7 @@ export async function getMyPatientHistory(
       ...row,
       doctor_name: doctorNames.get(row.doctor_id) ?? null,
     })),
+    currentMedicalHistory: medicalHistoryResult.data,
     legacyTreatments: legacyResult.data ?? [],
   };
 }

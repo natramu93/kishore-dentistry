@@ -156,45 +156,11 @@ export function TransitionActions({
       )}
 
       {s === "visited_treated" && (
-        <>
-          <Button size="sm" onClick={() => setDialog("follow_up")}>Schedule follow-up</Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={pending}
-            onClick={() =>
-              setConfirmation({
-                title: "Close this lead?",
-                description: "Closed is a terminal stage and cannot be reopened.",
-                confirmLabel: "Close lead",
-                to: "closed",
-              })
-            }
-          >
-            Close lead
-          </Button>
-        </>
+        <Button size="sm" onClick={() => setDialog("follow_up")}>Schedule follow-up</Button>
       )}
 
       {s === "follow_up" && (
-        <>
-          <Button size="sm" onClick={() => setDialog("book")}>Book next appointment</Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={pending}
-            onClick={() =>
-              setConfirmation({
-                title: "Close this lead?",
-                description: "Closed is a terminal stage and cannot be reopened.",
-                confirmLabel: "Close lead",
-                to: "closed",
-              })
-            }
-          >
-            Close lead
-          </Button>
-        </>
+        <Button size="sm" onClick={() => setDialog("book")}>Book next appointment</Button>
       )}
 
       {s === "missed" && (

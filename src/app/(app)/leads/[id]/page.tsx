@@ -17,6 +17,9 @@ import {
   ToothAssessmentHistory,
   type ToothAssessmentHistoryItem,
 } from "@/components/clinical/tooth-assessment-history";
+import { MedicalHistorySummary } from "@/components/clinical/medical-history-summary";
+import { PrescriptionHistory } from "@/components/clinical/prescription-history";
+import { ClinicalAttachmentPanel } from "@/components/clinical/clinical-attachment-panel";
 import { LeadDeleteButton } from "@/components/leads/lead-delete-button";
 import { ContactActions } from "@/components/contact-actions";
 import { RowEditDialog } from "@/components/admin/row-edit-dialog";
@@ -34,6 +37,11 @@ import { groupByCategory } from "@/lib/dental";
 import { formatClinicalSite } from "@/lib/clinical";
 import { fmt, fmtDate, formatINR, toClinicInputValue } from "@/lib/tz";
 import { ClipboardPlus, ReceiptText } from "lucide-react";
+import type {
+  PatientMedicalHistoryVersion,
+  PrescriptionItem,
+} from "@/lib/database.types";
+import type { ClinicalAttachmentView } from "@/lib/clinical-files";
 
 const getLeadPageData = cache(async (id: string) => {
   const ctx = await getAuthContext();
@@ -91,6 +99,7 @@ export default async function LeadDetailPage({
   const {
     caseSheets,
     currentToothAssessments,
+    currentMedicalHistory,
     total: caseSheetTotal,
     page: caseSheetPage,
     pageSize: caseSheetPageSize,
@@ -161,8 +170,19 @@ export default async function LeadDetailPage({
                   <Input id="edit-mobile" name="mobile" type="tel" inputMode="tel" autoComplete="tel" defaultValue={lead.mobile} required />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-email">Email</Label>
-                  <Input id="edit-email" name="email" type="email" defaultValue={lead.email ?? ""} />
+                  <Label htmlFor="edit-email">Email (optional)</Label>
+                  <Input
+                    id="edit-email"
+                    name="email"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    enterKeyHint="next"
+                    spellCheck={false}
+                    defaultValue={lead.email ?? ""}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-source">Source</Label>
@@ -259,6 +279,27 @@ export default async function LeadDetailPage({
               )}
             </CardContent>
           </Card>
+
+          {canViewClinicalNarrative && (
+            <Card className="border-l-4 border-l-rose-400">
+              <CardHeader>
+                <CardTitle className="text-base">Medical history</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {currentMedicalHistory ? (
+                  <MedicalHistorySummary
+                    reviewStatus={currentMedicalHistory.review_status}
+                    conditions={currentMedicalHistory.conditions}
+                    description={currentMedicalHistory.description}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Medical history has not yet been reviewed. It will be recorded with the next digital case sheet.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Appointments */}
           <Card className="border-l-4 border-l-violet-400">
@@ -369,6 +410,14 @@ export default async function LeadDetailPage({
                 const toothAssessments = ((sheet.tooth_assessments ?? []) as ToothAssessmentHistoryItem[]).map(
                   (assessment) => ({ ...assessment, doctor_name: doctor?.full_name ?? null })
                 );
+                const historyLink = sheet.medical_history as {
+                  history: PatientMedicalHistoryVersion | null;
+                } | null | undefined;
+                const visitMedicalHistory = historyLink?.history ?? null;
+                const prescriptionItems = (sheet.prescription_items ?? []) as PrescriptionItem[];
+                const clinicalAttachments = (
+                  (sheet.case_sheet_attachments ?? []) as ClinicalAttachmentView[]
+                ).filter((attachment) => attachment.status === "ready");
                 return (
                   <section key={sheet.id} className="rounded-lg border p-3" aria-labelledby={`case-${sheet.id}`}>
                     <div className="flex flex-wrap items-start justify-between gap-2">
@@ -389,8 +438,22 @@ export default async function LeadDetailPage({
                           <Field label="Findings" value={sheet.findings} />
                           <Field label="Diagnosis" value={sheet.diagnosis} />
                           <Field label="Treatment plan" value={sheet.plan} />
-                          <Field label="Medical alerts" value={sheet.medical_alerts} />
                         </dl>
+                        <div className="mt-3">
+                          <p className="mb-2 text-sm font-semibold">Medical history at this visit</p>
+                          {visitMedicalHistory ? (
+                            <MedicalHistorySummary
+                              reviewStatus={visitMedicalHistory.review_status}
+                              conditions={visitMedicalHistory.conditions}
+                              description={visitMedicalHistory.description}
+                              compact
+                            />
+                          ) : (
+                            <dl>
+                              <Field label="Medical history" value={sheet.medical_alerts} />
+                            </dl>
+                          )}
+                        </div>
                         {toothAssessments.length > 0 && (
                           <details className="mt-3 rounded-md border bg-muted/20 p-3">
                             <summary className="cursor-pointer text-sm font-semibold">
@@ -399,6 +462,15 @@ export default async function LeadDetailPage({
                             <ToothAssessmentHistory assessments={toothAssessments} className="mt-3" />
                           </details>
                         )}
+                        <div className="mt-3">
+                          <PrescriptionHistory items={prescriptionItems} />
+                        </div>
+                        <div className="mt-3">
+                          <ClinicalAttachmentPanel
+                            caseSheetId={sheet.id}
+                            initialAttachments={clinicalAttachments}
+                          />
+                        </div>
                       </>
                     )}
                     <div className="mt-3 space-y-3">

@@ -18,6 +18,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ToothChart } from "@/components/clinical/tooth-chart";
 import { OdontogramEditor } from "@/components/clinical/odontogram-editor";
+import { PrescriptionItemsEditor } from "@/components/clinical/prescription-items-editor";
+import { MedicalHistoryFields } from "@/components/patients/medical-history-fields";
+import {
+  createMedicalHistoryDraft,
+  type MedicalHistoryDraft,
+} from "@/lib/medical-history";
+import type { PrescriptionItemDraft } from "@/lib/prescriptions";
 import {
   ARCH_SITES,
   caseSheetPayloadSchema,
@@ -49,7 +56,9 @@ export type CaseSheetEditorProps = {
   doctors: ClinicalDoctorOption[];
   doctorLocked?: boolean;
   treatmentCodes: TreatmentCodeOption[];
+  canPrescribe?: boolean;
   initialVisitAt?: string;
+  initialMedicalHistory?: MedicalHistoryDraft;
   successHref?: string;
 };
 
@@ -120,7 +129,9 @@ export function CaseSheetEditor({
   doctors,
   doctorLocked = false,
   treatmentCodes,
+  canPrescribe = false,
   initialVisitAt,
+  initialMedicalHistory,
   successHref,
 }: CaseSheetEditorProps) {
   const router = useRouter();
@@ -136,7 +147,10 @@ export function CaseSheetEditor({
   const [findings, setFindings] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
   const [plan, setPlan] = useState("");
-  const [medicalAlerts, setMedicalAlerts] = useState("");
+  const [medicalHistory, setMedicalHistory] = useState<MedicalHistoryDraft>(() => (
+    createMedicalHistoryDraft(initialMedicalHistory)
+  ));
+  const [prescriptions, setPrescriptions] = useState<PrescriptionItemDraft[]>([]);
   const [toothAssessments, setToothAssessments] = useState<ToothAssessmentInput[]>([]);
   const [treatments, setTreatments] = useState<EditableTreatment[]>([]);
 
@@ -203,7 +217,8 @@ export function CaseSheetEditor({
       findings,
       diagnosis,
       plan,
-      medical_alerts: medicalAlerts,
+      medical_history: medicalHistory,
+      prescriptions,
       tooth_assessments: toothAssessments,
       treatments: treatments.map(({
         treatment_code,
@@ -372,18 +387,22 @@ export function CaseSheetEditor({
                   onChange={(event) => { setDirty(true); setPlan(event.target.value); }}
                 />
               </Field>
-              <Field label="Medical alerts" htmlFor={`${idPrefix}-alerts`} error={errors.medical_alerts}>
-                <Textarea
-                  id={`${idPrefix}-alerts`}
-                  rows={3}
-                  value={medicalAlerts}
-                  aria-invalid={Boolean(errors.medical_alerts)}
-                  onChange={(event) => { setDirty(true); setMedicalAlerts(event.target.value); }}
-                  placeholder="Allergies, medications or conditions relevant to care"
-                />
-              </Field>
             </div>
           </section>
+
+          <MedicalHistoryFields
+            value={medicalHistory}
+            errors={{
+              conditions: errors["medical_history.conditions"]
+                ?? errors["medical_history.reviewStatus"],
+              reviewedToday: errors["medical_history.reviewedToday"],
+              description: errors["medical_history.description"],
+            }}
+            onChange={(next) => {
+              setDirty(true);
+              setMedicalHistory(next);
+            }}
+          />
 
           <OdontogramEditor
             value={toothAssessments}
@@ -427,6 +446,28 @@ export function CaseSheetEditor({
               ))}
             </div>
           </section>
+
+          {canPrescribe ? (
+            <section aria-labelledby={`${idPrefix}-prescription-heading`} className="space-y-4">
+              <h2 id={`${idPrefix}-prescription-heading`} className="sr-only">Prescription for this visit</h2>
+              <PrescriptionItemsEditor
+                value={prescriptions}
+                errors={errors}
+                legend="Prescription for this visit"
+                onChange={(next) => {
+                  setDirty(true);
+                  setPrescriptions(next);
+                }}
+              />
+            </section>
+          ) : (
+            <section className="rounded-xl border border-dashed p-4" aria-label="Prescription for this visit">
+              <h2 className="text-base font-semibold">Prescription for this visit</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Prescription lines can be signed only by the treating doctor from their own account.
+              </p>
+            </section>
+          )}
 
           <div className="flex flex-col-reverse gap-2 border-t pt-5 sm:flex-row sm:justify-end">
             <Button type="submit" disabled={pending || (treatments.length > 0 && treatmentCodes.length === 0)} className="sm:min-w-44">

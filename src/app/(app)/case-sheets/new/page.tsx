@@ -54,15 +54,18 @@ export default async function NewCaseSheetPage({
         </p>
       </div>
       <CaseSheetEditor
+        key={scope.appointment?.id ?? scope.lead.id}
         leadId={scope.lead.id}
         appointmentId={scope.appointment?.id ?? null}
         doctors={doctors}
         doctorLocked={Boolean(scope.appointment?.doctor_id)}
         treatmentCodes={treatmentCodes}
+        canPrescribe={ctx.role === "doctor"}
+        initialMedicalHistory={scope.medicalHistory}
         initialVisitAt={toClinicInputValue(
           scope.appointment?.scheduled_at ?? new Date().toISOString()
         )}
-        successHref={ctx.role === "doctor" ? "/my-patients" : `/leads/${scope.lead.id}`}
+        successHref={ctx.role === "doctor" ? `/my-patients/${scope.lead.id}` : `/leads/${scope.lead.id}`}
       />
     </div>
   );

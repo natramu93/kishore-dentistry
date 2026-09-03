@@ -17,6 +17,7 @@ import { getServerSupabaseEnv } from "@/lib/env.server";
 // data. Deferring construction keeps the build clean and the key runtime-only.
 
 type CrmClient = SupabaseClient<Database, "crm">;
+type StorageAdmin = ReturnType<typeof createClient>["storage"];
 
 let _db: CrmClient | null = null;
 function getDb(): CrmClient {
@@ -42,6 +43,22 @@ function lazyProxy<T extends object>(resolve: () => T): T {
 }
 
 export const db: CrmClient = lazyProxy(getDb);
+
+// Privileged Storage boundary for private clinical files. Keep this beside the
+// CRM service-role client so browser bundles can never import the secret key.
+// Callers still have to authorize every object through CRM metadata first.
+let _storageAdmin: StorageAdmin | null = null;
+function getStorageAdmin(): StorageAdmin {
+  if (!_storageAdmin) {
+    const { url, serviceRoleKey } = getServerSupabaseEnv();
+    _storageAdmin = createClient(url, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    }).storage;
+  }
+  return _storageAdmin;
+}
+
+export const storageAdmin: StorageAdmin = lazyProxy(getStorageAdmin);
 
 // Auth admin client (create/delete users). Same key, default schema.
 type AuthAdmin = ReturnType<typeof createClient>["auth"]["admin"];

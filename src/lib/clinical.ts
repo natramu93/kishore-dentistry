@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { medicalHistoryDraftSchema } from "@/lib/medical-history";
+import { prescriptionItemsDraftSchema } from "@/lib/prescriptions";
 
 export const INDIAN_PERMANENT_TEETH = [
   "18", "17", "16", "15", "14", "13", "12", "11",
@@ -307,10 +309,25 @@ export const caseSheetPayloadSchema = z.object({
   findings: z.string().trim().max(5_000),
   diagnosis: z.string().trim().min(1, "Diagnosis is required").max(2_000),
   plan: z.string().trim().max(5_000),
-  medical_alerts: z.string().trim().max(2_000),
+  medical_history: medicalHistoryDraftSchema,
+  prescriptions: prescriptionItemsDraftSchema,
   tooth_assessments: z.array(toothAssessmentSchema).max(52),
   treatments: z.array(caseSheetTreatmentSchema).max(50),
 }).superRefine((payload, context) => {
+  if (payload.medical_history.reviewStatus === "not_reviewed") {
+    context.addIssue({
+      code: "custom",
+      path: ["medical_history", "reviewStatus"],
+      message: "Review the patient’s medical history before finalizing the case sheet",
+    });
+  }
+  if (!payload.medical_history.reviewedToday) {
+    context.addIssue({
+      code: "custom",
+      path: ["medical_history", "reviewedToday"],
+      message: "Confirm that the medical history was reviewed with the patient today",
+    });
+  }
   const seen = new Set<string>();
   payload.tooth_assessments.forEach((assessment, index) => {
     if (seen.has(assessment.tooth_number)) {

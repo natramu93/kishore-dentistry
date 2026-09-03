@@ -66,10 +66,45 @@ describe("general tooth examination validation", () => {
       findings: "",
       diagnosis: "Dental examination",
       plan: "",
-      medical_alerts: "",
+      medical_history: {
+        reviewStatus: "reviewed_none",
+        reviewedToday: true,
+        conditions: [],
+        description: "",
+      },
+      prescriptions: [],
       tooth_assessments: [assessment],
       treatments: [],
     }).success).toBe(true);
+  });
+
+  it("requires an explicit medical-history review for the current visit", () => {
+    const result = caseSheetPayloadSchema.safeParse({
+      lead_id: "00000000-0000-4000-8000-000000000001",
+      appointment_id: "00000000-0000-4000-8000-000000000002",
+      doctor_id: "00000000-0000-4000-8000-000000000003",
+      visit_at: "2042-01-14T09:05",
+      chief_complaint: "Routine examination",
+      findings: "",
+      diagnosis: "Dental examination",
+      plan: "",
+      medical_history: {
+        reviewStatus: "reviewed_none",
+        reviewedToday: false,
+        conditions: [],
+        description: "",
+      },
+      prescriptions: [],
+      tooth_assessments: [],
+      treatments: [],
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(expect.objectContaining({
+        path: ["medical_history", "reviewedToday"],
+      }));
+    }
   });
 
   it("rejects incompatible states and duplicate tooth entries", () => {
@@ -91,7 +126,13 @@ describe("general tooth examination validation", () => {
       findings: "",
       diagnosis: "Dental examination",
       plan: "",
-      medical_alerts: "",
+      medical_history: {
+        reviewStatus: "reviewed_none" as const,
+        reviewedToday: true,
+        conditions: [],
+        description: "",
+      },
+      prescriptions: [],
       tooth_assessments: [assessment, assessment],
       treatments: [],
     };

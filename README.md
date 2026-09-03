@@ -1,8 +1,9 @@
 # Dr. Kishor's Dentistry CRM
 
-An internal, multi-branch dental-clinic CRM for lead intake, appointments,
-treatments, follow-ups, comments, invoicing, printable invoices, and
-role-scoped reporting.
+An internal, multi-branch dental-clinic CRM for patient intake, appointments,
+whole-mouth and tooth-level records, longitudinal medical history, visit
+prescriptions, private clinical files, follow-ups, invoicing, and role-scoped
+reporting.
 
 The application handles sensitive clinic data. Do not use real patient data in
 development, screenshots, tests, issues, or support requests.
@@ -43,8 +44,9 @@ npm audit --audit-level=high
 For a clean local database:
 
 ```bash
-npm run db:start -- -x studio,imgproxy,storage-api,edge-runtime,logflare,vector
+npm run db:start -- -x studio,imgproxy,edge-runtime,analytics,vector
 npm run db:reset
+npx supabase seed buckets --local
 npm run db:lint
 npm run db:test
 ```
@@ -60,9 +62,14 @@ Use separate development, staging, and production projects.
    `crm.*`. The server-side service role is the only application data path.
 5. Apply every timestamped migration in `supabase/migrations/` in order. The
    current release requires the complete sequence through
-   `20260726070825_admin_and_history_invariants.sql`; apply that final hardening
-   migration before deploying the application revision that depends on its
-   operational safety RPCs and triggers.
+   `20260903051913_clinical_history_prescriptions_attachments.sql`; apply the
+   database migration and provision the private Storage bucket before deploying
+   the application revision that depends on them.
+6. Provision the bucket declared in `supabase/config.toml` with
+   `npx supabase seed buckets --linked`. Confirm that `clinical-attachments` is
+   private, limited to 25 MiB, and has the configured MIME allowlist. Do not add
+   browser `storage.objects` policies; uploads use path-bound signed tokens and
+   downloads are reauthorized by the application.
 
 The migrations are forward-only. Validate the complete sequence and the SQL
 regression suite in staging before production. See

@@ -10,6 +10,8 @@ describe("lead state machine", () => {
     expect(canTransition("open", "assigned")).toBe(true);
     expect(canTransition("appointment_booked", "assigned")).toBe(true);
     expect(canTransition("follow_up", "appointment_booked")).toBe(true);
+    expect(canTransition("visited_treated", "closed")).toBe(false);
+    expect(canTransition("follow_up", "closed")).toBe(false);
     expect(canTransition("closed", "open")).toBe(false);
     expect(canTransition("dropped", "assigned")).toBe(false);
   });
@@ -49,5 +51,14 @@ describe("lead state machine", () => {
         cost: -1,
       }).success
     ).toBe(false);
+  });
+
+  it("accepts follow-ups scheduled years in the future", () => {
+    expect(
+      transitionPayloadSchemas.follow_up.safeParse({
+        due_at: "2046-09-03T09:30",
+        reason: "Long-term implant review",
+      }).success
+    ).toBe(true);
   });
 });

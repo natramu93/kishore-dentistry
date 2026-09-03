@@ -7,7 +7,11 @@ import { getMyPatientHistory } from "@/data/doctor-portal";
 import { NotFoundError } from "@/lib/errors";
 import { formatClinicalSite } from "@/lib/clinical";
 import { fmt, fmtDate, formatINR } from "@/lib/tz";
-import type { Treatment } from "@/lib/database.types";
+import type {
+  PatientMedicalHistoryVersion,
+  PrescriptionItem,
+  Treatment,
+} from "@/lib/database.types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +20,10 @@ import {
   ToothAssessmentHistory,
   type ToothAssessmentHistoryItem,
 } from "@/components/clinical/tooth-assessment-history";
+import { MedicalHistorySummary } from "@/components/clinical/medical-history-summary";
+import { PrescriptionHistory } from "@/components/clinical/prescription-history";
+import { ClinicalAttachmentPanel } from "@/components/clinical/clinical-attachment-panel";
+import type { ClinicalAttachmentView } from "@/lib/clinical-files";
 
 export const metadata = { title: "Patient History — Dr. Kishor's Dentistry CRM" };
 
@@ -44,6 +52,7 @@ export default async function MyPatientHistoryPage({
     caseSheets,
     legacyTreatments,
     currentToothAssessments,
+    currentMedicalHistory,
     caseSheetTotal,
     caseSheetPage,
     caseSheetPageSize,
@@ -89,6 +98,25 @@ export default async function MyPatientHistoryPage({
         </CardContent>
       </Card>
 
+      <Card className="border-l-4 border-l-rose-400">
+        <CardHeader>
+          <CardTitle className="text-base">Medical history</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {currentMedicalHistory ? (
+            <MedicalHistorySummary
+              reviewStatus={currentMedicalHistory.review_status}
+              conditions={currentMedicalHistory.conditions}
+              description={currentMedicalHistory.description}
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Medical history has not yet been reviewed. Review it while completing the next case sheet.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       {currentToothAssessments.length > 0 && (
         <section aria-labelledby="current-tooth-summary" className="space-y-3">
           <div>
@@ -119,6 +147,15 @@ export default async function MyPatientHistoryPage({
           const toothAssessments = ((sheet.tooth_assessments ?? []) as ToothAssessmentHistoryItem[]).map(
             (assessment) => ({ ...assessment, doctor_name: doctor?.full_name ?? null })
           );
+          const historyLink = sheet.medical_history as {
+            history: PatientMedicalHistoryVersion | null;
+          } | null;
+          const visitMedicalHistory = historyLink?.history ?? null;
+          const prescriptions = (sheet.prescription_items ?? []) as PrescriptionItem[];
+          const clinicalAttachments = (
+            (sheet.case_sheet_attachments ?? []) as ClinicalAttachmentView[]
+          ).filter((attachment) => attachment.status === "ready");
+          const canManageClinicalFiles = sheet.doctor_id === ctx.doctorId;
           return (
             <Card key={sheet.id}>
               <CardHeader className="gap-1">
@@ -138,8 +175,22 @@ export default async function MyPatientHistoryPage({
                   <Field label="Clinical findings" value={sheet.findings} />
                   <Field label="Diagnosis" value={sheet.diagnosis} />
                   <Field label="Treatment plan" value={sheet.plan} />
-                  <Field label="Medical alerts" value={sheet.medical_alerts} />
                 </dl>
+                <div>
+                  <p className="mb-2 text-sm font-semibold">Medical history at this visit</p>
+                  {visitMedicalHistory ? (
+                    <MedicalHistorySummary
+                      reviewStatus={visitMedicalHistory.review_status}
+                      conditions={visitMedicalHistory.conditions}
+                      description={visitMedicalHistory.description}
+                      compact
+                    />
+                  ) : (
+                    <dl>
+                      <Field label="Medical history" value={sheet.medical_alerts} />
+                    </dl>
+                  )}
+                </div>
                 {toothAssessments.length > 0 && (
                   <details className="rounded-md border bg-muted/20 p-3">
                     <summary className="cursor-pointer text-sm font-semibold">
@@ -147,6 +198,13 @@ export default async function MyPatientHistoryPage({
                     </summary>
                     <ToothAssessmentHistory assessments={toothAssessments} className="mt-3" />
                   </details>
+                )}
+                <PrescriptionHistory items={prescriptions} />
+                {canManageClinicalFiles && (
+                  <ClinicalAttachmentPanel
+                    caseSheetId={sheet.id}
+                    initialAttachments={clinicalAttachments}
+                  />
                 )}
                 <div className="space-y-2">
                   {treatments.length === 0 && (

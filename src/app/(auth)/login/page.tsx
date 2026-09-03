@@ -1,6 +1,5 @@
 import { LoginForm } from "./login-form";
 import { BrandWordmark } from "@/components/brand";
-import { ClinicContactDetails } from "@/components/clinic-contact-details";
 import { TIRUPUR_CLINIC } from "@/lib/clinic";
 import { ShieldCheck } from "lucide-react";
 import Image from "next/image";
@@ -36,15 +35,6 @@ export default async function LoginPage({
         <div className="relative flex min-h-40 flex-col p-4 sm:min-h-80 sm:p-8 lg:min-h-svh lg:p-10 xl:p-14">
           <div className="inline-flex self-start rounded-2xl bg-brand-navy p-2.5 shadow-xl ring-1 ring-white/20 sm:p-3">
             <BrandWordmark className="h-10 w-auto sm:h-14 lg:h-16" />
-          </div>
-          <div className="absolute top-10 right-10 hidden h-36 w-56 overflow-hidden rounded-2xl border-4 border-gold/80 shadow-2xl xl:block 2xl:right-14 2xl:h-40 2xl:w-64">
-            <Image
-              src="/images/login/tirupur-dental-operatory.jpg"
-              alt=""
-              fill
-              sizes="256px"
-              className="object-cover"
-            />
           </div>
           <div className="mt-auto max-w-2xl text-white">
             <p className="mb-2 text-xs font-semibold tracking-[0.18em] text-gold uppercase sm:text-sm">
@@ -82,11 +72,6 @@ export default async function LoginPage({
             inactiveError={params.error === "inactive"}
             recoveryError={params.error === "recovery"}
             passwordUpdated={params.password === "updated"}
-          />
-
-          <ClinicContactDetails
-            className="mt-6 rounded-2xl border border-border bg-card/85 p-4 text-foreground shadow-sm backdrop-blur-sm sm:p-5"
-            showName={false}
           />
         </div>
       </section>

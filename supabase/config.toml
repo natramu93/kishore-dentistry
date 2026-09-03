@@ -40,7 +40,22 @@ enabled = true
 port = 54324
 
 [storage]
-enabled = false
+enabled = true
+file_size_limit = "25MiB"
+
+[storage.buckets.clinical-attachments]
+public = false
+file_size_limit = "25MiB"
+allowed_mime_types = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+  "image/tiff",
+  "application/pdf",
+  "application/dicom",
+]
 
 [auth]
 enabled = true

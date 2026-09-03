@@ -18,7 +18,18 @@ import {
   normalizePagination,
 } from "@/lib/validation";
 import { throwMappedDatabaseError } from "./helpers";
-import type { Json, ToothAssessment } from "@/lib/database.types";
+import type {
+  CaseSheet,
+  Json,
+  MedicalHistoryCondition,
+  PatientMedicalHistoryVersion,
+  ToothAssessment,
+} from "@/lib/database.types";
+import {
+  createMedicalHistoryDraft,
+  type MedicalHistoryDraft,
+} from "@/lib/medical-history";
+import type { PrescriptionItemDraft } from "@/lib/prescriptions";
 
 const CLINICAL_AUTHOR_ROLES = ["admin", "clinical_head", "doctor"] as const;
 
@@ -43,6 +54,7 @@ export type CaseSheetFormContext = {
     scheduled_at: string;
     status: string;
   } | null;
+  medicalHistory: MedicalHistoryDraft;
 };
 
 export type FinalizeCaseSheetInput = {
@@ -54,7 +66,8 @@ export type FinalizeCaseSheetInput = {
   findings?: string | null;
   diagnosis?: string | null;
   plan?: string | null;
-  medical_alerts?: string | null;
+  medical_history: MedicalHistoryDraft;
+  prescriptions: PrescriptionItemDraft[];
   tooth_assessments: Array<{
     tooth_number: string;
     tooth_state: string;
@@ -82,6 +95,32 @@ export type FinalizeCaseSheetInput = {
 
 function assertClinicalAuthor(ctx: AuthContext): void {
   requireAnyRole(ctx, CLINICAL_AUTHOR_ROLES, "Clinical case-sheet access required");
+}
+
+async function loadCurrentMedicalHistory(
+  leadId: string
+): Promise<PatientMedicalHistoryVersion | null> {
+  const { data, error } = await db
+    .from("patient_medical_history_versions")
+    .select("*")
+    .eq("lead_id", leadId)
+    .order("recorded_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+function toMedicalHistoryDraft(
+  history: PatientMedicalHistoryVersion | null
+): MedicalHistoryDraft {
+  return createMedicalHistoryDraft(history ? {
+    reviewStatus: history.review_status,
+    conditions: history.conditions,
+    description: history.description ?? "",
+  } : undefined);
 }
 
 export async function listTreatmentCodes(
@@ -133,6 +172,7 @@ export async function getCaseSheetFormContext(
         scheduled_at: data.scheduled_at,
         status: data.status,
       },
+      medicalHistory: toMedicalHistoryDraft(await loadCurrentMedicalHistory(data.lead.id)),
     };
   }
 
@@ -149,7 +189,11 @@ export async function getCaseSheetFormContext(
   if (error) throw error;
   if (!data || data.deleted_at) throw new NotFoundError("Patient");
   assertBranchAccess(ctx, data.branch_id);
-  return { lead: data as CaseSheetFormContext["lead"], appointment: null };
+  return {
+    lead: data as CaseSheetFormContext["lead"],
+    appointment: null,
+    medicalHistory: toMedicalHistoryDraft(await loadCurrentMedicalHistory(data.id)),
+  };
 }
 
 export async function finalizeCaseSheet(
@@ -182,7 +226,18 @@ export async function finalizeCaseSheet(
     throw new ValidationError("Case-sheet doctor must match the booked doctor");
   }
 
-  const { data, error } = await db.rpc("finalize_case_sheet_with_odontogram", {
+  const prescriptions = input.prescriptions.map((prescription) => ({
+    medicine_name: prescription.medicine_name,
+    strength: prescription.strength,
+    dosage: prescription.dosage,
+    morning: prescription.morning,
+    noon: prescription.noon,
+    night: prescription.night,
+    food_timing: prescription.food_timing,
+    duration_days: prescription.duration_days,
+    instructions: prescription.instructions,
+  }));
+  const { data, error } = await db.rpc("finalize_clinical_visit", {
     p_lead_id: leadId,
     p_appointment_id: appointmentId,
     p_doctor_id: doctorId,
@@ -191,9 +246,13 @@ export async function finalizeCaseSheet(
     p_findings: input.findings?.trim() || null,
     p_diagnosis: input.diagnosis?.trim() || null,
     p_plan: input.plan?.trim() || null,
-    p_medical_alerts: input.medical_alerts?.trim() || null,
+    p_medical_history_review_status: input.medical_history.reviewStatus,
+    p_medical_history_confirmed: input.medical_history.reviewedToday,
+    p_medical_history_conditions: input.medical_history.conditions as MedicalHistoryCondition[],
+    p_medical_history_description: input.medical_history.description.trim() || null,
     p_tooth_assessments: input.tooth_assessments as unknown as Json,
     p_treatments: input.treatments as unknown as Json,
+    p_prescriptions: prescriptions as unknown as Json,
     p_actor: ctx.userId,
   });
   if (error) throwMappedDatabaseError(error, "Case sheet");
@@ -230,12 +289,13 @@ export async function listCaseSheetsForLead(
 
   const includesClinicalNarrative =
     ctx.role === "admin" || ctx.role === "clinical_head";
+  const clinicalProjection =
+    "*, doctor:doctors(full_name), tooth_assessments(*), treatments(*, treatment_code_ref:treatment_codes!treatments_treatment_code_fkey(name, category), invoice_items(id, invoice_id, active_billing)), medical_history:case_sheet_medical_history(*, history:patient_medical_history_versions(*)), prescription_items(*), case_sheet_attachments(id, case_sheet_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at)";
+  const businessProjection =
+    "id, lead_id, branch_id, appointment_id, doctor_id, visit_at, finalized_at, created_at, doctor:doctors(full_name), treatments(id, treatment_code, treatment_name, treatment_category, clinical_status, site_scope, site_detail, tooth_number, surfaces, quantity, cost, invoice_items(id, invoice_id, active_billing))";
   let query = db
     .from("case_sheets")
-    .select(
-      "*, doctor:doctors(full_name), tooth_assessments(*), treatments(*, treatment_code_ref:treatment_codes!treatments_treatment_code_fkey(name, category), invoice_items(id, invoice_id, active_billing))",
-      { count: "exact" }
-    )
+    .select(includesClinicalNarrative ? clinicalProjection : businessProjection, { count: "exact" })
     .eq("lead_id", leadId)
     .order("visit_at", { ascending: false })
     .order("finalized_at", { ascending: false })
@@ -247,9 +307,13 @@ export async function listCaseSheetsForLead(
     includesClinicalNarrative
       ? db.rpc("current_tooth_assessments", { p_lead_id: leadId })
       : Promise.resolve({ data: [] as ToothAssessment[], error: null }),
+    includesClinicalNarrative
+      ? loadCurrentMedicalHistory(leadId)
+      : Promise.resolve(null),
   ]);
   let sheetResult = results[0];
   const currentResult = results[1];
+  const currentMedicalHistory = results[2];
   if (sheetResult.error) throw sheetResult.error;
   const pageCount = Math.max(1, Math.ceil((sheetResult.count ?? 0) / pageSize));
   if (page > pageCount) {
@@ -274,7 +338,8 @@ export async function listCaseSheetsForLead(
   }
 
   return {
-    caseSheets: data ?? [],
+    caseSheets: (data ?? []) as unknown as Array<Partial<CaseSheet> & Pick<CaseSheet, "id" | "lead_id" | "branch_id" | "appointment_id" | "doctor_id" | "visit_at" | "finalized_at" | "created_at"> & Record<string, unknown>>,
+    currentMedicalHistory,
     currentToothAssessments: currentRows.map((row) => ({
       ...row,
       doctor_name: doctorNames.get(row.doctor_id) ?? null,

@@ -242,6 +242,46 @@ hosted `supabase_migrations.schema_migrations` ledger.
 | `20260726070823_report_aggregates.sql` | Moves scoped dashboard and report aggregates into PostgreSQL |
 | `20260726070824_comment_history.sql` | Adds optimistic comment versions, soft archives, and immutable before/after history |
 | `20260726070825_admin_and_history_invariants.sql` | Serializes last-active-Admin protection, makes lead activity append-only, rejects clinical hard deletion, and adds audited Admin profile-mutation support |
+| `20260903051913_clinical_history_prescriptions_attachments.sql` | Adds versioned medical history, signed visit prescriptions, private clinical-file metadata, and retires new closed-lead transitions |
+
+## Private clinical-file storage
+
+The `clinical-attachments` bucket is declaratively defined in
+`supabase/config.toml`. It is private, limited to 25 MiB per object, and accepts
+only the listed clinical image, PDF, and DICOM MIME types. Bucket provisioning
+is a separate Storage API operation and is not performed by the database
+migration.
+
+For local development, start Storage and seed the declared bucket before
+testing uploads:
+
+```bash
+npm run db:start -- -x studio,imgproxy,edge-runtime,analytics,vector
+npm run db:reset
+npx supabase seed buckets --local
+```
+
+For a linked staging or production project, run the reviewed equivalent after
+the database migration and before the application rollout:
+
+```bash
+npx supabase seed buckets --linked
+```
+
+This release replaces the application-facing clinical finalizer and revokes
+the older finalizers. Use a brief maintenance window: drain clinical writes,
+apply the migration, provision and verify the bucket, deploy the matching app
+revision, complete the smoke checks, and only then reopen clinical writes. A
+future zero-downtime rollout must split those steps into an expand release and
+a later contract migration after all older app instances have drained.
+
+Verify through the Storage API or trusted dashboard that the bucket is private
+and that its size/MIME restrictions match `config.toml`. Do not add anon or
+authenticated `storage.objects` policies. The application authorizes a signed,
+no-overwrite upload path, verifies the stored size/type/content signature, and
+serves ready files through an authenticated same-origin route. A database
+backup does not contain the file bytes; include Supabase Storage in the clinic's
+encrypted backup, restore, retention, and legal-hold procedures.
 
 ### One-time legacy production ledger alignment
 
@@ -291,8 +331,9 @@ that version, database lint, and SQL tests before applying it to staging.
 4. Rebuild a disposable local database from all migrations:
 
    ```bash
-   npm run db:start -- -x studio,imgproxy,storage-api,edge-runtime,logflare,vector
+   npm run db:start -- -x studio,imgproxy,edge-runtime,analytics,vector
    npm run db:reset
+   npx supabase seed buckets --local
    npm run db:lint
    npm run db:test
    ```
@@ -306,6 +347,9 @@ that version, database lint, and SQL tests before applying it to staging.
    - every role and branch-scope boundary in the
      [authorization matrix](AUTHORIZATION_MATRIX.md);
    - appointment collision and Doctor ownership rules;
+   - structured medical-history carry-forward and immutable visit snapshots;
+   - prescription timing/food instructions and atomic invalid-line rollback;
+   - private clinical-file upload, verification, authorization, and download headers;
    - comment edit conflicts, history, and reasoned archive;
    - non-paid invoice editing/archive and paid-invoice immutability;
    - liveness plus an authenticated dashboard/database read;
@@ -325,8 +369,9 @@ that version, database lint, and SQL tests before applying it to staging.
 3. Create or confirm a recent encrypted production backup. Record its UTC
    timestamp, retention, restore owner, application revision, and migration
    state.
-4. Apply the exact migrations already tested in staging. For this release,
-   apply through version `20260726070825` before deploying the matching
+4. Apply the exact migrations already tested in staging through
+   `20260903051913`, then run `npx supabase seed buckets --linked` and verify
+   the private `clinical-attachments` bucket before deploying the matching
    application revision.
 5. Create the App Hosting rollout for the exact reviewed commit:
 

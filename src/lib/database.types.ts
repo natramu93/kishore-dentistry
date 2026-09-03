@@ -41,6 +41,34 @@ export type ToothRecommendedAction =
   | "orthodontic"
   | "referral"
   | "other";
+export type MedicalHistoryReviewStatus =
+  | "not_reviewed"
+  | "reviewed_none"
+  | "reviewed_conditions";
+export type MedicalHistoryCondition =
+  | "diabetes"
+  | "hypertension"
+  | "thyroid_disorder"
+  | "pregnancy"
+  | "kidney_disease"
+  | "liver_disease"
+  | "heart_condition"
+  | "asthma"
+  | "bleeding_disorder"
+  | "allergies"
+  | "other";
+export type PrescriptionFoodTiming =
+  | "before_food"
+  | "after_food"
+  | "with_food"
+  | "not_applicable";
+export type ClinicalAttachmentCategory =
+  | "photograph"
+  | "xray"
+  | "scan"
+  | "report"
+  | "other";
+export type ClinicalAttachmentStatus = "pending" | "ready" | "failed";
 export type ReportAggregateRpcPayload = {
   by_doctor: Json;
   by_center: Json;
@@ -235,6 +263,67 @@ export type ToothAssessment = Timestamps & {
   created_by: string;
 };
 
+export type PatientMedicalHistoryVersion = Timestamps & {
+  id: string;
+  lead_id: string;
+  branch_id: string;
+  review_status: MedicalHistoryReviewStatus;
+  reviewed_with_patient: boolean;
+  conditions: MedicalHistoryCondition[];
+  description: string | null;
+  recorded_at: string;
+  recorded_by: string;
+};
+
+export type CaseSheetMedicalHistory = Timestamps & {
+  case_sheet_id: string;
+  medical_history_version_id: string;
+  lead_id: string;
+  branch_id: string;
+  signed_at: string;
+  signed_by: string;
+};
+
+export type PrescriptionItem = Timestamps & {
+  id: string;
+  case_sheet_id: string;
+  lead_id: string;
+  branch_id: string;
+  appointment_id: string;
+  doctor_id: string;
+  line_number: number;
+  medicine_name: string;
+  strength: string | null;
+  dosage: string | null;
+  morning: boolean;
+  noon: boolean;
+  night: boolean;
+  food_timing: PrescriptionFoodTiming;
+  duration_days: number | null;
+  instructions: string | null;
+  prescribed_at: string;
+  signed_at: string;
+  signed_by: string;
+  created_by: string;
+};
+
+export type CaseSheetAttachment = Timestamps & {
+  id: string;
+  case_sheet_id: string;
+  lead_id: string;
+  branch_id: string;
+  category: ClinicalAttachmentCategory;
+  bucket_id: "clinical-attachments";
+  object_path: string;
+  original_name: string;
+  mime_type: string;
+  size_bytes: number;
+  sha256_hex: string | null;
+  status: ClinicalAttachmentStatus;
+  uploaded_at: string | null;
+  created_by: string;
+};
+
 export type FollowUp = Timestamps & {
   id: string;
   lead_id: string;
@@ -371,6 +460,14 @@ type FK<Name extends string, Col extends string, Ref extends string> = {
   referencedColumns: ["id"];
 };
 
+type OneFK<Name extends string, Col extends string, Ref extends string> = {
+  foreignKeyName: Name;
+  columns: [Col];
+  isOneToOne: true;
+  referencedRelation: Ref;
+  referencedColumns: ["id"];
+};
+
 export type Database = {
   crm: {
     Tables: {
@@ -473,6 +570,83 @@ export type Database = {
           FK<"tooth_assessments_doctor_id_fkey", "doctor_id", "doctors">,
           FK<"tooth_assessments_signed_by_fkey", "signed_by", "profiles">,
           FK<"tooth_assessments_created_by_fkey", "created_by", "profiles">
+        ]
+      >;
+      patient_medical_history_versions: TableDef<
+        PatientMedicalHistoryVersion,
+        | "lead_id"
+        | "branch_id"
+        | "review_status"
+        | "reviewed_with_patient"
+        | "conditions"
+        | "recorded_at"
+        | "recorded_by",
+        "id" | "created_at",
+        [
+          FK<"patient_medical_history_versions_lead_id_fkey", "lead_id", "leads">,
+          FK<"patient_medical_history_versions_branch_id_fkey", "branch_id", "branches">,
+          FK<"patient_medical_history_versions_recorded_by_fkey", "recorded_by", "profiles">
+        ]
+      >;
+      case_sheet_medical_history: TableDef<
+        CaseSheetMedicalHistory,
+        | "case_sheet_id"
+        | "medical_history_version_id"
+        | "lead_id"
+        | "branch_id"
+        | "signed_at"
+        | "signed_by",
+        "created_at",
+        [
+          OneFK<"case_sheet_medical_history_case_sheet_id_fkey", "case_sheet_id", "case_sheets">,
+          OneFK<"case_sheet_medical_history_medical_history_version_id_fkey", "medical_history_version_id", "patient_medical_history_versions">,
+          FK<"case_sheet_medical_history_lead_id_fkey", "lead_id", "leads">,
+          FK<"case_sheet_medical_history_branch_id_fkey", "branch_id", "branches">,
+          FK<"case_sheet_medical_history_signed_by_fkey", "signed_by", "profiles">
+        ]
+      >;
+      prescription_items: TableDef<
+        PrescriptionItem,
+        | "case_sheet_id"
+        | "lead_id"
+        | "branch_id"
+        | "appointment_id"
+        | "doctor_id"
+        | "line_number"
+        | "medicine_name"
+        | "prescribed_at"
+        | "signed_at"
+        | "signed_by"
+        | "created_by",
+        "id" | "created_at",
+        [
+          FK<"prescription_items_case_sheet_id_fkey", "case_sheet_id", "case_sheets">,
+          FK<"prescription_items_lead_id_fkey", "lead_id", "leads">,
+          FK<"prescription_items_branch_id_fkey", "branch_id", "branches">,
+          FK<"prescription_items_appointment_id_fkey", "appointment_id", "appointments">,
+          FK<"prescription_items_doctor_id_fkey", "doctor_id", "doctors">,
+          FK<"prescription_items_signed_by_fkey", "signed_by", "profiles">,
+          FK<"prescription_items_created_by_fkey", "created_by", "profiles">
+        ]
+      >;
+      case_sheet_attachments: TableDef<
+        CaseSheetAttachment,
+        | "id"
+        | "case_sheet_id"
+        | "lead_id"
+        | "branch_id"
+        | "category"
+        | "object_path"
+        | "original_name"
+        | "mime_type"
+        | "size_bytes"
+        | "created_by",
+        "created_at",
+        [
+          FK<"case_sheet_attachments_case_sheet_id_fkey", "case_sheet_id", "case_sheets">,
+          FK<"case_sheet_attachments_lead_id_fkey", "lead_id", "leads">,
+          FK<"case_sheet_attachments_branch_id_fkey", "branch_id", "branches">,
+          FK<"case_sheet_attachments_created_by_fkey", "created_by", "profiles">
         ]
       >;
       treatments: TableDef<
@@ -589,7 +763,7 @@ export type Database = {
         Args: { p_lead_id: string; p_to: LeadStatus; p_actor: string; p_payload?: Json };
         Returns: Lead;
       };
-      finalize_case_sheet: {
+      finalize_clinical_visit: {
         Args: {
           p_lead_id: string;
           p_appointment_id: string;
@@ -599,25 +773,13 @@ export type Database = {
           p_findings: string | null;
           p_diagnosis: string | null;
           p_plan: string | null;
-          p_medical_alerts: string | null;
-          p_treatments: Json;
-          p_actor: string;
-        };
-        Returns: CaseSheet;
-      };
-      finalize_case_sheet_with_odontogram: {
-        Args: {
-          p_lead_id: string;
-          p_appointment_id: string;
-          p_doctor_id: string;
-          p_visit_at: string;
-          p_chief_complaint: string | null;
-          p_findings: string | null;
-          p_diagnosis: string | null;
-          p_plan: string | null;
-          p_medical_alerts: string | null;
+          p_medical_history_review_status: MedicalHistoryReviewStatus;
+          p_medical_history_confirmed: boolean;
+          p_medical_history_conditions: MedicalHistoryCondition[];
+          p_medical_history_description: string | null;
           p_tooth_assessments: Json;
           p_treatments: Json;
+          p_prescriptions: Json;
           p_actor: string;
         };
         Returns: CaseSheet;

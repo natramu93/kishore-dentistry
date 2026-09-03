@@ -7,8 +7,8 @@ export const ALLOWED_TRANSITIONS: Record<LeadStatus, LeadStatus[]> = {
   open: ["assigned", "dropped"],
   assigned: ["open", "appointment_booked", "dropped"],
   appointment_booked: ["visited_treated", "missed", "assigned", "dropped"],
-  visited_treated: ["follow_up", "closed", "dropped"],
-  follow_up: ["appointment_booked", "closed", "dropped"],
+  visited_treated: ["follow_up", "dropped"],
+  follow_up: ["appointment_booked", "dropped"],
   missed: ["assigned", "dropped"],
   closed: [],
   dropped: [],
@@ -36,7 +36,6 @@ export const PIPELINE_ORDER: LeadStatus[] = [
   "appointment_booked",
   "visited_treated",
   "follow_up",
-  "closed",
 ];
 
 // Per-transition payload schemas, validated in the server action
