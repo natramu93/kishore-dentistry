@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
+import Image from "next/image";
+import { TIRUPUR_CLINIC } from "@/lib/clinic";
 
 export default function GlobalError({
   error,
@@ -15,6 +17,9 @@ export default function GlobalError({
 
   return (
     <html lang="en">
+      <head>
+        <title>Application error | {TIRUPUR_CLINIC.brandName}</title>
+      </head>
       <body>
         <main
           style={{
@@ -23,9 +28,27 @@ export default function GlobalError({
             placeItems: "center",
             padding: "1rem",
             fontFamily: "system-ui, sans-serif",
+            background: "#f6f8fc",
+            color: "#10214e",
           }}
         >
-          <div style={{ maxWidth: "32rem", textAlign: "center" }}>
+          <div
+            style={{
+              maxWidth: "32rem",
+              border: "1px solid #d9e0ec",
+              borderRadius: "1rem",
+              padding: "2rem",
+              textAlign: "center",
+              background: "white",
+            }}
+          >
+            <Image
+              src="/brand/kishors-dentistry-mark.png"
+              alt={TIRUPUR_CLINIC.brandName}
+              width={88}
+              height={88}
+              style={{ display: "block", margin: "0 auto 1rem" }}
+            />
             <h1>We couldn&apos;t open the CRM</h1>
             <p role="alert">An unexpected error occurred. Please try loading the application again.</p>
             <button
@@ -37,7 +60,7 @@ export default function GlobalError({
                 border: 0,
                 borderRadius: "0.5rem",
                 padding: "0.75rem 1rem",
-                background: "#293b9f",
+                background: "#003399",
                 color: "white",
                 fontWeight: 600,
                 cursor: "pointer",

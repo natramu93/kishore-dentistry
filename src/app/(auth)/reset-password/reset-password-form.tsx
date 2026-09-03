@@ -147,6 +147,7 @@ export function ResetPasswordForm() {
           {signOutWarning.localSignedOut ? (
             <Button
               type="button"
+              size="lg"
               className="w-full"
               onClick={() => router.replace("/login")}
             >
@@ -155,6 +156,7 @@ export function ResetPasswordForm() {
           ) : (
             <Button
               type="button"
+              size="lg"
               className="w-full"
               disabled={pending}
               onClick={() => void retryLocalSignOut()}
@@ -227,6 +229,7 @@ export function ResetPasswordForm() {
           </div>
           <Button
             type="submit"
+            size="lg"
             className="w-full"
             disabled={pending || sessionState !== "valid"}
           >

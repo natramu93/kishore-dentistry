@@ -50,9 +50,9 @@ function NavList({
         onClick={onNavigate}
         aria-current={active ? "page" : undefined}
         className={cn(
-          "flex min-h-10 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+          "flex min-h-11 items-center gap-3 rounded-lg border-l-4 border-l-transparent px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset",
           active
-            ? "bg-sidebar-accent text-sidebar-accent-foreground"
+            ? "border-l-gold bg-sidebar-accent text-sidebar-accent-foreground"
             : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         )}
       >
@@ -63,7 +63,10 @@ function NavList({
   };
 
   return (
-    <nav aria-label="Main navigation" className="flex-1 space-y-1 p-2">
+    <nav
+      aria-label="Main navigation"
+      className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
+    >
       {nav.map(renderItem)}
       {adminNav.length > 0 && (
         <>
@@ -91,7 +94,7 @@ export function MobileNav({ nav, adminNav }: { nav: NavItem[]; adminNav: NavItem
         render={
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon-lg"
             aria-label="Open menu"
             className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
@@ -99,10 +102,16 @@ export function MobileNav({ nav, adminNav }: { nav: NavItem[]; adminNav: NavItem
           </Button>
         }
       />
-      <SheetContent side="left" className="w-64 p-0 flex flex-col bg-sidebar text-sidebar-foreground border-sidebar-border">
-        <div className="border-b p-4">
+      <SheetContent side="left" className="flex w-72 max-w-[85vw] flex-col border-sidebar-border bg-sidebar p-0 text-sidebar-foreground">
+        <div className="border-b border-sidebar-border p-5 pr-16">
           <SheetTitle className="sr-only">Navigation</SheetTitle>
-          <BrandWordmark />
+          <Link
+            href="/dashboard"
+            onClick={() => setOpen(false)}
+            className="inline-flex rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+          >
+            <BrandWordmark className="h-12" />
+          </Link>
         </div>
         <NavList nav={nav} adminNav={adminNav} onNavigate={() => setOpen(false)} />
       </SheetContent>

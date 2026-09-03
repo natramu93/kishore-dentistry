@@ -33,7 +33,7 @@ export function LoginForm({
   const passwordHasError = state?.field === "password" || formHasError;
 
   return (
-    <Card className="rounded-2xl shadow-[0_20px_60px_-32px_rgba(27,36,82,0.5)] ring-black/10">
+    <Card className="rounded-2xl shadow-[0_20px_60px_-32px_rgba(0,26,107,0.45)] ring-brand-blue/15">
       <CardContent className="px-5 sm:px-7">
         <form
           action={formAction}

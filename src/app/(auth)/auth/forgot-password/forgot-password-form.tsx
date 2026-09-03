@@ -47,7 +47,7 @@ export function ForgotPasswordForm() {
                 required
               />
             </div>
-            <Button type="submit" className="w-full" disabled={pending}>
+            <Button type="submit" size="lg" className="w-full" disabled={pending}>
               {pending ? "Sending…" : "Send recovery link"}
             </Button>
           </form>

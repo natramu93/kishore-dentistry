@@ -54,6 +54,8 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-blue: var(--brand-blue);
   --color-gold: var(--gold);
   --color-gold-foreground: var(--gold-foreground);
   --color-popover-foreground: var(--popover-foreground);
@@ -70,78 +72,82 @@
 }
 
 :root {
-  /* Dr. Kishor's Dentistry — premium gold + charcoal, matching the brand mark */
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.24 0.006 70);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.24 0.006 70);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.24 0.006 70);
-  --primary: oklch(0.55 0.085 75); /* deep gold/bronze — accessible with white text */
-  --primary-foreground: oklch(0.99 0.005 85);
-  --secondary: oklch(0.96 0.012 80);
-  --secondary-foreground: oklch(0.4 0.06 72);
-  --muted: oklch(0.965 0.006 75);
-  --muted-foreground: oklch(0.5 0.015 70);
-  --accent: oklch(0.95 0.03 84); /* light gold hover wash */
-  --accent-foreground: oklch(0.44 0.075 72);
-  --gold: oklch(0.78 0.12 85); /* bright goldenrod accent (#daa520 family) */
-  --gold-foreground: oklch(0.28 0.05 70);
+  /* Color-managed samples from the supplied Dr. Kishor's Dentistry logo. */
+  --brand-navy: #001a6b;
+  --brand-blue: #003399;
+  --brand-gold: #c0964f;
+  --background: #f6f8fc;
+  --foreground: #10214e;
+  --card: #ffffff;
+  --card-foreground: #10214e;
+  --popover: #ffffff;
+  --popover-foreground: #10214e;
+  --primary: var(--brand-blue);
+  --primary-foreground: #ffffff;
+  --secondary: #eaf0ff;
+  --secondary-foreground: #002b83;
+  --muted: #eef2f8;
+  --muted-foreground: #4d5b78;
+  --accent: #fff5df;
+  --accent-foreground: #5b3e0e;
+  /* Gold is an accent on light surfaces; never use it as small body text. */
+  --gold: var(--brand-gold);
+  --gold-foreground: #3b2a0a;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.9 0.008 75);
-  --input: oklch(0.9 0.008 75);
-  --ring: oklch(0.55 0.085 75);
-  --chart-1: oklch(0.68 0.11 85); /* gold */
-  --chart-2: oklch(0.45 0.03 70); /* charcoal-bronze */
-  --chart-3: oklch(0.6 0.09 55); /* amber */
-  --chart-4: oklch(0.72 0.07 110); /* sage-gold */
-  --chart-5: oklch(0.55 0.1 35); /* terracotta */
+  --border: #d9e0ec;
+  --input: #7887a2;
+  --ring: var(--brand-blue);
+  --chart-1: #003399;
+  --chart-2: #c0964f;
+  --chart-3: #2767c7;
+  --chart-4: #61749c;
+  --chart-5: #8e6228;
   --radius: 0.625rem;
-  /* Left nav theme — based on the requested hash #4158d0, darkened for
-     contrast. Active/hover rows and section labels pick up the logo's gold
-     (--gold) so the two brand colors read together. */
-  --sidebar: color-mix(in srgb, #4158d0 82%, black 18%);
+  /* The opaque dark logo export sits on this exact navy. */
+  --sidebar: var(--brand-navy);
   --sidebar-foreground: #ffffff;
-  --sidebar-primary: #4158d0;
+  --sidebar-primary: var(--brand-blue);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: color-mix(in srgb, var(--gold) 18%, #293b9f 82%);
+  --sidebar-accent: #123780;
   --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: color-mix(in srgb, #4158d0 65%, black 35%);
+  --sidebar-border: #24458c;
   --sidebar-ring: var(--gold);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: #071332;
+  --foreground: #f7f9ff;
+  --card: #0d2050;
+  --card-foreground: #f7f9ff;
+  --popover: #0d2050;
+  --popover-foreground: #f7f9ff;
+  --primary: #9bbcff;
+  --primary-foreground: #00143f;
+  --secondary: #18336c;
+  --secondary-foreground: #f7f9ff;
+  --muted: #172a58;
+  --muted-foreground: #bdc9e3;
+  --accent: #453819;
+  --accent-foreground: #ffe4a6;
+  --gold: #d8b064;
+  --gold-foreground: #201400;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --border: #294375;
+  --input: #728ec8;
+  --ring: #9bbcff;
+  --chart-1: #9bbcff;
+  --chart-2: #d8b064;
+  --chart-3: #6c8ed7;
+  --chart-4: #8fa2c8;
+  --chart-5: #c08a49;
+  --sidebar: var(--brand-navy);
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: var(--brand-blue);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #123780;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #24458c;
+  --sidebar-ring: #d8b064;
 }
 
 @layer base {
@@ -164,5 +170,19 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  html,
+  body {
+    background: #ffffff;
+  }
+
+  *,
+  *::before,
+  *::after {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }

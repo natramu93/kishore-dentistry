@@ -8,6 +8,7 @@ import {
 } from "@/lib/clinic";
 import { fmtDate, formatINR } from "@/lib/tz";
 import { PrintButton } from "./print-button";
+import { BrandWordmark } from "@/components/brand";
 
 export const metadata = { title: "Invoice" };
 
@@ -45,9 +46,14 @@ export default async function InvoicePrintPage({
     <main className="mx-auto min-h-screen max-w-[210mm] bg-white p-4 text-sm text-black sm:p-8 print:p-0">
       <PrintButton />
 
-      <header className="flex flex-col items-start justify-between gap-4 border-b-2 border-black pb-4 sm:flex-row">
-        <div>
-          <h1 className="text-2xl font-bold">{issuerName}</h1>
+      <header className="flex flex-col items-start justify-between gap-5 border-b-2 border-primary pb-5 sm:flex-row">
+        <div className="min-w-0">
+          <BrandWordmark
+            surface="light"
+            decorative
+            className="h-16 w-auto max-w-full print:h-14"
+          />
+          <h1 className="mt-3 text-xl font-bold text-brand-navy">{issuerName}</h1>
           {(issuerAddress || issuerPhoneDisplay) && (
             <address className="mt-1 not-italic">
               {issuerAddress &&
@@ -68,8 +74,8 @@ export default async function InvoicePrintPage({
             </address>
           )}
         </div>
-        <div className="text-left sm:text-right">
-          <h2 className="text-xl font-bold uppercase tracking-wide">Invoice</h2>
+        <div className="shrink-0 text-left sm:text-right">
+          <h2 className="text-xl font-bold uppercase tracking-wide text-brand-blue">Invoice</h2>
           <p className="mt-1 font-mono">{invoice.invoice_number}</p>
           <p>Date: {fmtDate(invoice.issued_at ?? invoice.created_at)}</p>
           <p className="capitalize">Status: {invoice.status}</p>
@@ -86,7 +92,7 @@ export default async function InvoicePrintPage({
       <table className="w-full mt-6 border-collapse">
         <caption className="sr-only">Invoice line items</caption>
         <thead>
-          <tr className="border-b-2 border-black text-left">
+          <tr className="border-b-2 border-primary text-left text-brand-navy">
             <th className="py-2">#</th>
             <th className="py-2">Description</th>
             <th className="py-2 text-right">Qty</th>
@@ -123,7 +129,7 @@ export default async function InvoicePrintPage({
           <span>Tax ({invoice.tax_rate}%)</span>
           <span>{formatINR(invoice.tax_amount)}</span>
         </div>
-        <div className="flex justify-between font-bold text-base border-t-2 border-black pt-1">
+        <div className="flex justify-between border-t-2 border-primary pt-1 text-base font-bold text-brand-navy">
           <span>Total</span>
           <span>{formatINR(invoice.total)}</span>
         </div>
@@ -133,7 +139,7 @@ export default async function InvoicePrintPage({
         <p className="mt-6 text-neutral-600 border-t border-neutral-300 pt-3">{invoice.notes}</p>
       )}
 
-      <footer className="mt-12 text-xs text-neutral-500 text-center">
+      <footer className="mt-12 border-t border-gold/60 pt-3 text-center text-xs text-neutral-600">
         Thank you for choosing {TIRUPUR_CLINIC.brandName}.
       </footer>
     </main>
