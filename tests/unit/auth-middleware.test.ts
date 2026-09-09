@@ -67,7 +67,7 @@ describe("auth session middleware", () => {
     }
   );
 
-  it("preserves the convenience redirect only for guest-only pages", async () => {
+  it("keeps login stable when a downstream auth check disagrees with Proxy", async () => {
     mocks.getClaims.mockResolvedValue({
       data: { claims: { sub: "authenticated-user" } },
       error: null,
@@ -78,10 +78,8 @@ describe("auth session middleware", () => {
       TEST_CSP
     );
 
-    expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe(
-      "https://crm.example.test/dashboard"
-    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
   });
 
   it("preserves refreshed auth cookies on a protected redirect", async () => {
@@ -93,7 +91,8 @@ describe("auth session middleware", () => {
               name: string;
               value: string;
               options: { httpOnly: boolean; path: string };
-            }[]
+            }[],
+            headers: Record<string, string>
           ) => void;
         };
       };
@@ -106,7 +105,11 @@ describe("auth session middleware", () => {
                 value: "rotated",
                 options: { httpOnly: true, path: "/" },
               },
-            ]);
+            ], {
+              "Cache-Control": "private, no-cache, no-store, must-revalidate, max-age=0",
+              Expires: "0",
+              Pragma: "no-cache",
+            });
             return {
               data: null,
               error: { status: 401 },
@@ -129,8 +132,10 @@ describe("auth session middleware", () => {
     );
     expect(response.cookies.get("sb-refresh")?.value).toBe("rotated");
     expect(response.headers.get("cache-control")).toBe(
-      "private, no-store, max-age=0"
+      "private, no-cache, no-store, must-revalidate, max-age=0"
     );
+    expect(response.headers.get("expires")).toBe("0");
+    expect(response.headers.get("pragma")).toBe("no-cache");
   });
 
   it("propagates the nonce and policy upstream and on the response", async () => {

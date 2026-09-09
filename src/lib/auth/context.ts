@@ -1,7 +1,6 @@
 import "server-only";
 
 import { cache } from "react";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProfileWithBranches } from "@/data/users";
@@ -23,36 +22,22 @@ export type AuthContext = Readonly<{
 
 export { AuthorizationError };
 
-// Cached per request. Validates the session JWT with Supabase (getUser, never
-// getSession) and loads the profile + branch allocations.
+// Cached per request. Validates the session JWT with Supabase getClaims()
+// (never getSession) and loads the profile + branch allocations. getClaims()
+// avoids a redundant Auth user request after Proxy has already refreshed the
+// session, which keeps concurrent page loads from exhausting Auth requests.
 export const getAuthContext = cache(async (): Promise<AuthContext> => {
   const supabase = await createClient();
-  let userResult = await supabase.auth.getUser();
-  let user = userResult.data.user;
+  const { data } = await supabase.auth.getClaims();
+  const userId = data?.claims?.sub;
+  if (typeof userId !== "string" || !userId) redirect("/login");
 
-  // A session cookie can be present (e.g. just set by the login redirect) while
-  // the first getUser() network validation transiently fails — bouncing a
-  // freshly-logged-in user back to /login. If a session cookie exists but no
-  // user came back, retry once before giving up.
-  if (!user && userResult.error && (userResult.error.status ?? 500) >= 500) {
-    const cookieStore = await cookies();
-    const hasSession = cookieStore
-      .getAll()
-      .some((c) => c.name.startsWith("sb-") && c.name.includes("auth-token"));
-    if (hasSession) {
-      userResult = await supabase.auth.getUser();
-      user = userResult.data.user;
-    }
-  }
-
-  if (!user) redirect("/login");
-
-  const profile = await getProfileWithBranches(user.id);
+  const profile = await getProfileWithBranches(userId);
   if (!profile || !profile.is_active) redirect("/login?error=inactive");
 
   return Object.freeze({
     [authContextBrand]: true as const,
-    userId: user.id,
+    userId,
     role: profile.role,
     branchIds: Object.freeze([...profile.branchIds]),
     fullName: profile.full_name,

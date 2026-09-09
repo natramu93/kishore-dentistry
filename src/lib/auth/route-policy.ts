@@ -1,6 +1,5 @@
 type AuthPathPolicy = Readonly<{
   allowWithoutSession: boolean;
-  redirectAuthenticatedToDashboard: boolean;
 }>;
 
 function matchesPath(pathname: string, path: string): boolean {
@@ -19,7 +18,6 @@ export function getAuthPathPolicy(pathname: string): AuthPathPolicy {
   ) {
     return {
       allowWithoutSession: true,
-      redirectAuthenticatedToDashboard: true,
     };
   }
 
@@ -30,12 +28,10 @@ export function getAuthPathPolicy(pathname: string): AuthPathPolicy {
   ) {
     return {
       allowWithoutSession: true,
-      redirectAuthenticatedToDashboard: false,
     };
   }
 
   return {
     allowWithoutSession: false,
-    redirectAuthenticatedToDashboard: false,
   };
 }

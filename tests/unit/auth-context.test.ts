@@ -2,9 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
-  getUser: vi.fn(),
+  getClaims: vi.fn(),
   getProfileWithBranches: vi.fn(),
-  cookies: vi.fn(),
   redirect: vi.fn(),
 }));
 
@@ -16,7 +15,6 @@ vi.mock("react", async () => {
     cache: <T extends (...args: never[]) => unknown>(fn: T) => fn,
   };
 });
-vi.mock("next/headers", () => ({ cookies: mocks.cookies }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: mocks.createClient,
@@ -29,11 +27,6 @@ import { getAuthContext } from "@/lib/auth/context";
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const BRANCH_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-
-const verifiedUser = {
-  id: USER_ID,
-  email: "verified@example.test",
-};
 
 const activeProfile = {
   id: USER_ID,
@@ -53,15 +46,14 @@ describe("request authentication context", () => {
     vi.clearAllMocks();
     mocks.createClient.mockResolvedValue({
       auth: {
-        getUser: mocks.getUser,
+        getClaims: mocks.getClaims,
       },
     });
-    mocks.getUser.mockResolvedValue({
-      data: { user: verifiedUser },
+    mocks.getClaims.mockResolvedValue({
+      data: { claims: { sub: USER_ID, email: "verified@example.test" } },
       error: null,
     });
     mocks.getProfileWithBranches.mockResolvedValue(activeProfile);
-    mocks.cookies.mockResolvedValue({ getAll: () => [] });
     mocks.redirect.mockImplementation((path: string) => {
       throw new Error(`NEXT_REDIRECT:${path}`);
     });
@@ -70,7 +62,7 @@ describe("request authentication context", () => {
   it("builds an immutable context only from a verified user and active profile", async () => {
     const ctx = await getAuthContext();
 
-    expect(mocks.getUser).toHaveBeenCalledTimes(1);
+    expect(mocks.getClaims).toHaveBeenCalledTimes(1);
     expect(mocks.getProfileWithBranches).toHaveBeenCalledWith(USER_ID);
     expect(ctx).toMatchObject({
       userId: USER_ID,
@@ -85,8 +77,8 @@ describe("request authentication context", () => {
   });
 
   it("redirects an unverified request before loading a CRM profile", async () => {
-    mocks.getUser.mockResolvedValue({
-      data: { user: null },
+    mocks.getClaims.mockResolvedValue({
+      data: null,
       error: { status: 401 },
     });
 
@@ -94,37 +86,14 @@ describe("request authentication context", () => {
     expect(mocks.getProfileWithBranches).not.toHaveBeenCalled();
   });
 
-  it("retries one transient validation failure only when a session cookie exists", async () => {
-    mocks.getUser
-      .mockResolvedValueOnce({
-        data: { user: null },
-        error: { status: 503 },
-      })
-      .mockResolvedValueOnce({
-        data: { user: verifiedUser },
-        error: null,
-      });
-    mocks.cookies.mockResolvedValue({
-      getAll: () => [
-        {
-          name: "sb-project-auth-token",
-          value: "opaque-session",
-        },
-      ],
-    });
-
-    await expect(getAuthContext()).resolves.toMatchObject({ userId: USER_ID });
-    expect(mocks.getUser).toHaveBeenCalledTimes(2);
-  });
-
-  it("does not retry a transient failure without evidence of a session", async () => {
-    mocks.getUser.mockResolvedValue({
-      data: { user: null },
+  it("redirects a transiently unverifiable request without retrying Auth", async () => {
+    mocks.getClaims.mockResolvedValue({
+      data: null,
       error: { status: 503 },
     });
 
     await expect(getAuthContext()).rejects.toThrow("NEXT_REDIRECT:/login");
-    expect(mocks.getUser).toHaveBeenCalledTimes(1);
+    expect(mocks.getClaims).toHaveBeenCalledTimes(1);
   });
 
   it("redirects missing and inactive profiles through the inactive path", async () => {

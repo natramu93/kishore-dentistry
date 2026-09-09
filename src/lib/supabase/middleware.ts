@@ -20,7 +20,7 @@ function applySecurityHeaders(
   privateNoStore = true
 ): NextResponse {
   response.headers.set("Content-Security-Policy", policy);
-  if (privateNoStore) {
+  if (privateNoStore && !response.headers.has("Cache-Control")) {
     response.headers.set("Cache-Control", "private, no-store, max-age=0");
   }
   return response;
@@ -53,6 +53,10 @@ function createRedirectResponse(
   url.search = "";
   const response = NextResponse.redirect(url);
   source.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
+  for (const header of ["Cache-Control", "Expires", "Pragma"]) {
+    const value = source.headers.get(header);
+    if (value) response.headers.set(header, value);
+  }
   return applySecurityHeaders(response, csp.policy);
 }
 
@@ -79,11 +83,14 @@ export async function updateSession(
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet, headers) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           supabaseResponse = createPassThroughResponse(request, csp);
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
+          );
+          Object.entries(headers).forEach(([name, value]) =>
+            supabaseResponse.headers.set(name, value)
           );
         },
       },
@@ -99,17 +106,6 @@ export async function updateSession(
 
   if (!hasVerifiedSession && !pathPolicy.allowWithoutSession) {
     return createRedirectResponse(request, "/login", supabaseResponse, csp);
-  }
-
-  // Skip the convenience redirect when an error is being surfaced (e.g. a
-  // mid-session deactivation lands on /login?error=inactive) — otherwise the
-  // authenticated-but-inactive user would loop between /login and /dashboard.
-  if (
-    hasVerifiedSession &&
-    pathPolicy.redirectAuthenticatedToDashboard &&
-    !request.nextUrl.searchParams.has("error")
-  ) {
-    return createRedirectResponse(request, "/dashboard", supabaseResponse, csp);
   }
 
   return supabaseResponse;

@@ -3,11 +3,10 @@ import { getAuthPathPolicy } from "@/lib/auth/route-policy";
 
 describe("authentication route policy", () => {
   it.each(["/login", "/auth/forgot-password"])(
-    "keeps %s guest-accessible but sends authenticated users away",
+    "keeps %s accessible as a stable authentication recovery route",
     (pathname) => {
       expect(getAuthPathPolicy(pathname)).toEqual({
         allowWithoutSession: true,
-        redirectAuthenticatedToDashboard: true,
       });
     }
   );
@@ -21,7 +20,6 @@ describe("authentication route policy", () => {
     (pathname) => {
       expect(getAuthPathPolicy(pathname)).toEqual({
         allowWithoutSession: true,
-        redirectAuthenticatedToDashboard: false,
       });
     }
   );
@@ -37,7 +35,6 @@ describe("authentication route policy", () => {
     (pathname) => {
       expect(getAuthPathPolicy(pathname)).toEqual({
         allowWithoutSession: false,
-        redirectAuthenticatedToDashboard: false,
       });
     }
   );
