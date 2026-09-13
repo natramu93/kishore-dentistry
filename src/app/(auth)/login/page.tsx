@@ -2,7 +2,6 @@ import { LoginForm } from "./login-form";
 import { BrandWordmark } from "@/components/brand";
 import { TIRUPUR_CLINIC } from "@/lib/clinic";
 import { ShieldCheck } from "lucide-react";
-import Image from "next/image";
 
 export const metadata = {
   title: `Sign in — ${TIRUPUR_CLINIC.brandName} CRM`,
@@ -18,35 +17,21 @@ export default async function LoginPage({
     <main className="min-h-svh w-full flex-1 overflow-x-hidden bg-background lg:grid lg:grid-cols-[minmax(0,1.08fr)_minmax(28rem,0.92fr)]">
       <section
         aria-label={`About ${TIRUPUR_CLINIC.brandName}`}
-        className="relative min-h-40 overflow-hidden bg-brand-navy sm:min-h-80 lg:min-h-svh"
+        className="flex min-h-64 items-center bg-brand-navy px-5 py-8 sm:min-h-80 sm:px-8 sm:py-10 lg:min-h-svh lg:px-10 xl:px-14"
       >
-        <Image
-          src="/images/login/tirupur-branch-team.webp"
-          alt={`Clinical team at ${TIRUPUR_CLINIC.brandName}, Tirupur`}
-          fill
-          sizes="(max-width: 1023px) 100vw, 54vw"
-          className="object-cover object-center lg:object-contain"
-          preload
-        />
-        <div
-          className="absolute inset-0 bg-gradient-to-b from-brand-navy/80 via-brand-blue/20 to-brand-navy/95"
-          aria-hidden="true"
-        />
-        <div className="relative flex min-h-40 flex-col p-4 sm:min-h-80 sm:p-8 lg:min-h-svh lg:p-10 xl:p-14">
-          <div className="inline-flex self-start rounded-2xl bg-brand-navy p-2.5 shadow-xl ring-1 ring-white/20 sm:p-3">
+        <div className="mx-auto w-full max-w-2xl text-white lg:mx-0">
+          <div className="inline-flex rounded-2xl bg-white/5 p-2.5 ring-1 ring-white/20 sm:p-3">
             <BrandWordmark className="h-10 w-auto sm:h-14 lg:h-16" />
           </div>
-          <div className="mt-auto max-w-2xl text-white">
-            <p className="mb-2 text-xs font-semibold tracking-[0.18em] text-gold uppercase sm:text-sm">
-              {TIRUPUR_CLINIC.brandName} · Tirupur
-            </p>
-            <p className="hidden max-w-xl text-3xl leading-tight font-semibold text-balance sm:block lg:text-4xl xl:text-5xl">
-              One place for every patient journey.
-            </p>
-            <p className="mt-3 hidden max-w-xl text-sm leading-relaxed text-white/85 sm:block lg:text-base">
-              Secure access to appointments, patient communication, and clinical records for the team at {TIRUPUR_CLINIC.brandName}.
-            </p>
-          </div>
+          <p className="mt-6 text-xs font-semibold tracking-[0.18em] text-gold uppercase sm:mt-8 sm:text-sm">
+            {TIRUPUR_CLINIC.brandName} · Tirupur
+          </p>
+          <p className="mt-2 max-w-xl text-2xl leading-tight font-semibold text-balance sm:text-3xl lg:text-4xl xl:text-5xl">
+            One place for every patient journey.
+          </p>
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/85 sm:text-base">
+            Secure access to appointments, patient communication, and clinical records for the team at {TIRUPUR_CLINIC.brandName}.
+          </p>
         </div>
       </section>
 

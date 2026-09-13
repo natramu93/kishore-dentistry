@@ -10,17 +10,14 @@ vi.mock("@/actions/auth", () => ({
 afterEach(cleanup);
 
 describe("login page", () => {
-  it("shows the branded background and login fields without address or inset imagery", async () => {
+  it("shows a branded message and login fields without a cover photo or address", async () => {
     const page = await LoginPage({ searchParams: Promise.resolve({}) });
     const { container } = render(page);
 
-    const heroImage = screen.getByRole("img", {
+    expect(screen.queryByRole("img", {
       name: `Clinical team at ${TIRUPUR_CLINIC.brandName}, Tirupur`,
-    });
-    expect(heroImage).toHaveAttribute(
-      "src",
-      expect.stringContaining("tirupur-branch-team")
-    );
+    })).not.toBeInTheDocument();
+    expect(screen.getByText("One place for every patient journey.")).toBeVisible();
     expect(
       screen.getByRole("form", { name: "Sign in to the clinic CRM" })
     ).toBeInTheDocument();
