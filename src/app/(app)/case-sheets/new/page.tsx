@@ -7,7 +7,6 @@ import {
 } from "@/data/case-sheets";
 import { listDoctors } from "@/data/catalogs";
 import { CaseSheetEditor } from "@/components/clinical/case-sheet-editor";
-import { toClinicInputValue } from "@/lib/tz";
 
 export const metadata: Metadata = {
   title: "New Digital Case Sheet — Dr. Kishor's Dentistry CRM",
@@ -50,7 +49,7 @@ export default async function NewCaseSheetPage({
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
           Use the Indian Standard tooth chart for general findings and future planning. Any
-          treatment added must use an approved TMT code. Finalized entries cannot be overwritten.
+          treatment added must use an approved ICD-10 dental code. Finalized entries cannot be overwritten.
         </p>
       </div>
       <CaseSheetEditor
@@ -62,9 +61,6 @@ export default async function NewCaseSheetPage({
         treatmentCodes={treatmentCodes}
         canPrescribe={ctx.role === "doctor"}
         initialMedicalHistory={scope.medicalHistory}
-        initialVisitAt={toClinicInputValue(
-          scope.appointment?.scheduled_at ?? new Date().toISOString()
-        )}
         successHref={ctx.role === "doctor" ? `/my-patients/${scope.lead.id}` : `/leads/${scope.lead.id}`}
       />
     </div>

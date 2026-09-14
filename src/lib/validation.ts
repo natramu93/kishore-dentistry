@@ -15,6 +15,10 @@ export const MAX_LIST_ROWS = 500;
 export const MAX_REPORT_DAYS = 366;
 export const MAX_REPORT_ROWS = 5_000;
 
+// ICD-10's K00-K14 block covers diseases of the oral cavity, salivary
+// glands and jaws. The active dental catalogue is ICD-10-only.
+export const dentalCodePattern = /^K(?:0[0-9]|1[0-4])(?:[.][0-9A-Z]{1,2})?$/;
+
 export const uuidSchema = z.string().uuid("Invalid identifier");
 export const optionalUuidSchema = uuidSchema.optional().or(z.literal(""));
 export const userRoleSchema = z.enum([

@@ -143,7 +143,9 @@ export default async function MyPatientHistoryPage({
         )}
         {caseSheets.map((sheet) => {
           const doctor = sheet.doctor as { full_name: string } | null;
-          const treatments = (sheet.treatments ?? []) as Treatment[];
+          const treatments = (sheet.treatments ?? []) as Array<Treatment & {
+            treatment_attachments?: ClinicalAttachmentView[];
+          }>;
           const toothAssessments = ((sheet.tooth_assessments ?? []) as ToothAssessmentHistoryItem[]).map(
             (assessment) => ({ ...assessment, doctor_name: doctor?.full_name ?? null })
           );
@@ -154,7 +156,7 @@ export default async function MyPatientHistoryPage({
           const prescriptions = (sheet.prescription_items ?? []) as PrescriptionItem[];
           const clinicalAttachments = (
             (sheet.case_sheet_attachments ?? []) as ClinicalAttachmentView[]
-          ).filter((attachment) => attachment.status === "ready");
+          ).filter((attachment) => attachment.status === "ready" && !attachment.treatment_id);
           const canManageClinicalFiles = sheet.doctor_id === ctx.doctorId;
           return (
             <Card key={sheet.id}>
@@ -234,6 +236,15 @@ export default async function MyPatientHistoryPage({
                             {formatINR(treatment.cost * (treatment.quantity ?? 1))}
                           </span>
                         )}
+                      </div>
+                      <div className="mt-3">
+                        <ClinicalAttachmentPanel
+                          treatmentId={treatment.id}
+                          initialAttachments={(treatment.treatment_attachments ?? []).filter(
+                            (attachment) => attachment.status === "ready"
+                          )}
+                          canUpload={canManageClinicalFiles}
+                        />
                       </div>
                     </div>
                   ))}

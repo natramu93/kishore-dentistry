@@ -122,6 +122,7 @@ export type ClinicalFileDescriptor = z.infer<typeof clinicalFileDescriptorSchema
 export type ClinicalAttachmentView = {
   id: string;
   case_sheet_id: string;
+  treatment_id: string | null;
   lead_id: string;
   branch_id: string;
   category: ClinicalAttachmentCategory;

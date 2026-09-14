@@ -46,6 +46,9 @@ export type TreatmentCodeOption = {
   code: string;
   name: string;
   category?: string | null;
+  code_system: "KISHORE_TREATMENT" | "ICD10_IN";
+  code_level: "procedure" | "category" | "detail";
+  billable: boolean;
   default_price?: number | null;
   default_cost?: number | null;
 };
@@ -57,7 +60,6 @@ export type CaseSheetEditorProps = {
   doctorLocked?: boolean;
   treatmentCodes: TreatmentCodeOption[];
   canPrescribe?: boolean;
-  initialVisitAt?: string;
   initialMedicalHistory?: MedicalHistoryDraft;
   successHref?: string;
 };
@@ -130,7 +132,6 @@ export function CaseSheetEditor({
   doctorLocked = false,
   treatmentCodes,
   canPrescribe = false,
-  initialVisitAt,
   initialMedicalHistory,
   successHref,
 }: CaseSheetEditorProps) {
@@ -142,7 +143,7 @@ export function CaseSheetEditor({
   const [dirty, setDirty] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [doctorId, setDoctorId] = useState(() => doctors.length === 1 ? doctors[0]!.id : "");
-  const [visitAt, setVisitAt] = useState(() => initialVisitAt ?? localDateTimeNow());
+  const [visitAt] = useState(localDateTimeNow);
   const [chiefComplaint, setChiefComplaint] = useState("");
   const [findings, setFindings] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
@@ -157,7 +158,7 @@ export function CaseSheetEditor({
   const searchableTreatmentCodes = useMemo(
     () => treatmentCodes.map((treatment) => ({
       ...treatment,
-      searchText: `${treatment.code} ${treatment.name} ${treatment.category ?? ""}`.toLocaleLowerCase(),
+      searchText: `${treatment.code} ${treatment.name} ${treatment.category ?? ""} ${treatment.code_system}`.toLocaleLowerCase(),
     })),
     [treatmentCodes],
   );
@@ -336,15 +337,19 @@ export function CaseSheetEditor({
                   </p>
                 )}
               </Field>
-              <Field label="Visit date and time" htmlFor={`${idPrefix}-visit-at`} error={errors.visit_at}>
+              <Field label="Visit date and time (captured on save)" htmlFor={`${idPrefix}-visit-at`} error={errors.visit_at}>
                 <Input
                   id={`${idPrefix}-visit-at`}
                   type="datetime-local"
                   required
                   value={visitAt}
+                  readOnly
+                  aria-readonly="true"
                   aria-invalid={Boolean(errors.visit_at)}
-                  onChange={(event) => { setDirty(true); setVisitAt(event.target.value); }}
                 />
+                <p className="text-xs text-muted-foreground">
+                  The exact server time is recorded when this case sheet is finalized.
+                </p>
               </Field>
             </div>
             <Field label="Chief complaint" htmlFor={`${idPrefix}-complaint`} error={errors.chief_complaint}>
@@ -539,7 +544,7 @@ function TreatmentRow({
       <legend className="px-1 text-sm font-semibold">Treatment {index + 1}</legend>
       <div className="space-y-5">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_160px_48px]">
-          <Field label="Approved treatment code" htmlFor={`${idPrefix}-code`} error={error("treatment_code")}>
+          <Field label="Approved dental code" htmlFor={`${idPrefix}-code`} error={error("treatment_code")}>
             <div className="relative">
               <Search aria-hidden="true" className="pointer-events-none absolute top-3.5 left-3 size-4 text-muted-foreground" />
               <Input
@@ -553,7 +558,7 @@ function TreatmentRow({
                 autoComplete="off"
                 className="pl-9"
                 value={treatment.codeSearch}
-                placeholder="Search by code or treatment name"
+                placeholder="Search ICD-10 diagnosis or clinic treatment code"
                 onFocus={() => {
                   setActiveCodeIndex(0);
                   onChange({ codePickerOpen: true });
@@ -598,7 +603,7 @@ function TreatmentRow({
                 <div
                   id={`${idPrefix}-code-options`}
                   role="listbox"
-                  aria-label="Approved treatment codes"
+                  aria-label="Approved dental codes"
                   className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg"
                 >
                   {matches.length > 0 ? matches.map((option, optionIndex) => (
@@ -619,6 +624,10 @@ function TreatmentRow({
                       <span className="mt-0.5 shrink-0 font-mono text-xs font-semibold text-primary">{option.code}</span>
                       <span className="min-w-0">
                         <span className="block">{option.name}</span>
+                        <span className="block text-xs font-medium text-muted-foreground">
+                          ICD-10 diagnosis
+                          {option.code_level === "category" ? " · category" : ""}
+                        </span>
                         {option.category && <span className="block text-xs text-muted-foreground">{option.category}</span>}
                       </span>
                     </button>
@@ -633,7 +642,7 @@ function TreatmentRow({
             </div>
             {selectedCode && (
               <p className="flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400">
-                <Check aria-hidden="true" className="size-3.5" /> Code attached: {selectedCode.code}
+                <Check aria-hidden="true" className="size-3.5" /> Code attached: {selectedCode.code} (ICD-10 diagnosis)
               </p>
             )}
           </Field>

@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 
 const mocks = vi.hoisted(() => ({
   prepare: vi.fn(),
+  prepareTreatment: vi.fn(),
   confirm: vi.fn(),
   upload: vi.fn(),
   refresh: vi.fn(),
@@ -15,6 +16,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/actions/clinical-attachments", () => ({
   prepareClinicalAttachmentsAction: mocks.prepare,
+  prepareTreatmentAttachmentsAction: mocks.prepareTreatment,
   confirmClinicalAttachmentAction: mocks.confirm,
 }));
 
@@ -33,6 +35,7 @@ const caseSheetId = "10000000-0000-4000-8000-000000000001";
 const attachment: ClinicalAttachmentView = {
   id: "10000000-0000-4000-8000-000000000002",
   case_sheet_id: caseSheetId,
+  treatment_id: null,
   lead_id: "10000000-0000-4000-8000-000000000003",
   branch_id: "10000000-0000-4000-8000-000000000004",
   category: "photograph",
@@ -53,6 +56,19 @@ beforeEach(() => {
         id: attachment.id,
         bucket_id: "clinical-attachments",
         object_path: `${attachment.branch_id}/${attachment.lead_id}/${caseSheetId}/${attachment.id}.jpg`,
+        token: "short-lived-token",
+        mime_type: "image/jpeg",
+        original_name: attachment.original_name,
+      },
+    ],
+  });
+  mocks.prepareTreatment.mockReset().mockResolvedValue({
+    ok: true,
+    uploads: [
+      {
+        id: attachment.id,
+        bucket_id: "clinical-attachments",
+        object_path: `${attachment.branch_id}/${attachment.lead_id}/${caseSheetId}/treatments/${attachment.id}/${attachment.id}.jpg`,
         token: "short-lived-token",
         mime_type: "image/jpeg",
         original_name: attachment.original_name,
@@ -101,6 +117,26 @@ describe("clinical attachment panel", () => {
     });
     expect(link).toHaveAttribute("href", `/clinical-files/${attachment.id}`);
     expect(mocks.refresh).toHaveBeenCalledOnce();
+  });
+
+  it("routes treatment files through the treatment attachment action", async () => {
+    const treatmentId = "10000000-0000-4000-8000-000000000005";
+    render(<ClinicalAttachmentPanel treatmentId={treatmentId} />);
+    const file = new File([new Uint8Array([0xff, 0xd8, 0xff])], "treatment.jpg", {
+      type: "image/jpeg",
+      lastModified: 2,
+    });
+    fireEvent.change(screen.getByLabelText("Choose clinical files"), {
+      target: { files: [file] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add 1 file" }));
+
+    await waitFor(() => expect(mocks.prepareTreatment).toHaveBeenCalledWith(
+      treatmentId,
+      expect.arrayContaining([
+        expect.objectContaining({ original_name: "treatment.jpg" }),
+      ])
+    ));
   });
 
   it("blocks unsupported or oversized files before creating metadata", () => {

@@ -4,6 +4,7 @@ import { db } from "./db";
 import type { AuthContext } from "@/lib/auth/context";
 import {
   assertBranchAccess,
+  canReadLead,
   requireAnyRole,
 } from "@/lib/auth/guards";
 import {
@@ -37,6 +38,9 @@ export type TreatmentCodeOption = {
   code: string;
   name: string;
   category: string | null;
+  code_system: "KISHORE_TREATMENT" | "ICD10_IN";
+  code_level: "procedure" | "category" | "detail";
+  billable: boolean;
   default_price: null;
 };
 
@@ -129,11 +133,13 @@ export async function listTreatmentCodes(
   assertClinicalAuthor(ctx);
   const { data, error } = await db
     .from("treatment_codes")
-    .select("code, name, category")
+    .select("code, name, category, code_system, code_level, billable")
     .eq("status", "active")
+    .eq("code_system", "ICD10_IN")
     .order("code")
-    .limit(1_000);
+    .limit(2_000);
   if (error) throw error;
+  if ((data ?? []).length >= 2_000) throw new ValidationError("Too many dental codes to display");
   return (data ?? []).map((row) => ({ ...row, default_price: null }));
 }
 
@@ -279,18 +285,21 @@ export async function listCaseSheetsForLead(
     );
     const { data: lead, error: leadError } = await db
       .from("leads")
-      .select("branch_id, deleted_at")
+      .select("branch_id, assignee_id, deleted_at")
       .eq("id", leadId)
       .maybeSingle();
     if (leadError) throw leadError;
     if (!lead || lead.deleted_at) throw new NotFoundError("Patient");
-    assertBranchAccess(ctx, lead.branch_id);
+    if (!canReadLead(ctx, lead)) throw new NotFoundError("Patient");
   }
 
   const includesClinicalNarrative =
-    ctx.role === "admin" || ctx.role === "clinical_head";
+    ctx.role === "admin" ||
+    ctx.role === "operations" ||
+    ctx.role === "front_office" ||
+    ctx.role === "clinical_head";
   const clinicalProjection =
-    "*, doctor:doctors(full_name), tooth_assessments(*), treatments(*, treatment_code_ref:treatment_codes!treatments_treatment_code_fkey(name, category), invoice_items(id, invoice_id, active_billing)), medical_history:case_sheet_medical_history(*, history:patient_medical_history_versions(*)), prescription_items(*), case_sheet_attachments(id, case_sheet_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at)";
+    "*, doctor:doctors(full_name), tooth_assessments(*), treatments(*, treatment_code_ref:treatment_codes!treatments_treatment_code_fkey(name, category), invoice_items(id, invoice_id, active_billing), treatment_attachments:case_sheet_attachments!case_sheet_attachments_treatment_id_fkey(id, case_sheet_id, treatment_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at)), medical_history:case_sheet_medical_history(*, history:patient_medical_history_versions(*)), prescription_items(*), case_sheet_attachments(id, case_sheet_id, treatment_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at)";
   const businessProjection =
     "id, lead_id, branch_id, appointment_id, doctor_id, visit_at, finalized_at, created_at, doctor:doctors(full_name), treatments(id, treatment_code, treatment_name, treatment_category, clinical_status, site_scope, site_detail, tooth_number, surfaces, quantity, cost, invoice_items(id, invoice_id, active_billing))";
   let query = db

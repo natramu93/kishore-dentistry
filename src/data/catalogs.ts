@@ -8,7 +8,7 @@ import {
   requireManagerOf,
   requireClinicalCatalogAccess,
 } from "@/lib/auth/guards";
-import type { Doctor, LeadSource, TreatmentType } from "@/lib/database.types";
+import type { Doctor, LeadSource, TreatmentCode, TreatmentType } from "@/lib/database.types";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { MAX_LIST_ROWS, assertUuid } from "@/lib/validation";
 
@@ -101,6 +101,58 @@ export async function updateTreatmentType(
     .maybeSingle();
   if (error) throw error;
   if (!data) throw new NotFoundError("Treatment type");
+}
+
+// ---------- Managed dental codes ----------
+
+export async function listTreatmentCodeCatalog(
+  ctx: AuthContext,
+  opts: { includeInactive?: boolean } = {}
+): Promise<TreatmentCode[]> {
+  requireAdmin(ctx);
+  let q = db
+    .from("treatment_codes")
+    .select("*")
+    .order("code")
+    .limit(2_000);
+  q = q.eq("code_system", "ICD10_IN");
+  if (!opts.includeInactive) q = q.eq("status", "active");
+  const { data, error } = await q;
+  if (error) throw error;
+  if ((data ?? []).length > 2_000) throw new ValidationError("Too many dental codes to display");
+  return (data ?? []) as TreatmentCode[];
+}
+
+export async function createTreatmentCode(
+  ctx: AuthContext,
+  input: Pick<TreatmentCode, "code" | "name" | "category" | "code_level" | "billable">
+) {
+  requireAdmin(ctx);
+  const { error } = await db.from("treatment_codes").insert({
+    ...input,
+    code_system: "ICD10_IN",
+    status: "active",
+    raw_metadata: null,
+    source: "Admin managed / India-aligned ICD-10",
+    source_version: "admin",
+  });
+  if (error) throw error;
+}
+
+export async function updateTreatmentCode(
+  ctx: AuthContext,
+  code: string,
+  input: Partial<Pick<TreatmentCode, "name" | "category" | "code_level" | "billable">> & { status?: string }
+) {
+  requireAdmin(ctx);
+  const { data, error } = await db
+    .from("treatment_codes")
+    .update(input)
+    .eq("code", code)
+    .select("code")
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new NotFoundError("Dental code");
 }
 
 // ---------- Doctors ----------

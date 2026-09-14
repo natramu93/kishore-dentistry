@@ -6,6 +6,7 @@ import { ExternalLink, FileImage, Paperclip, Upload } from "lucide-react";
 import {
   confirmClinicalAttachmentAction,
   prepareClinicalAttachmentsAction,
+  prepareTreatmentAttachmentsAction,
 } from "@/actions/clinical-attachments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,10 +44,12 @@ function fileKey(file: File, index: number): string {
 
 export function ClinicalAttachmentPanel({
   caseSheetId,
+  treatmentId,
   initialAttachments,
   canUpload = true,
 }: {
-  caseSheetId: string;
+  caseSheetId?: string;
+  treatmentId?: string;
   initialAttachments?: ClinicalAttachmentView[];
   canUpload?: boolean;
 }) {
@@ -117,6 +120,10 @@ export function ClinicalAttachmentPanel({
 
   async function uploadSelected() {
     if (selected.length === 0 || busy) return;
+    if (!caseSheetId && !treatmentId) {
+      setError("This file upload is missing its clinical record.");
+      return;
+    }
     setBusy(true);
     setError("");
     setUploadStates(
@@ -128,15 +135,15 @@ export function ClinicalAttachmentPanel({
       )
     );
 
-    const prepared = await prepareClinicalAttachmentsAction(
-      caseSheetId,
-      selected.map((item) => ({
-        original_name: item.file.name,
-        mime_type: item.mimeType,
-        size_bytes: item.file.size,
-        category: item.category,
-      }))
-    );
+    const descriptors = selected.map((item) => ({
+      original_name: item.file.name,
+      mime_type: item.mimeType,
+      size_bytes: item.file.size,
+      category: item.category,
+    }));
+    const prepared = treatmentId
+      ? await prepareTreatmentAttachmentsAction(treatmentId, descriptors)
+      : await prepareClinicalAttachmentsAction(caseSheetId, descriptors);
 
     if (!prepared.ok) {
       setBusy(false);
@@ -235,13 +242,15 @@ export function ClinicalAttachmentPanel({
     .map((item) => `${item.label}: ${item.message}`)
     .join(". ");
 
+  const attachmentLabel = treatmentId ? "Treatment files" : "Clinical files";
+
   return (
     <section className="space-y-3 rounded-lg border bg-muted/20 p-3" aria-labelledby={`${inputId}-title`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 id={`${inputId}-title`} className="flex items-center gap-2 font-medium">
             <Paperclip className="size-4" aria-hidden="true" />
-            Clinical files
+            {attachmentLabel}
           </h3>
           <p className="mt-1 text-xs text-muted-foreground">
             Photographs, X-rays, scans, DICOM files and reports. Maximum 25 MB each.

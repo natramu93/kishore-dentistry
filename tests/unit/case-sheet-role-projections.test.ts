@@ -49,7 +49,7 @@ function context(role: "operations" | "front_office"): AuthContext {
 
 function leadLookupChain() {
   const result = {
-    data: { branch_id: BRANCH_ID, deleted_at: null },
+    data: { branch_id: BRANCH_ID, assignee_id: "10000000-0000-4000-8000-000000000009", deleted_at: null },
     error: null,
   };
   const chain = {
@@ -86,45 +86,46 @@ describe("business-role case-sheet projections", () => {
   });
 
   it.each(["operations", "front_office"] as const)(
-    "keeps %s case-sheet reads free of clinical records",
+    "allows %s to read the signed clinical case-sheet details",
     async (role) => {
       const leadChain = leadLookupChain();
       const caseSheetChain = caseSheetListChain();
+      const medicalHistoryChain = {
+        select: vi.fn(),
+        eq: vi.fn(),
+        order: vi.fn(),
+        limit: vi.fn(),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+      };
+      medicalHistoryChain.select.mockReturnValue(medicalHistoryChain);
+      medicalHistoryChain.eq.mockReturnValue(medicalHistoryChain);
+      medicalHistoryChain.order.mockReturnValue(medicalHistoryChain);
+      medicalHistoryChain.limit.mockReturnValue(medicalHistoryChain);
       mocks.from.mockImplementation((table: string) => {
         if (table === "leads") return leadChain;
         if (table === "case_sheets") return caseSheetChain;
+        if (table === "patient_medical_history_versions") return medicalHistoryChain;
         throw new Error(`Unexpected clinical table read: ${table}`);
       });
+      mocks.rpc.mockResolvedValue({ data: [], error: null });
 
       const result = await listCaseSheetsForLead(context(role), LEAD_ID);
 
       expect(caseSheetChain.select).toHaveBeenCalledOnce();
       const projection = caseSheetChain.select.mock.calls[0]?.[0] as string;
-      expect(projection).not.toMatch(
-        /chief_complaint|findings|diagnosis|\bplan\b|medical_alerts|medical_history|patient_medical_history_versions|prescription_items|tooth_assessments|case_sheet_attachments/
+      expect(projection).toMatch(
+        /chief_complaint|findings|diagnosis|\bplan\b|medical_history|prescription_items|tooth_assessments|case_sheet_attachments/
       );
-      expect(mocks.rpc).not.toHaveBeenCalled();
+      expect(mocks.rpc).toHaveBeenCalledWith("current_tooth_assessments", { p_lead_id: LEAD_ID });
       expect(mocks.from.mock.calls.map(([table]) => table)).toEqual([
         "leads",
         "case_sheets",
+        "patient_medical_history_versions",
       ]);
 
       expect(result.caseSheets).toEqual([businessCaseSheet]);
       expect(result.currentMedicalHistory).toBeNull();
       expect(result.currentToothAssessments).toEqual([]);
-      for (const field of [
-        "chief_complaint",
-        "findings",
-        "diagnosis",
-        "plan",
-        "medical_alerts",
-        "medical_history",
-        "prescription_items",
-        "tooth_assessments",
-        "case_sheet_attachments",
-      ]) {
-        expect(result.caseSheets[0]).not.toHaveProperty(field);
-      }
     }
   );
 });

@@ -20,6 +20,7 @@ import {
   type ClinicalFileMimeType,
 } from "@/lib/clinical-files";
 import { assertUuid } from "@/lib/validation";
+import { canReadLead } from "@/lib/auth/guards";
 
 type CaseSheetScope = {
   id: string;
@@ -27,6 +28,8 @@ type CaseSheetScope = {
   branch_id: string;
   doctor_id: string;
   finalized_at: string;
+  assignee_id: string | null;
+  treatment_id: string | null;
 };
 
 export type ClinicalAttachmentRecord = ClinicalAttachmentView;
@@ -46,6 +49,7 @@ function toAttachmentRecord(
   return {
     id: attachment.id,
     case_sheet_id: attachment.case_sheet_id,
+    treatment_id: attachment.treatment_id,
     lead_id: attachment.lead_id,
     branch_id: attachment.branch_id,
     category: attachment.category,
@@ -65,6 +69,15 @@ function assertScopeAccess(ctx: AuthContext, scope: CaseSheetScope): void {
     return;
   }
   if (
+    (ctx.role === "operations" || ctx.role === "front_office") &&
+    canReadLead(ctx, {
+      branch_id: scope.branch_id,
+      assignee_id: scope.assignee_id,
+    })
+  ) {
+    return;
+  }
+  if (
     ctx.role === "doctor" &&
     ctx.doctorId !== null &&
     ctx.doctorId === scope.doctor_id
@@ -81,12 +94,71 @@ async function requireCaseSheetScope(
   const caseSheetId = assertUuid(caseSheetIdValue, "Case sheet");
   const { data, error } = await db
     .from("case_sheets")
-    .select("id, lead_id, branch_id, doctor_id, finalized_at")
+    .select("id, lead_id, branch_id, doctor_id, finalized_at, lead:leads!inner(assignee_id, deleted_at)")
     .eq("id", caseSheetId)
     .maybeSingle();
   if (error) throw error;
-  if (!data || !data.finalized_at) throw new NotFoundError("Signed case sheet");
-  const scope = data as CaseSheetScope;
+  if (!data || !data.finalized_at || !data.lead || data.lead.deleted_at) {
+    throw new NotFoundError("Signed case sheet");
+  }
+  const scope = {
+    ...data,
+    assignee_id: data.lead.assignee_id,
+    treatment_id: null,
+  } as unknown as CaseSheetScope;
+  assertScopeAccess(ctx, scope);
+  return scope;
+}
+
+async function requireTreatmentScope(
+  ctx: AuthContext,
+  treatmentIdValue: string
+): Promise<CaseSheetScope> {
+  const treatmentId = assertUuid(treatmentIdValue, "Treatment");
+  const { data, error } = await db
+    .from("treatments")
+    .select(
+      "id, lead_id, branch_id, case_sheet_id, case_sheet:case_sheets!inner(id, lead_id, branch_id, doctor_id, finalized_at, lead:leads!inner(assignee_id, deleted_at))"
+    )
+    .eq("id", treatmentId)
+    .maybeSingle();
+  if (error) throw error;
+  const row = data as unknown as {
+    id: string;
+    lead_id: string;
+    branch_id: string;
+    case_sheet_id: string | null;
+    case_sheet: {
+      id: string;
+      lead_id: string;
+      branch_id: string;
+      doctor_id: string;
+      finalized_at: string | null;
+      lead: { assignee_id: string | null; deleted_at: string | null } | null;
+    } | null;
+  } | null;
+  const sheet = row?.case_sheet;
+  if (
+    !row ||
+    !row.case_sheet_id ||
+    !sheet ||
+    !sheet.finalized_at ||
+    !sheet.lead ||
+    sheet.lead.deleted_at ||
+    row.lead_id !== sheet.lead_id ||
+    row.branch_id !== sheet.branch_id
+  ) {
+    throw new NotFoundError("Finalized treatment");
+  }
+  const scope: CaseSheetScope = {
+    id: sheet.id,
+    lead_id: sheet.lead_id,
+    branch_id: sheet.branch_id,
+    doctor_id: sheet.doctor_id,
+    finalized_at: sheet.finalized_at,
+    assignee_id: sheet.lead.assignee_id,
+    treatment_id: row.id,
+  };
   assertScopeAccess(ctx, scope);
   return scope;
 }
@@ -104,7 +176,11 @@ async function requireAttachment(
   if (error) throw error;
   if (!data) throw new NotFoundError("Clinical file");
   const attachment = data as CaseSheetAttachment;
-  await requireCaseSheetScope(ctx, attachment.case_sheet_id);
+  if (attachment.treatment_id) {
+    await requireTreatmentScope(ctx, attachment.treatment_id);
+  } else {
+    await requireCaseSheetScope(ctx, attachment.case_sheet_id);
+  }
   return attachment;
 }
 
@@ -116,9 +192,29 @@ export async function listClinicalAttachmentsForCaseSheet(
   const { data, error } = await db
     .from("case_sheet_attachments")
     .select(
-      "id, case_sheet_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at"
+      "id, case_sheet_id, treatment_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at"
     )
     .eq("case_sheet_id", scope.id)
+    .is("treatment_id", null)
+    .eq("status", "ready")
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as ClinicalAttachmentRecord[];
+}
+
+export async function listClinicalAttachmentsForTreatment(
+  ctx: AuthContext,
+  treatmentId: string
+): Promise<ClinicalAttachmentRecord[]> {
+  const scope = await requireTreatmentScope(ctx, treatmentId);
+  const { data, error } = await db
+    .from("case_sheet_attachments")
+    .select(
+      "id, case_sheet_id, treatment_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at"
+    )
+    .eq("case_sheet_id", scope.id)
+    .eq("treatment_id", scope.treatment_id ?? "")
     .eq("status", "ready")
     .order("created_at", { ascending: true })
     .order("id", { ascending: true });
@@ -141,23 +237,31 @@ export async function listClinicalAttachmentsForCaseSheets(
 
   const { data: scopes, error: scopeError } = await db
     .from("case_sheets")
-    .select("id, lead_id, branch_id, doctor_id, finalized_at")
+    .select("id, lead_id, branch_id, doctor_id, finalized_at, lead:leads!inner(assignee_id, deleted_at)")
     .in("id", caseSheetIds);
   if (scopeError) throw scopeError;
   if ((scopes?.length ?? 0) !== caseSheetIds.length) {
     throw new NotFoundError("Signed case sheet");
   }
   for (const row of scopes ?? []) {
-    const scope = row as CaseSheetScope;
-    if (!scope.finalized_at) throw new NotFoundError("Signed case sheet");
+    const lead = (row as unknown as { lead: { assignee_id: string | null; deleted_at: string | null } | null }).lead;
+    const scope = {
+      ...(row as unknown as Omit<CaseSheetScope, "assignee_id">),
+      assignee_id: lead?.assignee_id ?? null,
+      treatment_id: null,
+    } as CaseSheetScope;
+    if (!scope.finalized_at || !lead || lead.deleted_at) {
+      throw new NotFoundError("Signed case sheet");
+    }
     assertScopeAccess(ctx, scope);
   }
   const { data, error } = await db
     .from("case_sheet_attachments")
     .select(
-      "id, case_sheet_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at"
+      "id, case_sheet_id, treatment_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at"
     )
     .in("case_sheet_id", caseSheetIds)
+    .is("treatment_id", null)
     .eq("status", "ready")
     .order("created_at", { ascending: true })
     .order("id", { ascending: true })
@@ -199,12 +303,11 @@ async function markPendingFailedAndRemove(
   return true;
 }
 
-export async function prepareClinicalAttachments(
+async function prepareAttachmentsForScope(
   ctx: AuthContext,
-  caseSheetId: string,
+  scope: CaseSheetScope,
   files: readonly ClinicalFileDescriptor[]
 ): Promise<PreparedClinicalAttachment[]> {
-  const scope = await requireCaseSheetScope(ctx, caseSheetId);
   const parsedFiles = clinicalFileBatchSchema.safeParse(files);
   if (!parsedFiles.success) {
     throw new ValidationError(
@@ -213,10 +316,13 @@ export async function prepareClinicalAttachments(
   }
   const rows = parsedFiles.data.map((file) => {
     const id = crypto.randomUUID();
-    const objectPath = `${scope.branch_id}/${scope.lead_id}/${scope.id}/${id}.${clinicalFileExtension(file.mime_type)}`;
+    const objectPath = scope.treatment_id
+      ? `${scope.branch_id}/${scope.lead_id}/${scope.id}/treatments/${scope.treatment_id}/${id}.${clinicalFileExtension(file.mime_type)}`
+      : `${scope.branch_id}/${scope.lead_id}/${scope.id}/${id}.${clinicalFileExtension(file.mime_type)}`;
     return {
       id,
       case_sheet_id: scope.id,
+      treatment_id: scope.treatment_id,
       lead_id: scope.lead_id,
       branch_id: scope.branch_id,
       category: file.category,
@@ -271,6 +377,30 @@ export async function prepareClinicalAttachments(
     );
     throw error;
   }
+}
+
+export async function prepareClinicalAttachments(
+  ctx: AuthContext,
+  caseSheetId: string,
+  files: readonly ClinicalFileDescriptor[]
+): Promise<PreparedClinicalAttachment[]> {
+  return prepareAttachmentsForScope(
+    ctx,
+    await requireCaseSheetScope(ctx, caseSheetId),
+    files
+  );
+}
+
+export async function prepareTreatmentAttachments(
+  ctx: AuthContext,
+  treatmentId: string,
+  files: readonly ClinicalFileDescriptor[]
+): Promise<PreparedClinicalAttachment[]> {
+  return prepareAttachmentsForScope(
+    ctx,
+    await requireTreatmentScope(ctx, treatmentId),
+    files
+  );
 }
 
 export async function confirmClinicalAttachment(

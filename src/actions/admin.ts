@@ -11,6 +11,7 @@ import { assertActionRateLimit } from "@/lib/rate-limit";
 import { buildInviteRedirect } from "@/lib/invite-origin";
 import {
   booleanInputSchema,
+  dentalCodePattern,
   optionalUuidSchema,
   userRoleSchema,
   uuidSchema,
@@ -261,6 +262,91 @@ const treatmentTypeSchema = z.object({
   category: text(200),
   default_cost: z.coerce.number().finite().min(0).max(100_000_000).optional(),
 });
+
+const dentalCodeCreateSchema = z.object({
+  code: z.string().trim().toUpperCase().regex(dentalCodePattern, "Use a valid ICD-10 dental code"),
+  name: z.string().trim().min(1, "Description is required").max(300),
+  category: text(120),
+  code_level: z.enum(["category", "detail"]),
+  billable: booleanInputSchema,
+}).superRefine((value, issueContext) => {
+  const expectedLevel = value.code.includes(".") ? "detail" : "category";
+  if (value.code_level !== expectedLevel) {
+    issueContext.addIssue({ code: "custom", path: ["code_level"], message: `Use ${expectedLevel} for this code` });
+  }
+});
+
+const dentalCodeUpdateSchema = z.object({
+  name: z.string().trim().min(1, "Description is required").max(300),
+  category: text(120),
+  code_level: z.enum(["procedure", "category", "detail"]),
+  billable: booleanInputSchema,
+});
+
+function dentalCodeFormValues(formData: FormData) {
+  return {
+    code: formData.get("code"),
+    name: formData.get("name"),
+    category: String(formData.get("category") ?? "").trim(),
+    code_level: formData.get("code_level"),
+    billable: formData.get("billable") ?? "false",
+  };
+}
+
+function dentalCodeUpdateFormValues(formData: FormData) {
+  return {
+    name: formData.get("name"),
+    category: String(formData.get("category") ?? "").trim(),
+    code_level: formData.get("code_level"),
+    billable: formData.get("billable") ?? "false",
+  };
+}
+
+export async function createTreatmentCodeAction(formData: FormData): Promise<ActionResult> {
+  const ctx = await getAuthContext();
+  const parsed = dentalCodeCreateSchema.safeParse(dentalCodeFormValues(formData));
+  if (!parsed.success) return invalid(parsed.error);
+  return runAction(async () => {
+    await adminMutationLimit(ctx.userId, "admin:dental-codes");
+    await catalogs.createTreatmentCode(ctx, {
+      ...parsed.data,
+      category: parsed.data.category || null,
+    });
+    revalidatePath("/admin/dental-codes");
+  });
+}
+
+export async function updateTreatmentCodeAction(code: string, formData: FormData): Promise<ActionResult> {
+  const ctx = await getAuthContext();
+  const parsedCode = z.string().trim().toUpperCase().regex(dentalCodePattern).safeParse(code);
+  const parsed = dentalCodeUpdateSchema.safeParse(dentalCodeUpdateFormValues(formData));
+  if (!parsedCode.success) return { ok: false, error: "Dental code is invalid" };
+  if (!parsed.success) return invalid(parsed.error);
+  return runAction(async () => {
+    await adminMutationLimit(ctx.userId, "admin:dental-codes");
+    await catalogs.updateTreatmentCode(ctx, parsedCode.data, {
+      ...parsed.data,
+      category: parsed.data.category || null,
+    });
+    revalidatePath("/admin/dental-codes");
+  });
+}
+
+export async function toggleTreatmentCodeActive(code: string, isActive: boolean): Promise<ActionResult> {
+  const ctx = await getAuthContext();
+  const parsed = z.object({
+    code: z.string().trim().toUpperCase().regex(dentalCodePattern),
+    isActive: activeSchema,
+  }).safeParse({ code, isActive });
+  if (!parsed.success) return invalid(parsed.error);
+  return runAction(async () => {
+    await adminMutationLimit(ctx.userId, "admin:dental-codes");
+    await catalogs.updateTreatmentCode(ctx, parsed.data.code, {
+      status: parsed.data.isActive ? "active" : "inactive",
+    });
+    revalidatePath("/admin/dental-codes");
+  });
+}
 
 export async function createTreatmentTypeAction(formData: FormData): Promise<ActionResult> {
   const ctx = await getAuthContext();

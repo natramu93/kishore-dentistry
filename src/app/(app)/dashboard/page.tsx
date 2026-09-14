@@ -3,12 +3,13 @@ import { getAuthContext } from "@/lib/auth/context";
 import { getDashboardData, getRecentActivity, getDoctorDashboardData } from "@/data/dashboard";
 import { canViewReports } from "@/lib/auth/guards";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { LeadStatusBadge } from "@/components/lead-status-badge";
 import { STATUS_LABELS, PIPELINE_ORDER } from "@/lib/leads/transitions";
 import type { LeadStatus } from "@/lib/database.types";
 import { fmt, formatINR } from "@/lib/tz";
 import {
-  CalendarDays, BellRing, Users, TrendingUp, Stethoscope, IndianRupee, BarChart3,
+  CalendarDays, BellRing, Users, TrendingUp, Stethoscope, IndianRupee, BarChart3, Plus,
 } from "lucide-react";
 
 export const metadata = { title: "Dashboard — Dr. Kishor's Dentistry CRM" };
@@ -74,15 +75,23 @@ export default async function DashboardPage() {
               : `Your ${ctx.branchIds.length} branch${ctx.branchIds.length === 1 ? "" : "es"}`}
           </p>
         </div>
-        {canViewReports(ctx.role) && (
-          <Link
-            href="/reports"
-            className="flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-          >
-            <BarChart3 className="h-4 w-4" />
-            View detailed reports
-          </Link>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild size="sm">
+            <Link href="/leads/new">
+              <Plus aria-hidden="true" />
+              Add lead
+            </Link>
+          </Button>
+          {canViewReports(ctx.role) && (
+            <Link
+              href="/reports"
+              className="flex min-h-10 items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+            >
+              <BarChart3 aria-hidden="true" className="h-4 w-4" />
+              View detailed reports
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* KPI cards */}

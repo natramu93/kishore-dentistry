@@ -106,7 +106,8 @@ export default async function LeadDetailPage({
   } = caseSheetResult;
   const canManage = canDelete(ctx.role);
   const canAuthorCaseSheet = ctx.role === "admin" || ctx.role === "clinical_head";
-  const canViewClinicalNarrative = canAuthorCaseSheet;
+  const canViewClinicalNarrative =
+    canAuthorCaseSheet || ctx.role === "operations" || ctx.role === "front_office";
 
   const activeAppointment = appointments.find((a) => a.status === "scheduled") ?? null;
   const interestGroups = groupByCategory(treatmentTypes).map((g) => ({
@@ -406,6 +407,7 @@ export default async function LeadDetailPage({
                     invoice_id: string;
                     active_billing: boolean;
                   }>;
+                  treatment_attachments?: ClinicalAttachmentView[];
                 }>;
                 const toothAssessments = ((sheet.tooth_assessments ?? []) as ToothAssessmentHistoryItem[]).map(
                   (assessment) => ({ ...assessment, doctor_name: doctor?.full_name ?? null })
@@ -417,7 +419,7 @@ export default async function LeadDetailPage({
                 const prescriptionItems = (sheet.prescription_items ?? []) as PrescriptionItem[];
                 const clinicalAttachments = (
                   (sheet.case_sheet_attachments ?? []) as ClinicalAttachmentView[]
-                ).filter((attachment) => attachment.status === "ready");
+                ).filter((attachment) => attachment.status === "ready" && !attachment.treatment_id);
                 return (
                   <section key={sheet.id} className="rounded-lg border p-3" aria-labelledby={`case-${sheet.id}`}>
                     <div className="flex flex-wrap items-start justify-between gap-2">
@@ -469,6 +471,7 @@ export default async function LeadDetailPage({
                           <ClinicalAttachmentPanel
                             caseSheetId={sheet.id}
                             initialAttachments={clinicalAttachments}
+                            canUpload={canAuthorCaseSheet}
                           />
                         </div>
                       </>
@@ -526,6 +529,15 @@ export default async function LeadDetailPage({
                               entityId={t.id}
                               compact
                             />
+                            <div className="mt-3">
+                              <ClinicalAttachmentPanel
+                                treatmentId={t.id}
+                                initialAttachments={(t.treatment_attachments ?? []).filter(
+                                  (attachment) => attachment.status === "ready"
+                                )}
+                                canUpload={canAuthorCaseSheet}
+                              />
+                            </div>
                           </div>
                         );
                       })}

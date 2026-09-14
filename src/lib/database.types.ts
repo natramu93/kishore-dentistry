@@ -160,6 +160,10 @@ export type TreatmentCode = Timestamps & {
   status: string;
   raw_metadata: string | null;
   source: string | null;
+  code_system: "KISHORE_TREATMENT" | "ICD10_IN";
+  code_level: "procedure" | "category" | "detail";
+  billable: boolean;
+  source_version: string;
 };
 
 export type Lead = Timestamps & {
@@ -310,6 +314,7 @@ export type PrescriptionItem = Timestamps & {
 export type CaseSheetAttachment = Timestamps & {
   id: string;
   case_sheet_id: string;
+  treatment_id: string | null;
   lead_id: string;
   branch_id: string;
   category: ClinicalAttachmentCategory;
@@ -633,6 +638,7 @@ export type Database = {
         CaseSheetAttachment,
         | "id"
         | "case_sheet_id"
+        | "treatment_id"
         | "lead_id"
         | "branch_id"
         | "category"
@@ -644,6 +650,7 @@ export type Database = {
         "created_at",
         [
           FK<"case_sheet_attachments_case_sheet_id_fkey", "case_sheet_id", "case_sheets">,
+          FK<"case_sheet_attachments_treatment_id_fkey", "treatment_id", "treatments">,
           FK<"case_sheet_attachments_lead_id_fkey", "lead_id", "leads">,
           FK<"case_sheet_attachments_branch_id_fkey", "branch_id", "branches">,
           FK<"case_sheet_attachments_created_by_fkey", "created_by", "profiles">

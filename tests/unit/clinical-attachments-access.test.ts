@@ -24,6 +24,10 @@ const scope = {
   branch_id: branchId,
   doctor_id: doctorId,
   finalized_at: "2026-09-03T05:00:00.000Z",
+  lead: {
+    assignee_id: "10000000-0000-4000-8000-000000000009",
+    deleted_at: null,
+  },
 };
 
 function context(
@@ -44,6 +48,7 @@ function chain(result: { data: unknown; error: null }) {
   const value = {
     select: () => value,
     eq: () => value,
+    is: () => value,
     order: () => value,
     maybeSingle: async () => result,
     then: (resolve: (resolved: typeof result) => unknown) =>
@@ -61,18 +66,24 @@ beforeEach(() => {
 });
 
 describe("clinical attachment authorization", () => {
-  it.each(["operations", "front_office"] as const)(
-    "denies the %s role even when it can access the CRM",
-    async (role) => {
-      await expect(
-        listClinicalAttachmentsForCaseSheet(
-          context(role, { branches: [branchId] }),
-          caseSheetId
-        )
-      ).rejects.toBeInstanceOf(AuthorizationError);
-      expect(mocks.from).not.toHaveBeenCalledWith("case_sheet_attachments");
-    }
-  );
+  it("allows operations to read attachments within its branch", async () => {
+    await expect(
+      listClinicalAttachmentsForCaseSheet(
+        context("operations", { branches: [branchId] }),
+        caseSheetId
+      )
+    ).resolves.toEqual([]);
+    expect(mocks.from).toHaveBeenCalledWith("case_sheet_attachments");
+  });
+
+  it("allows front office to read attachments for its assigned lead", async () => {
+    await expect(
+      listClinicalAttachmentsForCaseSheet(
+        context("front_office", { branches: [branchId] }),
+        caseSheetId
+      )
+    ).resolves.toEqual([]);
+  });
 
   it("requires the clinical head's allocated branch", async () => {
     await expect(

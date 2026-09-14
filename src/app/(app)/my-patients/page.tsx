@@ -106,7 +106,7 @@ export default async function MyPatientsPage({
                 id="mp-treatment-code"
                 name="treatment_code"
                 defaultValue={params.treatment_code ?? ""}
-                placeholder="e.g. TMT_108"
+                placeholder="e.g. K02.9"
                 autoCapitalize="characters"
                 className="block h-11 min-w-44 rounded-md border border-input bg-transparent px-3 text-sm"
               />

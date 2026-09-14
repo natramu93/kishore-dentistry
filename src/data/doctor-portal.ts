@@ -8,6 +8,7 @@ import {
   EMPTY_UUID,
   assertIsoDateTime,
   assertUuid,
+  dentalCodePattern,
   normalizePagination,
   normalizeSearch,
 } from "@/lib/validation";
@@ -81,7 +82,7 @@ export async function listMyTreatments(
   }
   if (filters.treatmentCode) {
     const code = filters.treatmentCode.trim().toUpperCase();
-    if (!/^TMT_\d+$/.test(code)) {
+    if (!dentalCodePattern.test(code)) {
       throw new AuthorizationError("Treatment code filter is invalid");
     }
     query = query.eq("treatment_code", code);
@@ -271,20 +272,42 @@ export async function getMyPatientHistory(
   const ownedSheetIds = sheetRows
     .filter((sheet) => sheet.doctor_id === doctorId)
     .map((sheet) => sheet.id);
-  const attachmentResult = ownedSheetIds.length > 0
-    ? await db
-        .from("case_sheet_attachments")
-        .select("id, case_sheet_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at")
-        .in("case_sheet_id", ownedSheetIds)
-        .eq("status", "ready")
-        .order("created_at", { ascending: true })
-    : { data: [], error: null };
+  const ownedTreatmentIds = sheetRows
+    .filter((sheet) => sheet.doctor_id === doctorId)
+    .flatMap((sheet) => ((sheet.treatments ?? []) as Array<{ id: string }>).map((treatment) => treatment.id));
+  const [attachmentResult, treatmentAttachmentResult] = await Promise.all([
+    ownedSheetIds.length > 0
+      ? db
+          .from("case_sheet_attachments")
+          .select("id, case_sheet_id, treatment_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at")
+          .in("case_sheet_id", ownedSheetIds)
+          .is("treatment_id", null)
+          .eq("status", "ready")
+          .order("created_at", { ascending: true })
+      : Promise.resolve({ data: [], error: null }),
+    ownedTreatmentIds.length > 0
+      ? db
+          .from("case_sheet_attachments")
+          .select("id, case_sheet_id, treatment_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at")
+          .in("treatment_id", ownedTreatmentIds)
+          .eq("status", "ready")
+          .order("created_at", { ascending: true })
+      : Promise.resolve({ data: [], error: null }),
+  ]);
   if (attachmentResult.error) throw attachmentResult.error;
+  if (treatmentAttachmentResult.error) throw treatmentAttachmentResult.error;
   const attachmentsBySheet = new Map<string, typeof attachmentResult.data>();
   for (const attachment of attachmentResult.data ?? []) {
     const existing = attachmentsBySheet.get(attachment.case_sheet_id) ?? [];
     existing.push(attachment);
     attachmentsBySheet.set(attachment.case_sheet_id, existing);
+  }
+  const attachmentsByTreatment = new Map<string, typeof treatmentAttachmentResult.data>();
+  for (const attachment of treatmentAttachmentResult.data ?? []) {
+    if (!attachment.treatment_id) continue;
+    const existing = attachmentsByTreatment.get(attachment.treatment_id) ?? [];
+    existing.push(attachment);
+    attachmentsByTreatment.set(attachment.treatment_id, existing);
   }
 
   const currentRows = (currentResult.data ?? []) as ToothAssessment[];
@@ -303,6 +326,10 @@ export async function getMyPatientHistory(
     caseSheets: sheetRows.map((sheet) => ({
       ...sheet,
       case_sheet_attachments: attachmentsBySheet.get(sheet.id) ?? [],
+      treatments: (sheet.treatments ?? []).map((treatment) => ({
+        ...treatment,
+        treatment_attachments: attachmentsByTreatment.get(treatment.id) ?? [],
+      })),
     })),
     caseSheetTotal: sheetsResult.count ?? 0,
     caseSheetPage: page,

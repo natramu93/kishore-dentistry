@@ -43,6 +43,41 @@ export async function prepareClinicalAttachmentsAction(
   });
 }
 
+export async function prepareTreatmentAttachmentsAction(
+  treatmentIdValue: unknown,
+  filesValue: unknown
+): Promise<
+  ActionValueResult<{
+    uploads: clinicalAttachments.PreparedClinicalAttachment[];
+  }>
+> {
+  const ctx = await getAuthContext();
+  const treatmentId = uuidSchema.safeParse(treatmentIdValue);
+  const files = clinicalFileBatchSchema.safeParse(filesValue);
+  if (!treatmentId.success) {
+    return { ok: false, error: "Treatment is invalid" };
+  }
+  if (!files.success) {
+    return {
+      ok: false,
+      error: files.error.issues[0]?.message ?? "Clinical files are invalid",
+    };
+  }
+
+  return runActionWithValue(async () => {
+    await assertActionRateLimit(ctx.userId, "clinical-file:prepare", {
+      limit: 12,
+      windowMs: 5 * 60_000,
+    });
+    const uploads = await clinicalAttachments.prepareTreatmentAttachments(
+      ctx,
+      treatmentId.data,
+      files.data
+    );
+    return { uploads };
+  });
+}
+
 export async function confirmClinicalAttachmentAction(
   attachmentIdValue: unknown
 ): Promise<

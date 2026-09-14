@@ -71,6 +71,7 @@ export const ADMIN_NAV: NavItem[] = [
     icon: "ClipboardList",
     roles: ["admin", "clinical_head"],
   },
+  { href: "/admin/dental-codes", label: "Dental Codes", icon: "Tags", roles: ["admin"] },
 ];
 
 export function navForRole(items: NavItem[], role: UserRole): NavItem[] {

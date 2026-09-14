@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { dentalCodePattern } from "@/lib/validation";
 import { medicalHistoryDraftSchema } from "@/lib/medical-history";
 import { prescriptionItemsDraftSchema } from "@/lib/prescriptions";
 
@@ -251,7 +252,7 @@ export const treatmentSiteSchema = z.object({
 });
 
 export const caseSheetTreatmentSchema = z.object({
-  treatment_code: z.string().trim().regex(/^TMT_\d+$/, "Select a valid treatment code"),
+  treatment_code: z.string().trim().regex(dentalCodePattern, "Select a valid dental code"),
   status: z.enum(["planned", "completed"]),
   site_scope: z.enum(TREATMENT_SITE_SCOPES),
   site_detail: z.string().trim().max(40).nullable(),

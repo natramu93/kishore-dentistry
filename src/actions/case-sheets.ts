@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { getAuthContext } from "@/lib/auth/context";
 import { assertActionRateLimit } from "@/lib/rate-limit";
 import { caseSheetPayloadSchema } from "@/lib/clinical";
-import { clinicTimeToUtc } from "@/lib/tz";
 import * as caseSheets from "@/data/case-sheets";
 import { runActionWithValue, type ActionResult } from "./util";
 
@@ -27,7 +26,9 @@ export async function finalizeCaseSheetAction(
     });
     const result = await caseSheets.finalizeCaseSheet(ctx, {
       ...parsed.data,
-      visit_at: clinicTimeToUtc(parsed.data.visit_at),
+      // The browser value is display-only. The database trigger also replaces
+      // this with its own clock value so direct RPC calls cannot backdate it.
+      visit_at: new Date().toISOString(),
     });
     revalidatePath(`/leads/${result.lead_id}`);
     revalidatePath("/appointments");

@@ -213,11 +213,15 @@ describe("dental treatment site validation", () => {
     };
     expect(caseSheetTreatmentSchema.safeParse({
       ...baseTreatment,
-      treatment_code: "TMT_123",
+      treatment_code: "K02.9",
     }).success).toBe(true);
     expect(caseSheetTreatmentSchema.safeParse({
       ...baseTreatment,
       treatment_code: "Root canal",
+    }).success).toBe(false);
+    expect(caseSheetTreatmentSchema.safeParse({
+      ...baseTreatment,
+      treatment_code: "TMT_123",
     }).success).toBe(false);
   });
 });
