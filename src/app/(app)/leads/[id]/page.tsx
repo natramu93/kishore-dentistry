@@ -477,6 +477,11 @@ export default async function LeadDetailPage({
                       </>
                     )}
                     <div className="mt-3 space-y-3">
+                      {lines.length === 0 && (
+                        <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                          This finalized visit has no coded treatment lines, so there is nothing to invoice yet.
+                        </p>
+                      )}
                       {lines.map((t) => {
                         const billed = t.invoice_items?.some((item) => item.active_billing) ?? false;
                         const invoiceEligible =
@@ -520,7 +525,12 @@ export default async function LeadDetailPage({
                                   </Button>
                                 )}
                                 {billed && <Badge variant="secondary">Invoiced</Badge>}
-                              </div>
+                                {t.clinical_status !== "completed" && !billed && (
+                                  <span className="text-xs text-muted-foreground">
+                                    Complete this treatment before invoicing
+                                  </span>
+                                )}
+                                </div>
                             </div>
                             <CommentThread
                               {...commentProps}

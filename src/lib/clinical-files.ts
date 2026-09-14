@@ -135,6 +135,24 @@ export type ClinicalAttachmentView = {
   created_at: string;
 };
 
+/**
+ * Older hosted databases may still be on the case-sheet attachment schema
+ * without treatment ownership. Keep signed case-sheet reads available while
+ * the additive treatment-attachment migration is being rolled out. This is
+ * intentionally narrow: callers must only use it to select a legacy read
+ * projection, never to bypass authorization or enable writes.
+ */
+export function isTreatmentAttachmentSchemaUnavailable(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const code = "code" in error ? String(error.code ?? "") : "";
+  const message = "message" in error ? String(error.message ?? "") : "";
+  return (
+    code === "42703" ||
+    (code === "PGRST200" &&
+      /case_sheet_attachments|treatment_attachments|treatment_id/i.test(message))
+  );
+}
+
 function extensionOf(fileName: string): string {
   const finalDot = fileName.lastIndexOf(".");
   return finalDot >= 0 ? fileName.slice(finalDot + 1).toLowerCase() : "";

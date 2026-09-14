@@ -26,6 +26,7 @@ import type {
   PatientMedicalHistoryVersion,
   ToothAssessment,
 } from "@/lib/database.types";
+import { isTreatmentAttachmentSchemaUnavailable } from "@/lib/clinical-files";
 import {
   createMedicalHistoryDraft,
   type MedicalHistoryDraft,
@@ -300,16 +301,22 @@ export async function listCaseSheetsForLead(
     ctx.role === "clinical_head";
   const clinicalProjection =
     "*, doctor:doctors(full_name), tooth_assessments(*), treatments(*, treatment_code_ref:treatment_codes!treatments_treatment_code_fkey(name, category), invoice_items(id, invoice_id, active_billing), treatment_attachments:case_sheet_attachments!case_sheet_attachments_treatment_id_fkey(id, case_sheet_id, treatment_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at)), medical_history:case_sheet_medical_history(*, history:patient_medical_history_versions(*)), prescription_items(*), case_sheet_attachments(id, case_sheet_id, treatment_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at)";
+  const legacyClinicalProjection =
+    "*, doctor:doctors(full_name), tooth_assessments(*), treatments(*, treatment_code_ref:treatment_codes!treatments_treatment_code_fkey(name, category), invoice_items(id, invoice_id, active_billing)), medical_history:case_sheet_medical_history(*, history:patient_medical_history_versions(*)), prescription_items(*), case_sheet_attachments(id, case_sheet_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at)";
   const businessProjection =
     "id, lead_id, branch_id, appointment_id, doctor_id, visit_at, finalized_at, created_at, doctor:doctors(full_name), treatments(id, treatment_code, treatment_name, treatment_category, clinical_status, site_scope, site_detail, tooth_number, surfaces, quantity, cost, invoice_items(id, invoice_id, active_billing))";
-  let query = db
-    .from("case_sheets")
-    .select(includesClinicalNarrative ? clinicalProjection : businessProjection, { count: "exact" })
-    .eq("lead_id", leadId)
-    .order("visit_at", { ascending: false })
-    .order("finalized_at", { ascending: false })
-    .order("id", { ascending: false });
-  if (ctx.role === "doctor") query = query.eq("doctor_id", ctx.doctorId ?? EMPTY_UUID);
+  const buildQuery = (projection: string) => {
+    let query = db
+      .from("case_sheets")
+      .select(projection, { count: "exact" })
+      .eq("lead_id", leadId)
+      .order("visit_at", { ascending: false })
+      .order("finalized_at", { ascending: false })
+      .order("id", { ascending: false });
+    if (ctx.role === "doctor") query = query.eq("doctor_id", ctx.doctorId ?? EMPTY_UUID);
+    return query;
+  };
+  let query = buildQuery(includesClinicalNarrative ? clinicalProjection : businessProjection);
   const from = (page - 1) * pageSize;
   const results = await Promise.all([
     query.range(from, from + pageSize - 1),
@@ -321,6 +328,19 @@ export async function listCaseSheetsForLead(
       : Promise.resolve(null),
   ]);
   let sheetResult = results[0];
+  let usedLegacyClinicalProjection = false;
+  if (
+    sheetResult.error &&
+    includesClinicalNarrative &&
+    isTreatmentAttachmentSchemaUnavailable(sheetResult.error)
+  ) {
+    // Keep signed case-sheet reads available while the additive treatment
+    // attachment migration is rolling out. Treatment file panels remain empty
+    // until the new column and relationship are present.
+    query = buildQuery(legacyClinicalProjection);
+    sheetResult = await query.range(from, from + pageSize - 1);
+    usedLegacyClinicalProjection = true;
+  }
   const currentResult = results[1];
   const currentMedicalHistory = results[2];
   if (sheetResult.error) throw sheetResult.error;
@@ -334,6 +354,23 @@ export async function listCaseSheetsForLead(
   if (currentResult.error) throw currentResult.error;
 
   const { data, count } = sheetResult;
+  const normalizedCaseSheets = usedLegacyClinicalProjection
+    ? ((data ?? []) as unknown as Array<{
+        [key: string]: unknown;
+        case_sheet_attachments?: Array<Record<string, unknown>>;
+        treatments?: Array<Record<string, unknown>>;
+      }>).map((sheet) => ({
+        ...sheet,
+        case_sheet_attachments: (sheet.case_sheet_attachments ?? []).map((attachment) => ({
+          ...attachment,
+          treatment_id: null,
+        })),
+        treatments: (sheet.treatments ?? []).map((treatment) => ({
+          ...treatment,
+          treatment_attachments: [],
+        })),
+      }))
+    : data;
   const currentRows = (currentResult.data ?? []) as ToothAssessment[];
   const doctorIds = [...new Set(currentRows.map((row) => row.doctor_id))];
   let doctorNames = new Map<string, string>();
@@ -347,7 +384,7 @@ export async function listCaseSheetsForLead(
   }
 
   return {
-    caseSheets: (data ?? []) as unknown as Array<Partial<CaseSheet> & Pick<CaseSheet, "id" | "lead_id" | "branch_id" | "appointment_id" | "doctor_id" | "visit_at" | "finalized_at" | "created_at"> & Record<string, unknown>>,
+    caseSheets: (normalizedCaseSheets ?? []) as unknown as Array<Partial<CaseSheet> & Pick<CaseSheet, "id" | "lead_id" | "branch_id" | "appointment_id" | "doctor_id" | "visit_at" | "finalized_at" | "created_at"> & Record<string, unknown>>,
     currentMedicalHistory,
     currentToothAssessments: currentRows.map((row) => ({
       ...row,

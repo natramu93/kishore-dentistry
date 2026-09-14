@@ -12,6 +12,7 @@ import {
   normalizePagination,
   normalizeSearch,
 } from "@/lib/validation";
+import { isTreatmentAttachmentSchemaUnavailable } from "@/lib/clinical-files";
 import type { ToothAssessment, Treatment } from "@/lib/database.types";
 
 export type DoctorTreatmentRecord = Treatment & {
@@ -45,6 +46,83 @@ function requireLinkedDoctor(ctx: AuthContext): string {
     throw new AuthorizationError("Only a linked doctor login can view this");
   }
   return ctx.doctorId;
+}
+
+type DoctorClinicalAttachment = {
+  id: string;
+  case_sheet_id: string;
+  treatment_id: string | null;
+  lead_id: string;
+  branch_id: string;
+  category: string;
+  bucket_id: string;
+  original_name: string;
+  mime_type: string;
+  size_bytes: number;
+  status: string;
+  uploaded_at: string | null;
+  created_at: string;
+};
+
+async function loadDoctorClinicalAttachments(
+  sheetIds: string[],
+  treatmentIds: string[]
+): Promise<{
+  sheetAttachments: DoctorClinicalAttachment[];
+  treatmentAttachments: DoctorClinicalAttachment[];
+}> {
+  if (sheetIds.length === 0) {
+    return { sheetAttachments: [], treatmentAttachments: [] };
+  }
+
+  const select =
+    "id, case_sheet_id, treatment_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at";
+  const legacySelect =
+    "id, case_sheet_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at";
+  const [sheetResult, treatmentResult] = await Promise.all([
+    db
+      .from("case_sheet_attachments")
+      .select(select)
+      .in("case_sheet_id", sheetIds)
+      .is("treatment_id", null)
+      .eq("status", "ready")
+      .order("created_at", { ascending: true }),
+    treatmentIds.length > 0
+      ? db
+          .from("case_sheet_attachments")
+          .select(select)
+          .in("treatment_id", treatmentIds)
+          .eq("status", "ready")
+          .order("created_at", { ascending: true })
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (!sheetResult.error && !treatmentResult.error) {
+    return {
+      sheetAttachments: (sheetResult.data ?? []) as DoctorClinicalAttachment[],
+      treatmentAttachments: (treatmentResult.data ?? []) as DoctorClinicalAttachment[],
+    };
+  }
+  const schemaError = sheetResult.error ?? treatmentResult.error;
+  if (!isTreatmentAttachmentSchemaUnavailable(schemaError)) throw schemaError;
+
+  // During the migration window, retain whole-case-sheet files. Treatment
+  // attachments cannot exist in this legacy schema, so return none rather than
+  // failing the doctor's patient-history page.
+  const legacyResult = await db
+    .from("case_sheet_attachments")
+    .select(legacySelect)
+    .in("case_sheet_id", sheetIds)
+    .eq("status", "ready")
+    .order("created_at", { ascending: true });
+  if (legacyResult.error) throw legacyResult.error;
+  return {
+    sheetAttachments: (legacyResult.data ?? []).map((attachment) => ({
+      ...attachment,
+      treatment_id: null,
+    })) as DoctorClinicalAttachment[],
+    treatmentAttachments: [],
+  };
 }
 
 /**
@@ -275,35 +353,18 @@ export async function getMyPatientHistory(
   const ownedTreatmentIds = sheetRows
     .filter((sheet) => sheet.doctor_id === doctorId)
     .flatMap((sheet) => ((sheet.treatments ?? []) as Array<{ id: string }>).map((treatment) => treatment.id));
-  const [attachmentResult, treatmentAttachmentResult] = await Promise.all([
-    ownedSheetIds.length > 0
-      ? db
-          .from("case_sheet_attachments")
-          .select("id, case_sheet_id, treatment_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at")
-          .in("case_sheet_id", ownedSheetIds)
-          .is("treatment_id", null)
-          .eq("status", "ready")
-          .order("created_at", { ascending: true })
-      : Promise.resolve({ data: [], error: null }),
-    ownedTreatmentIds.length > 0
-      ? db
-          .from("case_sheet_attachments")
-          .select("id, case_sheet_id, treatment_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at")
-          .in("treatment_id", ownedTreatmentIds)
-          .eq("status", "ready")
-          .order("created_at", { ascending: true })
-      : Promise.resolve({ data: [], error: null }),
-  ]);
-  if (attachmentResult.error) throw attachmentResult.error;
-  if (treatmentAttachmentResult.error) throw treatmentAttachmentResult.error;
-  const attachmentsBySheet = new Map<string, typeof attachmentResult.data>();
-  for (const attachment of attachmentResult.data ?? []) {
+  const { sheetAttachments, treatmentAttachments } = await loadDoctorClinicalAttachments(
+    ownedSheetIds,
+    ownedTreatmentIds,
+  );
+  const attachmentsBySheet = new Map<string, DoctorClinicalAttachment[]>();
+  for (const attachment of sheetAttachments) {
     const existing = attachmentsBySheet.get(attachment.case_sheet_id) ?? [];
     existing.push(attachment);
     attachmentsBySheet.set(attachment.case_sheet_id, existing);
   }
-  const attachmentsByTreatment = new Map<string, typeof treatmentAttachmentResult.data>();
-  for (const attachment of treatmentAttachmentResult.data ?? []) {
+  const attachmentsByTreatment = new Map<string, DoctorClinicalAttachment[]>();
+  for (const attachment of treatmentAttachments) {
     if (!attachment.treatment_id) continue;
     const existing = attachmentsByTreatment.get(attachment.treatment_id) ?? [];
     existing.push(attachment);

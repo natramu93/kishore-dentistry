@@ -243,7 +243,12 @@ export default async function AppointmentsPage({
               <TableCell className="whitespace-normal">
                 {a.lead ? (
                   isDoctor ? (
-                    <span className="font-medium">{a.lead.name}</span>
+                    <Link
+                      href={`/my-patients/${a.lead.id}`}
+                      className="font-medium underline-offset-2 hover:underline"
+                    >
+                      {a.lead.name}
+                    </Link>
                   ) : (
                     <Link href={`/leads/${a.lead.id}`} className="font-medium hover:underline">
                       {a.lead.name}
