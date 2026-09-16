@@ -1,6 +1,12 @@
 -- Managed dental coding catalogue: WHO ICD-10 2019 K00-K14 oral-health diagnoses used for India-aligned clinical documentation.
 -- Legacy TMT_* rows are removed when unreferenced and retained only as inactive history when referenced.
 
+-- The catalogue becomes admin-managed, so remove the immutability guard from
+-- coded_dental_case_sheet before any row below is updated or deleted.
+drop trigger if exists protect_treatment_codes_update_delete on crm.treatment_codes;
+drop trigger if exists protect_treatment_codes_truncate on crm.treatment_codes;
+drop function if exists crm.reject_treatment_code_mutation();
+
 alter table crm.treatment_codes
   add column if not exists code_system text,
   add column if not exists code_level text,
@@ -31,10 +37,6 @@ alter table crm.treatment_codes add constraint treatment_codes_system_code_check
 );
 alter table crm.treatment_codes drop constraint if exists treatment_codes_name_check;
 alter table crm.treatment_codes add constraint treatment_codes_name_check check (length(btrim(name)) between 1 and 300);
-
-drop trigger if exists protect_treatment_codes_update_delete on crm.treatment_codes;
-drop trigger if exists protect_treatment_codes_truncate on crm.treatment_codes;
-drop function if exists crm.reject_treatment_code_mutation();
 
 delete from crm.treatment_codes tc
 where tc.code like 'TMT_%'

@@ -165,6 +165,7 @@ create index if not exists external_appointments_mobile_idx
 create or replace function crm.set_external_tracking_updated_at()
 returns trigger
 language plpgsql
+set search_path = ''
 as $$
 begin
   new.updated_at = now();
