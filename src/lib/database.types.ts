@@ -198,6 +198,8 @@ export type Appointment = Timestamps & {
   notes: string | null;
   created_by: string | null;
   updated_at: string;
+  external_source: string | null;
+  external_appointment_id: string | null;
 };
 
 export type Treatment = Timestamps & {
@@ -441,6 +443,103 @@ export type ActionRateLimit = {
   last_seen_at: string;
 };
 
+export type WebhookEndpoint = Timestamps & {
+  id: string;
+  name: string;
+  endpoint_key_hash: string;
+  endpoint_key_prefix: string;
+  secret_hash: string;
+  secret_prefix: string;
+  source_system: string;
+  branch_id: string | null;
+  is_active: boolean;
+  last_received_at: string | null;
+  last_event_at: string | null;
+  created_by: string | null;
+  updated_at: string;
+};
+
+export type WebhookEvent = Timestamps & {
+  id: string;
+  webhook_id: string;
+  external_event_id: string | null;
+  idempotency_key: string | null;
+  http_method: string;
+  content_type: string | null;
+  headers: Json;
+  body: Json | null;
+  body_text: string | null;
+  body_sha256: string;
+  event_type: string | null;
+  external_call_id: string | null;
+  external_appointment_id: string | null;
+  branch_id: string | null;
+  lead_id: string | null;
+  received_at: string;
+  occurred_at: string | null;
+  processed_at: string | null;
+  processing_status: "received" | "processed" | "partial" | "failed";
+  processing_error: string | null;
+};
+
+export type CallLog = Timestamps & {
+  id: string;
+  source_system: string;
+  external_call_id: string;
+  external_tenant_id: string | null;
+  webhook_id: string | null;
+  last_event_id: string | null;
+  branch_id: string | null;
+  lead_id: string | null;
+  phone: string | null;
+  normalized_mobile: string | null;
+  caller_name: string | null;
+  direction: "inbound" | "outbound" | "unknown";
+  status: "ringing" | "in_progress" | "completed" | "failed" | "missed" | "no_answer" | "unknown";
+  started_at: string | null;
+  answered_at: string | null;
+  ended_at: string | null;
+  duration_seconds: number | null;
+  recording_url: string | null;
+  transcript: Json | null;
+  summary: string | null;
+  disposition: string | null;
+  hangup_cause: string | null;
+  metadata: Json;
+  updated_at: string;
+};
+
+export type CallLogStatusEvent = Timestamps & {
+  id: string;
+  call_log_id: string;
+  webhook_event_id: string;
+  status: CallLog["status"];
+  occurred_at: string | null;
+  payload: Json;
+};
+
+export type ExternalAppointment = Timestamps & {
+  id: string;
+  source_system: string;
+  external_appointment_id: string;
+  webhook_id: string | null;
+  last_event_id: string | null;
+  branch_id: string | null;
+  lead_id: string | null;
+  native_appointment_id: string | null;
+  call_log_id: string | null;
+  patient_name: string | null;
+  mobile: string | null;
+  normalized_mobile: string | null;
+  scheduled_at: string | null;
+  duration_minutes: number | null;
+  doctor_name: string | null;
+  status: "confirmed" | "scheduled" | "cancelled" | "completed" | "no_show" | "unknown";
+  concern: string | null;
+  metadata: Json;
+  updated_at: string;
+};
+
 // Supabase client Database shape for `{ db: { schema: 'crm' } }` clients.
 type Rel = {
   foreignKeyName: string;
@@ -549,6 +648,57 @@ export type Database = {
           FK<"case_sheets_doctor_id_fkey", "doctor_id", "doctors">,
           FK<"case_sheets_signed_by_fkey", "signed_by", "profiles">,
           FK<"case_sheets_created_by_fkey", "created_by", "profiles">
+        ]
+      >;
+      webhook_endpoints: TableDef<
+        WebhookEndpoint,
+        "name" | "endpoint_key_hash" | "endpoint_key_prefix" | "secret_hash" | "secret_prefix" | "source_system",
+        "id" | "created_at" | "updated_at",
+        [
+          FK<"webhook_endpoints_branch_id_fkey", "branch_id", "branches">,
+          FK<"webhook_endpoints_created_by_fkey", "created_by", "profiles">
+        ]
+      >;
+      webhook_events: TableDef<
+        WebhookEvent,
+        "webhook_id" | "body_sha256",
+        "id" | "created_at" | "received_at",
+        [
+          FK<"webhook_events_webhook_id_fkey", "webhook_id", "webhook_endpoints">,
+          FK<"webhook_events_branch_id_fkey", "branch_id", "branches">,
+          FK<"webhook_events_lead_id_fkey", "lead_id", "leads">
+        ]
+      >;
+      call_logs: TableDef<
+        CallLog,
+        "source_system" | "external_call_id",
+        "id" | "created_at" | "updated_at",
+        [
+          FK<"call_logs_webhook_id_fkey", "webhook_id", "webhook_endpoints">,
+          FK<"call_logs_last_event_id_fkey", "last_event_id", "webhook_events">,
+          FK<"call_logs_branch_id_fkey", "branch_id", "branches">,
+          FK<"call_logs_lead_id_fkey", "lead_id", "leads">
+        ]
+      >;
+      call_log_status_events: TableDef<
+        CallLogStatusEvent,
+        "call_log_id" | "webhook_event_id" | "status",
+        "id" | "created_at",
+        [
+          FK<"call_log_status_events_call_log_id_fkey", "call_log_id", "call_logs">,
+          FK<"call_log_status_events_webhook_event_id_fkey", "webhook_event_id", "webhook_events">
+        ]
+      >;
+      external_appointments: TableDef<
+        ExternalAppointment,
+        "source_system" | "external_appointment_id",
+        "id" | "created_at" | "updated_at",
+        [
+          FK<"external_appointments_webhook_id_fkey", "webhook_id", "webhook_endpoints">,
+          FK<"external_appointments_branch_id_fkey", "branch_id", "branches">,
+          FK<"external_appointments_lead_id_fkey", "lead_id", "leads">,
+          FK<"external_appointments_native_appointment_id_fkey", "native_appointment_id", "appointments">,
+          FK<"external_appointments_call_log_id_fkey", "call_log_id", "call_logs">
         ]
       >;
       tooth_assessments: TableDef<

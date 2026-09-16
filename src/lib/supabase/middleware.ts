@@ -72,6 +72,13 @@ export async function updateSession(
     return createPassThroughResponse(request, csp, false);
   }
 
+  // Webhook providers do not have a Supabase session. Authentication for
+  // these write-only endpoints happens in the route with the endpoint secret,
+  // so avoid an unnecessary remote auth refresh for every provider event.
+  if (request.nextUrl.pathname.startsWith("/api/webhooks/")) {
+    return createPassThroughResponse(request, csp, false);
+  }
+
   let supabaseResponse = createPassThroughResponse(request, csp);
   const { url, anonKey } = getPublicSupabaseEnv();
 

@@ -14,6 +14,7 @@ import type { AuthContext } from "@/lib/auth/context";
 import {
   assertBranchAccess,
   assertLeadWriteAccess,
+  canReadCallLogs,
   canReadLead,
   canDelete,
 } from "@/lib/auth/guards";
@@ -394,6 +395,14 @@ export async function getLeadRelated(ctx: AuthContext, leadIdValue: string) {
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(limit),
+    canReadCallLogs(ctx)
+      ? db
+          .from("call_logs")
+          .select("id, source_system, external_call_id, phone, caller_name, status, started_at, duration_seconds, summary")
+          .eq("lead_id", leadId)
+          .order("started_at", { ascending: false, nullsFirst: false })
+          .limit(limit)
+      : Promise.resolve({ data: [], error: null }),
   ]);
   for (const result of results) {
     if (result.error) throw result.error;
@@ -405,5 +414,6 @@ export async function getLeadRelated(ctx: AuthContext, leadIdValue: string) {
     treatments: results[1].data,
     followUps: results[2].data,
     invoices: results[3].data,
+    callLogs: results[4].data,
   };
 }

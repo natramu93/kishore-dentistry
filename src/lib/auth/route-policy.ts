@@ -31,6 +31,14 @@ export function getAuthPathPolicy(pathname: string): AuthPathPolicy {
     };
   }
 
+  // External telephony providers cannot carry a CRM session cookie. The
+  // webhook route performs its own per-endpoint secret verification.
+  if (matchesPath(pathname, "/api/webhooks")) {
+    return {
+      allowWithoutSession: true,
+    };
+  }
+
   return {
     allowWithoutSession: false,
   };

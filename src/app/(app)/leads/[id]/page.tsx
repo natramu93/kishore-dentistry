@@ -81,11 +81,13 @@ export default async function LeadDetailPage({
     treatments: treatmentRows,
     followUps: followUpRows,
     invoices: invoiceRows,
+    callLogs: callLogRows,
   } = related;
   const appointments = appointmentRows ?? [];
   const treatments = treatmentRows ?? [];
   const followUps = followUpRows ?? [];
   const invoices = invoiceRows ?? [];
+  const callLogs = callLogRows ?? [];
 
   const [activity, comments, caseSheetResult, assignableUsers, doctors, treatmentTypes, sources] = await Promise.all([
     getLeadActivity(ctx, id),
@@ -653,6 +655,28 @@ export default async function LeadDetailPage({
               ))}
             </CardContent>
           </Card>
+
+          {/* Calls linked by the provider webhook */}
+          {callLogs.length > 0 && (
+            <Card className="border-l-4 border-l-violet-400">
+              <CardHeader>
+                <CardTitle className="text-base">Call history</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {callLogs.map((call) => (
+                  <div key={call.id} className="flex flex-wrap items-start justify-between gap-2 border-b pb-3 last:border-0 last:pb-0">
+                    <div>
+                      <Link className="font-medium hover:underline" href={`/call-logs/${call.id}`}>
+                        {call.caller_name ?? call.phone ?? "Provider call"}
+                      </Link>
+                      <div className="text-xs text-muted-foreground">{call.source_system} · {call.external_call_id}</div>
+                    </div>
+                    <div className="text-right text-sm"><Badge variant={call.status === "completed" ? "default" : "secondary"}>{call.status.replace("_", " ")}</Badge><div className="mt-1 text-xs text-muted-foreground">{call.started_at ? fmt(call.started_at) : "Time unavailable"}</div></div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           {/* General comments — bottom of the lead page */}
           <Card className="border-l-4 border-l-muted-foreground/30">

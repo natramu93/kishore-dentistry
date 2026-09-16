@@ -119,6 +119,16 @@ export function requireReportAccess(ctx: AuthContext): void {
   if (!canViewReports(ctx.role)) throw new AuthorizationError("Reports access required");
 }
 
+/** Call recordings and external call metadata are available to reception,
+ * the operations/ops-head role, and administrators. */
+export function canReadCallLogs(ctx: AuthContext): boolean {
+  return ctx.role === "admin" || ctx.role === "front_office" || ctx.role === "operations";
+}
+
+export function requireCallLogAccess(ctx: AuthContext): void {
+  if (!canReadCallLogs(ctx)) throw new AuthorizationError("Call log access required");
+}
+
 /** Whether this role can delete records (leads, invoices). */
 export function canDelete(role: AuthContext["role"]): boolean {
   return role === "admin" || role === "operations";

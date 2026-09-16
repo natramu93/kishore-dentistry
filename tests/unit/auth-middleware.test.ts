@@ -177,4 +177,14 @@ describe("auth session middleware", () => {
       TEST_CSP.nonce
     );
   });
+
+  it("keeps provider webhooks public to Supabase auth while preserving CSP", async () => {
+    const response = await updateSession(
+      new NextRequest("https://crm.example.test/api/webhooks/call-tracking/provider-key"),
+      TEST_CSP
+    );
+
+    expect(mocks.getClaims).not.toHaveBeenCalled();
+    expect(response.headers.get("content-security-policy")).toBe(TEST_CSP.policy);
+  });
 });

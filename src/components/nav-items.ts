@@ -53,6 +53,12 @@ export const PRIMARY_NAV: NavItem[] = [
     icon: "BarChart3",
     roles: ["admin", "operations", "clinical_head"],
   },
+  {
+    href: "/call-logs",
+    label: "Call logs",
+    icon: "PhoneCall",
+    roles: ["admin", "front_office", "operations"],
+  },
 ];
 
 export const ADMIN_NAV: NavItem[] = [
@@ -72,6 +78,7 @@ export const ADMIN_NAV: NavItem[] = [
     roles: ["admin", "clinical_head"],
   },
   { href: "/admin/dental-codes", label: "Dental Codes", icon: "Tags", roles: ["admin"] },
+  { href: "/admin/webhooks", label: "Webhooks", icon: "Webhook", roles: ["admin"] },
 ];
 
 export function navForRole(items: NavItem[], role: UserRole): NavItem[] {

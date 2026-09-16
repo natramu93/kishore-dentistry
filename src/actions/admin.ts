@@ -7,6 +7,7 @@ import { getAuthContext } from "@/lib/auth/context";
 import * as branches from "@/data/branches";
 import * as users from "@/data/users";
 import * as catalogs from "@/data/catalogs";
+import * as callTracking from "@/data/call-tracking";
 import { assertActionRateLimit } from "@/lib/rate-limit";
 import { buildInviteRedirect } from "@/lib/invite-origin";
 import {
@@ -16,7 +17,7 @@ import {
   userRoleSchema,
   uuidSchema,
 } from "@/lib/validation";
-import { runAction, type ActionResult } from "./util";
+import { runAction, runActionWithValue, type ActionResult, type ActionValueResult } from "./util";
 
 const text = (max: number) => z.string().trim().max(max);
 const idSchema = uuidSchema;
@@ -396,5 +397,47 @@ export async function toggleTreatmentTypeActive(id: string, isActive: boolean): 
     await adminMutationLimit(ctx.userId, "admin:catalog");
     await catalogs.updateTreatmentType(ctx, parsed.data.id, { is_active: parsed.data.isActive });
     revalidatePath("/admin/treatments");
+  });
+}
+
+const webhookSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(120),
+  source_system: z.string().trim().min(1, "Source system is required").max(80),
+  branch_id: optionalUuidSchema,
+});
+
+export async function createWebhookEndpointAction(
+  formData: FormData
+): Promise<ActionValueResult<{ endpointPath: string; secret: string }>> {
+  const ctx = await getAuthContext();
+  const parsed = webhookSchema.safeParse({
+    name: formData.get("name"),
+    source_system: formData.get("source_system"),
+    branch_id: String(formData.get("branch_id") ?? ""),
+  });
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  return runActionWithValue(async () => {
+    await adminMutationLimit(ctx.userId, "admin:webhook");
+    const created = await callTracking.createWebhookEndpoint(ctx, {
+      name: parsed.data.name,
+      sourceSystem: parsed.data.source_system,
+      branchId: parsed.data.branch_id || null,
+    });
+    revalidatePath("/admin/webhooks");
+    return {
+      endpointPath: created.endpointPath,
+      secret: created.secret,
+    };
+  });
+}
+
+export async function revokeWebhookEndpointAction(id: string): Promise<ActionResult> {
+  const ctx = await getAuthContext();
+  const parsedId = idSchema.safeParse(id);
+  if (!parsedId.success) return { ok: false, error: "Webhook endpoint is invalid" };
+  return runAction(async () => {
+    await adminMutationLimit(ctx.userId, "admin:webhook");
+    await callTracking.revokeWebhookEndpoint(ctx, parsedId.data);
+    revalidatePath("/admin/webhooks");
   });
 }

@@ -9,6 +9,7 @@ import {
   canAccessBranch,
   canDelete,
   canReadInvoice,
+  canReadCallLogs,
   canReadLead,
   canViewReports,
   requireAdmin,
@@ -199,6 +200,19 @@ describe("authorization policy matrix", () => {
       "No access to this invoice"
     );
   });
+
+  it.each([
+    ["admin", true],
+    ["operations", true],
+    ["front_office", true],
+    ["clinical_head", false],
+    ["doctor", false],
+  ] satisfies Array<[UserRole, boolean]>) (
+    "limits call logs to Admin, Ops Head, and Front Office for %s",
+    (role, allowed) => {
+      expect(canReadCallLogs(context(role))).toBe(allowed);
+    }
+  );
 
   it.each([
     ["admin", true, true],
