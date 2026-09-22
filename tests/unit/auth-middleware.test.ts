@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 const mocks = vi.hoisted(() => ({
   createServerClient: vi.fn(),
   getClaims: vi.fn(),
+  signOut: vi.fn(),
 }));
 
 vi.mock("@supabase/ssr", () => ({
@@ -29,8 +30,9 @@ describe("auth session middleware", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.createServerClient.mockReturnValue({
-      auth: { getClaims: mocks.getClaims },
+      auth: { getClaims: mocks.getClaims, signOut: mocks.signOut },
     });
+    mocks.signOut.mockResolvedValue({ error: null });
   });
 
   it.each(["/auth/callback", "/auth/set-password", "/reset-password"])(
@@ -161,6 +163,45 @@ describe("auth session middleware", () => {
     expect(
       response.headers.get("x-middleware-request-content-security-policy")
     ).toBe(TEST_CSP.policy);
+  });
+
+  it("refreshes the idle cookie for an active protected request", async () => {
+    mocks.getClaims.mockResolvedValue({
+      data: { claims: { sub: "authenticated-user" } },
+      error: null,
+    });
+
+    const response = await updateSession(
+      new NextRequest("https://crm.example.test/dashboard"),
+      TEST_CSP,
+    );
+
+    expect(response.cookies.get("crm-idle-session")?.value).toBeTruthy();
+    expect(response.cookies.get("crm-idle-session")?.httpOnly).toBe(true);
+    expect(mocks.signOut).not.toHaveBeenCalled();
+  });
+
+  it("signs out and redirects after ten minutes without activity", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const { createIdleCookieValue, IDLE_TIMEOUT_SECONDS } = await import("@/lib/auth/idle-timeout");
+    const staleCookie = await createIdleCookieValue(now - IDLE_TIMEOUT_SECONDS);
+    mocks.getClaims.mockResolvedValue({
+      data: { claims: { sub: "authenticated-user" } },
+      error: null,
+    });
+
+    const response = await updateSession(
+      new NextRequest("https://crm.example.test/dashboard", {
+        headers: { cookie: `crm-idle-session=${staleCookie}` },
+      }),
+      TEST_CSP,
+    );
+
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: "local" });
+    expect(response.headers.get("location")).toBe(
+      "https://crm.example.test/login?error=idle",
+    );
+    expect(response.cookies.get("crm-idle-session")?.maxAge).toBe(0);
   });
 
   it("applies CSP to the public health response without calling auth", async () => {

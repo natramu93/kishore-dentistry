@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/auth/context";
 import { listUsers, listDoctorsForLinking } from "@/data/users";
 import { listBranches } from "@/data/branches";
-import { createUserAction, toggleUserActive, updateUserAction } from "@/actions/admin";
+import { createUserAction, sendUserPasswordResetAction, toggleUserActive, updateUserAction } from "@/actions/admin";
 import { FormDialog } from "@/components/admin/form-dialog";
 import { RowEditDialog } from "@/components/admin/row-edit-dialog";
 import { ToggleActiveButton } from "@/components/admin/toggle-active-button";
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { ROLE_LABELS } from "@/components/nav-items";
 import { PaginationNav } from "@/components/pagination-nav";
+import { PasswordResetButton } from "@/components/admin/password-reset-button";
 
 export const metadata = { title: "Users — Admin" };
 
@@ -96,10 +97,10 @@ export default async function UsersPage({
         </div>
         <FormDialog
           triggerLabel="New user"
-          title="Invite user"
+          title="Create user"
           action={createUserAction}
-          submitLabel="Send invitation"
-          successMessage="Invitation sent"
+          submitLabel="Create user"
+          successMessage="User created"
         >
           <div className="space-y-2">
             <Label htmlFor="full_name">Full name</Label>
@@ -110,9 +111,21 @@ export default async function UsersPage({
             <Input id="email" name="email" type="email" required />
           </div>
           <p className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
-            The user will receive an expiring invitation and choose their own
-            password. No password is shared with an administrator.
+            Set an initial password for this account and share it securely. It
+            will not be shown again. The user can change it from My profile.
           </p>
+          <div className="space-y-2">
+            <Label htmlFor="password">Initial password</Label>
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="new-password"
+              minLength={12}
+              maxLength={128}
+              required
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="phone">Phone</Label>
             <Input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" />
@@ -227,6 +240,10 @@ export default async function UsersPage({
                       </div>
                     </fieldset>
                   </RowEditDialog>
+                  <PasswordResetButton
+                    email={u.email}
+                    action={sendUserPasswordResetAction.bind(null, u.id)}
+                  />
                   {u.id !== ctx.userId && (
                     <ToggleActiveButton
                       isActive={u.is_active}

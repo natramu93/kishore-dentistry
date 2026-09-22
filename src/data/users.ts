@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db, authAdmin } from "./db";
+import { createClient } from "@/lib/supabase/server";
 import type { AuthContext } from "@/lib/auth/context";
 import { requireAdmin, assertBranchAccess } from "@/lib/auth/guards";
 import type { Json, Profile, UserRole } from "@/lib/database.types";
@@ -270,9 +271,9 @@ export async function createUser(
     full_name: string;
     phone?: string;
     role: UserRole;
+    password: string;
     branchIds: string[];
     doctorRecordId?: string;
-    inviteRedirectTo: string;
   }
 ) {
   requireAdmin(ctx);
@@ -289,20 +290,12 @@ export async function createUser(
     throw new ValidationError("Only a doctor account can link to a doctor record");
   }
 
-  const redirectUrl = new URL(input.inviteRedirectTo);
-  if (
-    redirectUrl.pathname !== "/auth/set-password" ||
-    (redirectUrl.protocol !== "https:" &&
-      redirectUrl.hostname !== "localhost" &&
-      redirectUrl.hostname !== "127.0.0.1")
-  ) {
-    throw new ValidationError("Invitation callback is invalid");
-  }
-
   const { data: created, error: createError } =
-    await authAdmin.inviteUserByEmail(input.email, {
-      data: { full_name: input.full_name },
-      redirectTo: redirectUrl.toString(),
+    await authAdmin.createUser({
+      email: input.email,
+      password: input.password,
+      email_confirm: true,
+      user_metadata: { full_name: input.full_name },
     });
   if (createError) {
     if (
@@ -313,7 +306,7 @@ export async function createUser(
     }
     throw createError;
   }
-  if (!created.user) throw new Error("Invitation did not create an auth user");
+  if (!created.user) throw new Error("User creation did not create an auth user");
   const userId = created.user.id;
 
   try {
@@ -578,6 +571,36 @@ export async function updateUser(ctx: AuthContext, userId: string, input: UserUp
     await restoreUserSnapshot(id, snapshot);
     throw error;
   }
+}
+
+/** Send a Supabase recovery email for an existing user. The administrator
+ * never sees or handles the user's password. */
+export async function sendPasswordReset(
+  ctx: AuthContext,
+  userId: string,
+  redirectTo: string
+): Promise<void> {
+  requireAdmin(ctx);
+  const id = assertUuid(userId, "User");
+  const redirectUrl = new URL(redirectTo);
+  if (
+    redirectUrl.pathname !== "/auth/callback" ||
+    (redirectUrl.protocol !== "https:" &&
+      redirectUrl.hostname !== "localhost" &&
+      redirectUrl.hostname !== "127.0.0.1")
+  ) {
+    throw new ValidationError("Password reset callback is invalid");
+  }
+
+  const profile = await db.from("profiles").select("email").eq("id", id).maybeSingle();
+  if (profile.error) throw profile.error;
+  if (!profile.data) throw new NotFoundError("User");
+
+  const supabase = await createClient();
+  const result = await supabase.auth.resetPasswordForEmail(profile.data.email, {
+    redirectTo: redirectUrl.toString(),
+  });
+  if (result.error) throw result.error;
 }
 
 /** Doctor rows for the admin-only account-linking picker. */

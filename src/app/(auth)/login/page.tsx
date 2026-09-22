@@ -56,6 +56,7 @@ export default async function LoginPage({
           <LoginForm
             inactiveError={params.error === "inactive"}
             recoveryError={params.error === "recovery"}
+            idleError={params.error === "idle"}
             passwordUpdated={params.password === "updated"}
           />
         </div>

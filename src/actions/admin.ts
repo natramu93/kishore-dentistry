@@ -9,7 +9,7 @@ import * as users from "@/data/users";
 import * as catalogs from "@/data/catalogs";
 import * as callTracking from "@/data/call-tracking";
 import { assertActionRateLimit } from "@/lib/rate-limit";
-import { buildInviteRedirect } from "@/lib/invite-origin";
+import { buildRecoveryRedirect } from "@/lib/invite-origin";
 import {
   booleanInputSchema,
   dentalCodePattern,
@@ -84,11 +84,18 @@ export async function toggleBranchActive(id: string, isActive: boolean): Promise
   });
 }
 
-const userSchema = z.object({
+const userDetailsSchema = z.object({
   email: z.string().trim().email("Valid email required").max(254),
   full_name: z.string().trim().min(1, "Name is required").max(200),
   phone: text(32).optional(),
   role: userRoleSchema,
+});
+
+const userCreateSchema = userDetailsSchema.extend({
+  password: z
+    .string()
+    .min(12, "Password must be at least 12 characters")
+    .max(128, "Password must be 128 characters or fewer"),
 });
 
 const branchIdsSchema = z.array(uuidSchema).max(50);
@@ -101,7 +108,7 @@ export async function createUserAction(formData: FormData): Promise<ActionResult
   const doctorRecordId = optionalUuidSchema.safeParse(
     String(formData.get("doctor_record_id") ?? "")
   );
-  const parsed = userSchema.safeParse(Object.fromEntries(formData));
+  const parsed = userCreateSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return invalid(parsed.error);
   if (!branchIds.success) return invalid(branchIds.error);
   if (!doctorRecordId.success) return invalid(doctorRecordId.error);
@@ -110,16 +117,10 @@ export async function createUserAction(formData: FormData): Promise<ActionResult
       limit: 5,
       windowMs: 10 * 60_000,
     });
-    const requestHeaders = await headers();
     await users.createUser(ctx, {
       ...parsed.data,
       branchIds: branchIds.data,
       doctorRecordId: doctorRecordId.data || undefined,
-      inviteRedirectTo: buildInviteRedirect(
-        requestHeaders.get("origin"),
-        requestHeaders.get("x-forwarded-host"),
-        requestHeaders.get("host")
-      ),
     });
     revalidatePath("/admin/users");
   });
@@ -131,7 +132,7 @@ export async function updateUserAction(userId: string, formData: FormData): Prom
   const branchIds = branchIdsSchema.safeParse(
     [...new Set(formData.getAll("branch_ids").map(String).filter(Boolean))]
   );
-  const parsed = userSchema
+  const parsed = userDetailsSchema
     .omit({ email: true })
     .partial()
     .extend({ is_active: activeSchema.optional() })
@@ -164,6 +165,26 @@ export async function toggleUserActive(userId: string, isActive: boolean): Promi
   return runAction(async () => {
     await adminMutationLimit(ctx.userId, "admin:update-user");
     await users.updateUser(ctx, parsed.data.userId, { is_active: parsed.data.isActive });
+    revalidatePath("/admin/users");
+  });
+}
+
+export async function sendUserPasswordResetAction(userId: string): Promise<ActionResult> {
+  const ctx = await getAuthContext();
+  const parsedId = idSchema.safeParse(userId);
+  if (!parsedId.success) return { ok: false, error: "User is invalid" };
+  return runAction(async () => {
+    await adminMutationLimit(ctx.userId, "admin:password-reset");
+    const requestHeaders = await headers();
+    await users.sendPasswordReset(
+      ctx,
+      parsedId.data,
+      buildRecoveryRedirect(
+        requestHeaders.get("origin"),
+        requestHeaders.get("x-forwarded-host"),
+        requestHeaders.get("host")
+      )
+    );
     revalidatePath("/admin/users");
   });
 }

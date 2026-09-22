@@ -3,6 +3,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getPublicSupabaseEnv } from "@/lib/env";
 import { getAuthPathPolicy } from "@/lib/auth/route-policy";
 import type { CspContext } from "@/lib/security/csp";
+import {
+  createIdleCookieValue,
+  IDLE_COOKIE_MAX_AGE_SECONDS,
+  IDLE_COOKIE_NAME,
+  inspectIdleCookie,
+} from "@/lib/auth/idle-timeout";
 
 function createUpstreamHeaders(
   request: NextRequest,
@@ -46,11 +52,12 @@ function createRedirectResponse(
   request: NextRequest,
   destination: string,
   source: NextResponse,
-  csp: CspContext
+  csp: CspContext,
+  search = "",
 ): NextResponse {
   const url = request.nextUrl.clone();
   url.pathname = destination;
-  url.search = "";
+  url.search = search;
   const response = NextResponse.redirect(url);
   source.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
   for (const header of ["Cache-Control", "Expires", "Pragma"]) {
@@ -58,6 +65,26 @@ function createRedirectResponse(
     if (value) response.headers.set(header, value);
   }
   return applySecurityHeaders(response, csp.policy);
+}
+
+function clearIdleCookie(response: NextResponse): void {
+  response.cookies.set(IDLE_COOKIE_NAME, "", {
+    httpOnly: true,
+    maxAge: 0,
+    path: "/",
+    sameSite: "lax",
+    secure: process.env.NODE_ENV !== "development",
+  });
+}
+
+async function refreshIdleCookie(response: NextResponse): Promise<void> {
+  response.cookies.set(IDLE_COOKIE_NAME, await createIdleCookieValue(), {
+    httpOnly: true,
+    maxAge: IDLE_COOKIE_MAX_AGE_SECONDS,
+    path: "/",
+    sameSite: "lax",
+    secure: process.env.NODE_ENV !== "development",
+  });
 }
 
 // Refreshes the auth session cookie and redirects unauthenticated users.
@@ -112,7 +139,32 @@ export async function updateSession(
   const pathPolicy = getAuthPathPolicy(request.nextUrl.pathname);
 
   if (!hasVerifiedSession && !pathPolicy.allowWithoutSession) {
+    clearIdleCookie(supabaseResponse);
     return createRedirectResponse(request, "/login", supabaseResponse, csp);
+  }
+
+  if (!hasVerifiedSession) {
+    clearIdleCookie(supabaseResponse);
+    return supabaseResponse;
+  }
+
+  // Public auth/recovery pages must remain usable while a session is being
+  // established. The idle clock is refreshed only by authenticated app/API
+  // requests, so visiting /login cannot keep an abandoned session alive.
+  if (!pathPolicy.allowWithoutSession) {
+    const idle = await inspectIdleCookie(request.cookies.get(IDLE_COOKIE_NAME)?.value);
+    if (idle.expired) {
+      await supabase.auth.signOut({ scope: "local" });
+      clearIdleCookie(supabaseResponse);
+      return createRedirectResponse(
+        request,
+        "/login",
+        supabaseResponse,
+        csp,
+        "?error=idle",
+      );
+    }
+    await refreshIdleCookie(supabaseResponse);
   }
 
   return supabaseResponse;

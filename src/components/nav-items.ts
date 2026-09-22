@@ -18,6 +18,12 @@ export const PRIMARY_NAV: NavItem[] = [
     roles: ["admin", "operations", "front_office", "clinical_head", "doctor"],
   },
   {
+    href: "/profile",
+    label: "My profile",
+    icon: "UserCircle",
+    roles: ["admin", "operations", "front_office", "clinical_head", "doctor"],
+  },
+  {
     href: "/leads",
     label: "Leads",
     icon: "Users",

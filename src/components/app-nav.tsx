@@ -19,6 +19,7 @@ import {
   BookUser,
   PhoneCall,
   Webhook,
+  UserCircle,
   Menu,
   type LucideIcon,
 } from "lucide-react";
@@ -30,7 +31,7 @@ import type { NavItem } from "@/components/nav-items";
 
 const ICONS: Record<string, LucideIcon> = {
   LayoutDashboard, Users, CalendarDays, BellRing, ReceiptText,
-  Building2, UserCog, Stethoscope, Megaphone, ClipboardList, Tags, BarChart3, BookUser, PhoneCall, Webhook,
+  Building2, UserCog, Stethoscope, Megaphone, ClipboardList, Tags, BarChart3, BookUser, PhoneCall, Webhook, UserCircle,
 };
 
 function NavList({
@@ -89,7 +90,21 @@ export function DesktopNav({ nav, adminNav }: { nav: NavItem[]; adminNav: NavIte
 }
 
 /** Mobile hamburger that opens a slide-out drawer with the same nav. */
-export function MobileNav({ nav, adminNav }: { nav: NavItem[]; adminNav: NavItem[] }) {
+export function MobileNav({
+  nav,
+  adminNav,
+  fullName,
+  email,
+  roleLabel,
+  logoutAction,
+}: {
+  nav: NavItem[];
+  adminNav: NavItem[];
+  fullName: string;
+  email: string;
+  roleLabel: string;
+  logoutAction: () => Promise<void>;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -117,6 +132,26 @@ export function MobileNav({ nav, adminNav }: { nav: NavItem[]; adminNav: NavItem
           </Link>
         </div>
         <NavList nav={nav} adminNav={adminNav} onNavigate={() => setOpen(false)} />
+        <div className="mt-auto space-y-2 border-t border-sidebar-border p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <Link
+            href="/profile"
+            onClick={() => setOpen(false)}
+            className="block rounded-md px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+          >
+            <div className="truncate text-sm font-medium">{fullName || email}</div>
+            <div className="text-xs text-sidebar-foreground/75">{roleLabel}</div>
+          </Link>
+          <form action={logoutAction}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full border-sidebar-border bg-transparent text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              type="submit"
+            >
+              Sign out
+            </Button>
+          </form>
+        </div>
       </SheetContent>
     </Sheet>
   );
