@@ -31,6 +31,7 @@ import {
   DENTAL_SURFACES,
   INDIAN_PERMANENT_TEETH,
   INDIAN_PRIMARY_TEETH,
+  isIndianToothNumber,
   isPrimaryIndianTooth,
   QUADRANT_SITES,
   type CaseSheetPayload,
@@ -79,6 +80,7 @@ const SITE_SCOPE_OPTIONS: { value: TreatmentSiteScope; label: string }[] = [
   { value: "arch", label: "Arch" },
   { value: "quadrant", label: "Quadrant" },
   { value: "tooth", label: "Individual tooth" },
+  { value: "multi_tooth", label: "Multiple teeth" },
 ];
 
 const SITE_LABELS: Record<(typeof ARCH_SITES)[number] | (typeof QUADRANT_SITES)[number], string> = {
@@ -112,9 +114,8 @@ function blankTreatment(rowKey: string): EditableTreatment {
     site_scope: "not_applicable",
     site_detail: null,
     tooth_number: null,
+    tooth_numbers: [],
     surfaces: [],
-    quantity: 1,
-    unit_price: 0,
     notes: "",
   };
 }
@@ -189,6 +190,7 @@ export function CaseSheetEditor({
   }
 
   function addTreatmentForTooth(toothNumber: string) {
+    if (!isIndianToothNumber(toothNumber)) return;
     const rowKey = `treatment-${nextRowKey.current}`;
     nextRowKey.current += 1;
     setDirty(true);
@@ -198,6 +200,7 @@ export function CaseSheetEditor({
         ...blankTreatment(rowKey),
         site_scope: "tooth",
         tooth_number: toothNumber,
+        tooth_numbers: [toothNumber],
         dentition: isPrimaryIndianTooth(toothNumber) ? "primary" : "permanent",
       },
     ]);
@@ -227,9 +230,8 @@ export function CaseSheetEditor({
         site_scope,
         site_detail,
         tooth_number,
+        tooth_numbers,
         surfaces,
-        quantity,
-        unit_price,
         notes,
       }) => ({
         treatment_code,
@@ -237,9 +239,8 @@ export function CaseSheetEditor({
         site_scope,
         site_detail,
         tooth_number,
+        tooth_numbers,
         surfaces,
-        quantity,
-        unit_price,
         notes,
       })),
     };
@@ -277,6 +278,8 @@ export function CaseSheetEditor({
         if (successHref) router.push(successHref);
         else router.refresh();
       } else {
+        setErrors({ form: result.error });
+        requestAnimationFrame(() => errorSummaryRef.current?.focus());
         toast.error(result.error);
       }
     });
@@ -423,7 +426,7 @@ export function CaseSheetEditor({
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 id={`${idPrefix}-treatments-heading`} className="text-base font-semibold">Coded treatments <span className="font-normal text-muted-foreground">(optional)</span></h2>
-                <p className="text-sm text-muted-foreground">Add only planned or completed procedures. Invoice eligibility remains limited to completed, coded treatments.</p>
+                <p className="text-sm text-muted-foreground">Add only planned or completed procedures. Select one or multiple teeth when applicable; billing terms are chosen on the invoice.</p>
               </div>
               <Button type="button" variant="outline" size="sm" onClick={addTreatment}>
                 <Plus aria-hidden="true" /> Add treatment
@@ -520,12 +523,10 @@ function TreatmentRow({
   const siteOptions = treatment.site_scope === "arch" ? ARCH_SITES : QUADRANT_SITES;
 
   function selectTreatment(option: TreatmentCodeOption) {
-    const price = option.default_price ?? option.default_cost;
     onChange({
       treatment_code: option.code,
       codeSearch: `${option.code} — ${option.name}`,
       codePickerOpen: false,
-      ...(price != null ? { unit_price: price } : {}),
     });
     setActiveCodeIndex(-1);
   }
@@ -535,6 +536,7 @@ function TreatmentRow({
       site_scope: scope,
       site_detail: null,
       tooth_number: null,
+      tooth_numbers: [],
       surfaces: [],
     });
   }
@@ -671,7 +673,7 @@ function TreatmentRow({
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-1">
           <Field label="Treatment site" htmlFor={`${idPrefix}-scope`} error={error("site_scope")}>
             <select
               id={`${idPrefix}-scope`}
@@ -681,31 +683,6 @@ function TreatmentRow({
             >
               {SITE_SCOPE_OPTIONS.map((scope) => <option key={scope.value} value={scope.value}>{scope.label}</option>)}
             </select>
-          </Field>
-          <Field label="Quantity" htmlFor={`${idPrefix}-quantity`} error={error("quantity")}>
-            <Input
-              id={`${idPrefix}-quantity`}
-              type="number"
-              inputMode="decimal"
-              min="0.01"
-              max="999"
-              step="0.01"
-              value={treatment.quantity}
-              aria-invalid={Boolean(error("quantity"))}
-              onChange={(event) => onChange({ quantity: Number(event.target.value) })}
-            />
-          </Field>
-          <Field label="Unit price (₹)" htmlFor={`${idPrefix}-price`} error={error("unit_price")}>
-            <Input
-              id={`${idPrefix}-price`}
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="0.01"
-              value={treatment.unit_price}
-              aria-invalid={Boolean(error("unit_price"))}
-              onChange={(event) => onChange({ unit_price: Number(event.target.value) })}
-            />
           </Field>
         </div>
 
@@ -724,10 +701,11 @@ function TreatmentRow({
           </Field>
         )}
 
-        {treatment.site_scope === "tooth" && (
+        {(treatment.site_scope === "tooth" || treatment.site_scope === "multi_tooth") && (
           <ToothSiteEditor
             treatment={treatment}
-            toothError={error("tooth_number")}
+            multi={treatment.site_scope === "multi_tooth"}
+            toothError={error(treatment.site_scope === "multi_tooth" ? "tooth_numbers" : "tooth_number")}
             surfaceError={error("surfaces")}
             onChange={onChange}
           />
@@ -751,17 +729,35 @@ function TreatmentRow({
 
 function ToothSiteEditor({
   treatment,
+  multi,
   toothError,
   surfaceError,
   onChange,
 }: {
   treatment: EditableTreatment;
+  multi: boolean;
   toothError?: string;
   surfaceError?: string;
   onChange: (patch: Partial<EditableTreatment>) => void;
 }) {
   const teeth = treatment.dentition === "permanent" ? INDIAN_PERMANENT_TEETH : INDIAN_PRIMARY_TEETH;
   const half = teeth.length / 2;
+
+  function selectTooth(tooth: string) {
+    if (!isIndianToothNumber(tooth)) return;
+    if (!multi) {
+      onChange({ tooth_number: tooth, tooth_numbers: [tooth], surfaces: [] });
+      return;
+    }
+    const toothNumbers = treatment.tooth_numbers.includes(tooth)
+      ? treatment.tooth_numbers.filter((current) => current !== tooth)
+      : [...treatment.tooth_numbers, tooth];
+    onChange({
+      tooth_numbers: toothNumbers,
+      tooth_number: toothNumbers[0] ?? null,
+      surfaces: [],
+    });
+  }
 
   function toggleSurface(surface: DentalSurface) {
     onChange({
@@ -774,7 +770,9 @@ function ToothSiteEditor({
   return (
     <div className="space-y-4 rounded-lg border bg-background p-3">
       <fieldset aria-invalid={Boolean(toothError)} className="space-y-3">
-        <legend className="text-sm font-medium">Tooth number — Indian Standard IS 8815</legend>
+        <legend className="text-sm font-medium">
+          {multi ? "Select teeth — Indian Standard IS 8815" : "Tooth number — Indian Standard IS 8815"}
+        </legend>
         <div className="flex gap-2" aria-label="Dentition">
           {(["permanent", "primary"] as const).map((dentition) => (
             <Button
@@ -783,13 +781,21 @@ function ToothSiteEditor({
               size="sm"
               variant={treatment.dentition === dentition ? "default" : "outline"}
               aria-pressed={treatment.dentition === dentition}
-              onClick={() => onChange({
-                dentition,
-                tooth_number: treatment.tooth_number && (
-                  dentition === "primary" ? isPrimaryIndianTooth(treatment.tooth_number) : !isPrimaryIndianTooth(treatment.tooth_number)
-                ) ? treatment.tooth_number : null,
-                surfaces: [],
-              })}
+              onClick={() => {
+                const toothNumbers = treatment.tooth_numbers.filter((tooth) => (
+                  dentition === "primary" ? isPrimaryIndianTooth(tooth) : !isPrimaryIndianTooth(tooth)
+                ));
+                onChange({
+                  dentition,
+                  tooth_number: multi
+                    ? toothNumbers[0] ?? null
+                    : treatment.tooth_number && (
+                      dentition === "primary" ? isPrimaryIndianTooth(treatment.tooth_number) : !isPrimaryIndianTooth(treatment.tooth_number)
+                    ) ? treatment.tooth_number : null,
+                  tooth_numbers: toothNumbers,
+                  surfaces: [],
+                });
+              }}
             >
               {dentition === "permanent" ? "Permanent teeth" : "Primary teeth"}
             </Button>
@@ -804,27 +810,29 @@ function ToothSiteEditor({
             <div className="min-w-[46rem] space-y-3">
               <div>
                 <p className="mb-1 text-xs font-medium text-muted-foreground">Upper arch</p>
-                <ToothChart
-                  teeth={teeth.slice(0, half)}
-                  selected={treatment.tooth_number}
-                  arch="upper"
-                  onSelect={(tooth) => onChange({ tooth_number: tooth, surfaces: [] })}
+                  <ToothChart
+                    teeth={teeth.slice(0, half)}
+                    selected={multi ? treatment.tooth_numbers : treatment.tooth_number}
+                    arch="upper"
+                    onSelect={selectTooth}
                 />
               </div>
               <div aria-hidden="true" className="border-t-2 border-dashed border-primary/20" />
               <div>
                 <p className="mb-1 text-xs font-medium text-muted-foreground">Lower arch</p>
-                <ToothChart
-                  teeth={teeth.slice(half)}
-                  selected={treatment.tooth_number}
-                  arch="lower"
-                  onSelect={(tooth) => onChange({ tooth_number: tooth, surfaces: [] })}
+                  <ToothChart
+                    teeth={teeth.slice(half)}
+                    selected={multi ? treatment.tooth_numbers : treatment.tooth_number}
+                    arch="lower"
+                    onSelect={selectTooth}
                 />
               </div>
             </div>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">Select a tooth image. The Indian Standard number is shown beside each tooth; swipe horizontally on a small screen.</p>
+        <p className="text-xs text-muted-foreground">
+          {multi ? "Select or deselect as many tooth images as needed for this one treatment." : "Select a tooth image."} The Indian Standard number is shown beside each tooth; swipe horizontally on a small screen.
+        </p>
         {toothError && <FieldError message={toothError} />}
       </fieldset>
 

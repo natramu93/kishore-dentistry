@@ -68,6 +68,7 @@ export type InvoiceEligibleTreatment = {
   site_scope: string;
   site_detail: string | null;
   tooth_number: string | null;
+  tooth_numbers: string[];
   surfaces: string[];
   quantity: number;
   cost: number | null;
@@ -160,7 +161,7 @@ export async function listInvoiceEligibleTreatments(
   const { data, error } = await db
     .from("treatments")
     .select(
-      "id, treatment_code, treatment_name, treatment_category, site_scope, site_detail, tooth_number, surfaces, quantity, cost, performed_at, clinical_status, case_sheet:case_sheets!inner(finalized_at), invoice_items(id, active_billing)"
+      "id, treatment_code, treatment_name, treatment_category, site_scope, site_detail, tooth_number, tooth_numbers, surfaces, quantity, cost, performed_at, clinical_status, case_sheet:case_sheets!inner(finalized_at), invoice_items(id, active_billing)"
     )
     .eq("lead_id", leadId)
     .eq("branch_id", leadResult.data.branch_id)
@@ -180,6 +181,7 @@ export async function listInvoiceEligibleTreatments(
       site_scope: row.site_scope!,
       site_detail: row.site_detail,
       tooth_number: row.tooth_number,
+      tooth_numbers: row.tooth_numbers ?? [],
       surfaces: row.surfaces ?? [],
       quantity: row.quantity ?? 1,
       cost: row.cost,

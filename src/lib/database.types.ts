@@ -218,9 +218,10 @@ export type Treatment = Timestamps & {
   treatment_name: string | null;
   treatment_category: string | null;
   clinical_status: "planned" | "completed" | null;
-  site_scope: "not_applicable" | "full_mouth" | "arch" | "quadrant" | "tooth" | null;
+  site_scope: "not_applicable" | "full_mouth" | "arch" | "quadrant" | "tooth" | "multi_tooth" | null;
   site_detail: string | null;
   tooth_number: string | null;
+  tooth_numbers: string[];
   surfaces: string[] | null;
   diagnosis: string | null;
   quantity: number | null;
@@ -382,6 +383,7 @@ export type InvoiceItem = Timestamps & {
   treatment_category: string | null;
   case_sheet_id: string | null;
   tooth_number: string | null;
+  tooth_numbers: string[] | null;
   site_scope: string | null;
   site_detail: string | null;
   surfaces: string[] | null;

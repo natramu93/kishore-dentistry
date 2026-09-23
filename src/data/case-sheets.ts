@@ -33,7 +33,13 @@ import {
 } from "@/lib/medical-history";
 import type { PrescriptionItemDraft } from "@/lib/prescriptions";
 
-const CLINICAL_AUTHOR_ROLES = ["admin", "clinical_head", "doctor"] as const;
+const CLINICAL_AUTHOR_ROLES = [
+  "admin",
+  "operations",
+  "front_office",
+  "clinical_head",
+  "doctor",
+] as const;
 
 export type TreatmentCodeOption = {
   code: string;
@@ -88,12 +94,11 @@ export type FinalizeCaseSheetInput = {
   treatments: Array<{
     treatment_code: string;
     status: "planned" | "completed";
-    site_scope: "not_applicable" | "full_mouth" | "arch" | "quadrant" | "tooth";
+    site_scope: "not_applicable" | "full_mouth" | "arch" | "quadrant" | "tooth" | "multi_tooth";
     site_detail: string | null;
     tooth_number: string | null;
+    tooth_numbers: string[];
     surfaces: string[];
-    quantity: number;
-    unit_price: number;
     notes: string;
   }>;
 };
@@ -258,7 +263,13 @@ export async function finalizeCaseSheet(
     p_medical_history_conditions: input.medical_history.conditions as MedicalHistoryCondition[],
     p_medical_history_description: input.medical_history.description.trim() || null,
     p_tooth_assessments: input.tooth_assessments as unknown as Json,
-    p_treatments: input.treatments as unknown as Json,
+    p_treatments: input.treatments.map((treatment) => ({
+      ...treatment,
+      // Treatment records are clinical only. Billing quantity and price are
+      // selected later while generating the invoice.
+      quantity: 1,
+      unit_price: 0,
+    })) as unknown as Json,
     p_prescriptions: prescriptions as unknown as Json,
     p_actor: ctx.userId,
   });
@@ -304,7 +315,7 @@ export async function listCaseSheetsForLead(
   const legacyClinicalProjection =
     "*, doctor:doctors(full_name), tooth_assessments(*), treatments(*, treatment_code_ref:treatment_codes!treatments_treatment_code_fkey(name, category), invoice_items(id, invoice_id, active_billing)), medical_history:case_sheet_medical_history(*, history:patient_medical_history_versions(*)), prescription_items(*), case_sheet_attachments(id, case_sheet_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at)";
   const businessProjection =
-    "id, lead_id, branch_id, appointment_id, doctor_id, visit_at, finalized_at, created_at, doctor:doctors(full_name), treatments(id, treatment_code, treatment_name, treatment_category, clinical_status, site_scope, site_detail, tooth_number, surfaces, quantity, cost, invoice_items(id, invoice_id, active_billing))";
+    "id, lead_id, branch_id, appointment_id, doctor_id, visit_at, finalized_at, created_at, doctor:doctors(full_name), treatments(id, treatment_code, treatment_name, treatment_category, clinical_status, site_scope, site_detail, tooth_number, tooth_numbers, surfaces, quantity, cost, invoice_items(id, invoice_id, active_billing))";
   const buildQuery = (projection: string) => {
     let query = db
       .from("case_sheets")

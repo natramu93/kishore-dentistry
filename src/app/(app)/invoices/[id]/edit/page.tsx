@@ -76,10 +76,16 @@ function formatTreatmentSite(item: {
   site_scope: string | null;
   site_detail: string | null;
   tooth_number: string | null;
+  tooth_numbers?: string[] | null;
   surfaces: string[] | null;
 }): string {
   if (item.site_scope === "tooth") {
-    return `IS 8815 tooth ${item.tooth_number}${
+    return `IS 8815 tooth ${item.tooth_numbers?.length ? item.tooth_numbers.join(", ") : item.tooth_number}${
+      item.surfaces?.length ? ` (${item.surfaces.join(", ")})` : ""
+    }`;
+  }
+  if (item.site_scope === "multi_tooth") {
+    return `IS 8815 teeth ${item.tooth_numbers?.join(", ") ?? item.tooth_number ?? ""}${
       item.surfaces?.length ? ` (${item.surfaces.join(", ")})` : ""
     }`;
   }

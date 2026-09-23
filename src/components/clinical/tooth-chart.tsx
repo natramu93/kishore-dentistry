@@ -3,7 +3,7 @@ import { describeIndianTooth, isPrimaryIndianTooth } from "@/lib/clinical";
 
 type ToothChartProps = {
   teeth: readonly string[];
-  selected: string | null;
+  selected: string | readonly string[] | null;
   arch: "upper" | "lower";
   onSelect: (tooth: string) => void;
   documentedTeeth?: readonly string[];
@@ -67,6 +67,9 @@ export function ToothChart({
 }: ToothChartProps) {
   const quadrantLength = teeth.length / 2;
   const documented = new Set(documentedTeeth);
+  const selectedTeeth = new Set(
+    Array.isArray(selected) ? selected : selected ? [selected] : []
+  );
 
   return (
     <div
@@ -74,7 +77,7 @@ export function ToothChart({
       style={{ gridTemplateColumns: `repeat(${teeth.length}, minmax(2.75rem, 1fr))` }}
     >
       {teeth.map((tooth, index) => {
-        const isSelected = selected === tooth;
+        const isSelected = selectedTeeth.has(tooth);
         return (
           <button
             key={tooth}

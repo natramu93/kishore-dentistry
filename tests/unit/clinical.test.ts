@@ -206,9 +206,8 @@ describe("dental treatment site validation", () => {
       site_scope: "tooth" as const,
       site_detail: null,
       tooth_number: "36",
+      tooth_numbers: ["36"],
       surfaces: ["occlusal" as const],
-      quantity: 1,
-      unit_price: 2_500,
       notes: "",
     };
     expect(caseSheetTreatmentSchema.safeParse({
@@ -223,5 +222,26 @@ describe("dental treatment site validation", () => {
       ...baseTreatment,
       treatment_code: "TMT_123",
     }).success).toBe(false);
+  });
+
+  it("supports one coded treatment across multiple Indian Standard teeth", () => {
+    const result = validateTreatmentSite({
+      site_scope: "multi_tooth",
+      site_detail: null,
+      tooth_number: "36",
+      tooth_numbers: ["36", "37"],
+      surfaces: [],
+    });
+    expect(result.valid).toBe(true);
+    expect(caseSheetTreatmentSchema.safeParse({
+      status: "planned",
+      treatment_code: "K02.9",
+      site_scope: "multi_tooth",
+      site_detail: null,
+      tooth_number: "36",
+      tooth_numbers: ["36", "37"],
+      surfaces: [],
+      notes: "",
+    }).success).toBe(true);
   });
 });

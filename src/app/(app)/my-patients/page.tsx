@@ -217,9 +217,12 @@ export default async function MyPatientsPage({
                 ) : (
                   "—"
                 )}
-                {r.tooth_number && (
+                {(r.tooth_numbers?.length || r.tooth_number) && (
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Tooth {r.tooth_number} · Indian Standard IS 8815
+                    {r.tooth_numbers?.length && r.tooth_numbers.length > 1
+                      ? `Teeth ${r.tooth_numbers.join(", ")}`
+                      : `Tooth ${r.tooth_numbers?.[0] ?? r.tooth_number}`}
+                    {` · Indian Standard IS 8815`}
                     {r.surfaces?.length ? ` · ${r.surfaces.join(", ")}` : ""}
                   </p>
                 )}

@@ -28,6 +28,7 @@ export const TREATMENT_SITE_SCOPES = [
   "arch",
   "quadrant",
   "tooth",
+  "multi_tooth",
 ] as const;
 
 export const DENTAL_SURFACES = [
@@ -162,6 +163,7 @@ export type TreatmentSiteInput = {
   site_scope: TreatmentSiteScope;
   site_detail: string | null;
   tooth_number: string | null;
+  tooth_numbers?: string[];
   surfaces: string[];
 };
 
@@ -169,13 +171,25 @@ export function formatClinicalSite(site: {
   site_scope: string | null;
   site_detail: string | null;
   tooth_number: string | null;
+  tooth_numbers?: string[] | null;
   surfaces: string[] | null;
 }): string {
+  const toothNumbers = site.tooth_numbers?.length
+    ? site.tooth_numbers
+    : site.tooth_number
+      ? [site.tooth_number]
+      : [];
   if (site.site_scope === "tooth") {
     const surfaces = site.surfaces?.length
       ? ` · surfaces ${site.surfaces.join(", ")}`
       : "";
-    return `Tooth ${site.tooth_number ?? "not recorded"} (IS 8815)${surfaces}`;
+    return `Tooth ${toothNumbers[0] ?? "not recorded"} (IS 8815)${surfaces}`;
+  }
+  if (site.site_scope === "multi_tooth") {
+    const surfaces = site.surfaces?.length
+      ? ` · surfaces ${site.surfaces.join(", ")}`
+      : "";
+    return `Teeth ${toothNumbers.join(", ") || "not recorded"} (IS 8815)${surfaces}`;
   }
   if (site.site_scope === "full_mouth") return "Full mouth";
   if (site.site_scope === "arch") {
@@ -193,6 +207,11 @@ export function validateTreatmentSite(site: TreatmentSiteInput): {
 } {
   const errors: string[] = [];
   const hasTooth = site.tooth_number !== null && site.tooth_number !== "";
+  const toothNumbers = site.tooth_numbers?.length
+    ? site.tooth_numbers
+    : hasTooth
+      ? [site.tooth_number!]
+      : [];
   const hasDetail = site.site_detail !== null && site.site_detail !== "";
 
   if (site.surfaces.some((surface) => !surfaceSet.has(surface))) {
@@ -204,29 +223,44 @@ export function validateTreatmentSite(site: TreatmentSiteInput): {
 
   switch (site.site_scope) {
     case "tooth":
-      if (!hasTooth || !isIndianToothNumber(site.tooth_number)) {
+      if (!hasTooth || !isIndianToothNumber(site.tooth_number) || toothNumbers.length !== 1) {
         errors.push("Select a valid Indian Standard tooth number for a tooth-level treatment");
       }
+      if (toothNumbers[0] !== site.tooth_number) {
+        errors.push("The selected tooth number does not match the treatment tooth");
+      }
       if (hasDetail) errors.push("Tooth-level treatments cannot have an arch or quadrant");
+      break;
+    case "multi_tooth":
+      if (toothNumbers.length < 2 || toothNumbers.some((tooth) => !isIndianToothNumber(tooth))) {
+        errors.push("Select at least two valid Indian Standard teeth");
+      }
+      if (new Set(toothNumbers).size !== toothNumbers.length) {
+        errors.push("A treatment tooth cannot be selected more than once");
+      }
+      if (toothNumbers[0] !== site.tooth_number) {
+        errors.push("The first selected tooth must be recorded as the treatment tooth");
+      }
+      if (hasDetail) errors.push("Multi-tooth treatments cannot have an arch or quadrant");
       break;
     case "arch":
       if (!hasDetail || !archSiteSet.has(site.site_detail ?? "")) {
         errors.push("Select the upper or lower arch");
       }
-      if (hasTooth) errors.push("Arch-level treatments cannot also select a tooth");
+      if (hasTooth || toothNumbers.length > 0) errors.push("Arch-level treatments cannot also select a tooth");
       if (site.surfaces.length > 0) errors.push("Surfaces can only be recorded for a tooth");
       break;
     case "quadrant":
       if (!hasDetail || !quadrantSiteSet.has(site.site_detail ?? "")) {
         errors.push("Select a valid dental quadrant");
       }
-      if (hasTooth) errors.push("Quadrant-level treatments cannot also select a tooth");
+      if (hasTooth || toothNumbers.length > 0) errors.push("Quadrant-level treatments cannot also select a tooth");
       if (site.surfaces.length > 0) errors.push("Surfaces can only be recorded for a tooth");
       break;
     case "full_mouth":
     case "not_applicable":
       if (hasDetail) errors.push("This treatment scope cannot have an arch or quadrant");
-      if (hasTooth) errors.push("This treatment scope cannot have a tooth number");
+      if (hasTooth || toothNumbers.length > 0) errors.push("This treatment scope cannot have a tooth number");
       if (site.surfaces.length > 0) errors.push("Surfaces can only be recorded for a tooth");
       break;
   }
@@ -238,6 +272,7 @@ export const treatmentSiteSchema = z.object({
   site_scope: z.enum(TREATMENT_SITE_SCOPES),
   site_detail: z.string().trim().max(40).nullable(),
   tooth_number: z.string().nullable(),
+  tooth_numbers: z.array(indianToothNumberSchema).max(52).default([]),
   surfaces: z.array(z.enum(DENTAL_SURFACES)).max(DENTAL_SURFACES.length),
 }).superRefine((site, context) => {
   const result = validateTreatmentSite(site);
@@ -245,7 +280,7 @@ export const treatmentSiteSchema = z.object({
     const path = message.toLowerCase().includes("surface")
       ? ["surfaces"]
       : message.toLowerCase().includes("tooth")
-        ? ["tooth_number"]
+        ? [site.site_scope === "multi_tooth" ? "tooth_numbers" : "tooth_number"]
         : ["site_detail"];
     context.addIssue({ code: "custom", path, message });
   }
@@ -257,9 +292,8 @@ export const caseSheetTreatmentSchema = z.object({
   site_scope: z.enum(TREATMENT_SITE_SCOPES),
   site_detail: z.string().trim().max(40).nullable(),
   tooth_number: z.string().nullable(),
+  tooth_numbers: z.array(indianToothNumberSchema).max(52),
   surfaces: z.array(z.enum(DENTAL_SURFACES)).max(DENTAL_SURFACES.length),
-  quantity: z.number().finite().positive("Quantity must be greater than zero").max(999),
-  unit_price: z.number().finite().min(0, "Price cannot be negative").max(99_999_999.99),
   notes: z.string().trim().max(2_000),
 }).superRefine((treatment, context) => {
   const result = validateTreatmentSite(treatment);
@@ -267,9 +301,16 @@ export const caseSheetTreatmentSchema = z.object({
     const path = message.toLowerCase().includes("surface")
       ? ["surfaces"]
       : message.toLowerCase().includes("tooth")
-        ? ["tooth_number"]
+        ? [treatment.site_scope === "multi_tooth" ? "tooth_numbers" : "tooth_number"]
         : ["site_detail"];
     context.addIssue({ code: "custom", path, message });
+  }
+  if (new Set(treatment.tooth_numbers).size !== treatment.tooth_numbers.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["tooth_numbers"],
+      message: "A treatment tooth cannot be selected more than once",
+    });
   }
 });
 

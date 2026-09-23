@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/auth/context";
 import { listUsers, listDoctorsForLinking } from "@/data/users";
 import { listBranches } from "@/data/branches";
-import { createUserAction, sendUserPasswordResetAction, toggleUserActive, updateUserAction } from "@/actions/admin";
+import { createUserAction, toggleUserActive, updateUserAction, updateUserPasswordAction } from "@/actions/admin";
 import { FormDialog } from "@/components/admin/form-dialog";
 import { RowEditDialog } from "@/components/admin/row-edit-dialog";
 import { ToggleActiveButton } from "@/components/admin/toggle-active-button";
@@ -242,7 +242,7 @@ export default async function UsersPage({
                   </RowEditDialog>
                   <PasswordResetButton
                     email={u.email}
-                    action={sendUserPasswordResetAction.bind(null, u.id)}
+                    action={updateUserPasswordAction.bind(null, u.id)}
                   />
                   {u.id !== ctx.userId && (
                     <ToggleActiveButton

@@ -107,7 +107,7 @@ export default async function LeadDetailPage({
     pageSize: caseSheetPageSize,
   } = caseSheetResult;
   const canManage = canDelete(ctx.role);
-  const canAuthorCaseSheet = ctx.role === "admin" || ctx.role === "clinical_head";
+  const canAuthorCaseSheet = ["admin", "operations", "front_office", "clinical_head", "doctor"].includes(ctx.role);
   const canViewClinicalNarrative =
     canAuthorCaseSheet || ctx.role === "operations" || ctx.role === "front_office";
 
@@ -400,9 +400,8 @@ export default async function LeadDetailPage({
                   site_scope: string;
                   site_detail: string | null;
                   tooth_number: string | null;
+                  tooth_numbers?: string[];
                   surfaces: string[];
-                  quantity: number;
-                  cost: number | null;
                   notes: string | null;
                   invoice_items?: Array<{
                     id: string;
@@ -505,19 +504,10 @@ export default async function LeadDetailPage({
                                 </div>
                                 <p className="mt-1 text-xs text-muted-foreground">
                                   {formatClinicalSite(t)}
-                                  {t.quantity !== 1 ? ` · Qty ${t.quantity}` : ""}
                                   {t.notes ? ` · ${t.notes}` : ""}
                                 </p>
                               </div>
                               <div className="flex flex-wrap items-center gap-2">
-                                {t.cost != null && (
-                                  <span className="text-right text-sm font-semibold">
-                                    {formatINR(t.cost * (t.quantity ?? 1))}
-                                    <span className="block text-xs font-normal text-muted-foreground">
-                                      Line total
-                                    </span>
-                                  </span>
-                                )}
                                 {invoiceEligible && (
                                   <Button asChild size="sm" variant="outline">
                                     <Link href={`/invoices/new?lead=${lead.id}&treatment=${t.id}`}>

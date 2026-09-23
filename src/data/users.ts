@@ -1,7 +1,6 @@
 import "server-only";
 
 import { db, authAdmin } from "./db";
-import { createClient } from "@/lib/supabase/server";
 import type { AuthContext } from "@/lib/auth/context";
 import { requireAdmin, assertBranchAccess } from "@/lib/auth/guards";
 import type { Json, Profile, UserRole } from "@/lib/database.types";
@@ -573,32 +572,20 @@ export async function updateUser(ctx: AuthContext, userId: string, input: UserUp
   }
 }
 
-/** Send a Supabase recovery email for an existing user. The administrator
- * never sees or handles the user's password. */
-export async function sendPasswordReset(
+/** Update an existing user's password through the server-only Auth admin API. */
+export async function updatePassword(
   ctx: AuthContext,
   userId: string,
-  redirectTo: string
+  password: string
 ): Promise<void> {
   requireAdmin(ctx);
   const id = assertUuid(userId, "User");
-  const redirectUrl = new URL(redirectTo);
-  if (
-    redirectUrl.pathname !== "/auth/callback" ||
-    (redirectUrl.protocol !== "https:" &&
-      redirectUrl.hostname !== "localhost" &&
-      redirectUrl.hostname !== "127.0.0.1")
-  ) {
-    throw new ValidationError("Password reset callback is invalid");
-  }
-
-  const profile = await db.from("profiles").select("email").eq("id", id).maybeSingle();
+  const profile = await db.from("profiles").select("id").eq("id", id).maybeSingle();
   if (profile.error) throw profile.error;
   if (!profile.data) throw new NotFoundError("User");
 
-  const supabase = await createClient();
-  const result = await supabase.auth.resetPasswordForEmail(profile.data.email, {
-    redirectTo: redirectUrl.toString(),
+  const result = await authAdmin.updateUserById(id, {
+    password,
   });
   if (result.error) throw result.error;
 }

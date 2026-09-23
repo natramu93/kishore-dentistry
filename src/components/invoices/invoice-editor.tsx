@@ -229,8 +229,7 @@ export function InvoiceEditor({
                       min={0.01}
                       step={0.01}
                       value={item.quantity}
-                      readOnly
-                      aria-readonly="true"
+                      onChange={(event) => updateItem(item.rowKey, { quantity: Number(event.target.value) })}
                     />
                   </div>
                   <div className="space-y-1.5">

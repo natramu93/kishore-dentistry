@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { z } from "zod";
 import { getAuthContext } from "@/lib/auth/context";
 import * as branches from "@/data/branches";
@@ -9,7 +8,6 @@ import * as users from "@/data/users";
 import * as catalogs from "@/data/catalogs";
 import * as callTracking from "@/data/call-tracking";
 import { assertActionRateLimit } from "@/lib/rate-limit";
-import { buildRecoveryRedirect } from "@/lib/invite-origin";
 import {
   booleanInputSchema,
   dentalCodePattern,
@@ -169,22 +167,31 @@ export async function toggleUserActive(userId: string, isActive: boolean): Promi
   });
 }
 
-export async function sendUserPasswordResetAction(userId: string): Promise<ActionResult> {
+const passwordUpdateSchema = z
+  .object({
+    password: z
+      .string()
+      .min(12, "Password must be at least 12 characters")
+      .max(128, "Password must be 128 characters or fewer"),
+    password_confirmation: z.string(),
+  })
+  .refine((value) => value.password === value.password_confirmation, {
+    path: ["password_confirmation"],
+    message: "Passwords do not match",
+  });
+
+export async function updateUserPasswordAction(
+  userId: string,
+  formData: FormData
+): Promise<ActionResult> {
   const ctx = await getAuthContext();
   const parsedId = idSchema.safeParse(userId);
+  const parsedPassword = passwordUpdateSchema.safeParse(Object.fromEntries(formData));
   if (!parsedId.success) return { ok: false, error: "User is invalid" };
+  if (!parsedPassword.success) return invalid(parsedPassword.error);
   return runAction(async () => {
     await adminMutationLimit(ctx.userId, "admin:password-reset");
-    const requestHeaders = await headers();
-    await users.sendPasswordReset(
-      ctx,
-      parsedId.data,
-      buildRecoveryRedirect(
-        requestHeaders.get("origin"),
-        requestHeaders.get("x-forwarded-host"),
-        requestHeaders.get("host")
-      )
-    );
+    await users.updatePassword(ctx, parsedId.data, parsedPassword.data.password);
     revalidatePath("/admin/users");
   });
 }

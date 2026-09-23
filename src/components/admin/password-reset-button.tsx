@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition, type FormEvent } from "react";
 import { toast } from "sonner";
 import { KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import type { ActionResult } from "@/actions/util";
 
 export function PasswordResetButton({
@@ -22,13 +24,35 @@ export function PasswordResetButton({
   action,
 }: {
   email: string;
-  action: () => Promise<ActionResult>;
+  action: (formData: FormData) => Promise<ActionResult>;
 }) {
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    startTransition(async () => {
+      const result = await action(new FormData(form));
+      if (result.ok) {
+        form.reset();
+        setOpen(false);
+        toast.success("Password updated");
+      } else {
+        toast.error(result.error);
+      }
+    });
+  }
 
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) formRef.current?.reset();
+      }}
+    >
       <AlertDialogTrigger
         render={
           <Button variant="ghost" size="sm" disabled={pending}>
@@ -38,34 +62,52 @@ export function PasswordResetButton({
         }
       />
       <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Send a password reset link?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Supabase will send a secure, expiring recovery link to {email}. The current password will not be shown or shared with you.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            type="button"
-            disabled={pending}
-            onClick={() =>
-              startTransition(async () => {
-                const result = await action();
-                if (result.ok) {
-                  setOpen(false);
-                  toast.success("Password reset link sent");
-                } else {
-                  toast.error(result.error);
-                }
-              })
-            }
-          >
-            {pending ? "Sending…" : "Send reset link"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
+        <form ref={formRef} onSubmit={submit} className="space-y-5">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset password</AlertDialogTitle>
+            <AlertDialogDescription>
+              Set a new password for {email}. It will not be shown again after
+              this update.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="admin-reset-password">New password</Label>
+            <Input
+              id="admin-reset-password"
+              name="password"
+              type="password"
+              autoComplete="new-password"
+              minLength={12}
+              maxLength={128}
+              required
+              disabled={pending}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="admin-reset-password-confirmation">
+              Confirm new password
+            </Label>
+            <Input
+              id="admin-reset-password-confirmation"
+              name="password_confirmation"
+              type="password"
+              autoComplete="new-password"
+              minLength={12}
+              maxLength={128}
+              required
+              disabled={pending}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button" disabled={pending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction type="submit" disabled={pending}>
+              {pending ? "Updating…" : "Update password"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </form>
       </AlertDialogContent>
     </AlertDialog>
   );
 }
-
