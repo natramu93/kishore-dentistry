@@ -61,6 +61,11 @@ export function throwMappedDatabaseError(
           "Review the prescription details. Each medicine needs a dose timing and valid duration before the case sheet can be saved."
         );
       }
+      if (/visit time|completed treatment time/i.test(databaseMessage)) {
+        throw new ConflictError(
+          "The case-sheet entry time is captured by the server and does not need to match the appointment schedule. Refresh the lead and try again."
+        );
+      }
       throw new ConflictError(
         "This case sheet could not be saved because the appointment or clinical record changed. Refresh the lead and try again."
       );

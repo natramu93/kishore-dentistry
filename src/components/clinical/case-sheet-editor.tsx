@@ -353,7 +353,7 @@ export function CaseSheetEditor({
                   aria-invalid={Boolean(errors.visit_at)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  The exact server time is recorded when this case sheet is finalized.
+                  The server records the entry time when this case sheet is finalized; it does not change or need to match the appointment schedule.
                 </p>
               </Field>
             </div>
