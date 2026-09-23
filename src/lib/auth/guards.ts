@@ -31,6 +31,13 @@ export function requireAdmin(ctx: AuthContext): void {
   if (ctx.role !== "admin") throw new AuthorizationError("Admin access required");
 }
 
+/** Global admins manage all users; Operations manages ordinary users only in its assigned centers. */
+export function requireUserManagementAccess(ctx: AuthContext): void {
+  if (ctx.role !== "admin" && ctx.role !== "operations") {
+    throw new AuthorizationError("User management access required");
+  }
+}
+
 /** The Clinical Head owns the treatment catalog (pricing/categories) alongside admin. */
 export function requireClinicalCatalogAccess(ctx: AuthContext): void {
   if (ctx.role !== "admin" && ctx.role !== "clinical_head") {

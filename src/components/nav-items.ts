@@ -69,7 +69,7 @@ export const PRIMARY_NAV: NavItem[] = [
 
 export const ADMIN_NAV: NavItem[] = [
   { href: "/admin/branches", label: "Branches", icon: "Building2", roles: ["admin"] },
-  { href: "/admin/users", label: "Users", icon: "UserCog", roles: ["admin"] },
+  { href: "/admin/users", label: "Users", icon: "UserCog", roles: ["admin", "operations"] },
   {
     href: "/admin/doctors",
     label: "Doctors",

@@ -2,7 +2,7 @@ import "server-only";
 
 import { db, authAdmin } from "./db";
 import type { AuthContext } from "@/lib/auth/context";
-import { requireAdmin, assertBranchAccess } from "@/lib/auth/guards";
+import { requireUserManagementAccess, assertBranchAccess } from "@/lib/auth/guards";
 import type { Json, Profile, UserRole } from "@/lib/database.types";
 import {
   AuthorizationError,
@@ -125,14 +125,43 @@ export async function listUsers(
   page: number;
   pageSize: number;
 }> {
-  requireAdmin(ctx);
+  requireUserManagementAccess(ctx);
   const { page, pageSize } = normalizePagination(opts.page, opts.pageSize);
   const from = (page - 1) * pageSize;
-  const profilesResult = await db
+  let profilesQuery = db
     .from("profiles")
     .select("*", { count: "exact" })
-    .order("full_name")
-    .range(from, from + pageSize - 1);
+    .order("full_name");
+  if (ctx.role === "operations") {
+    if (!ctx.branchIds.length) return { users: [], total: 0, page, pageSize };
+    const allocations = await db
+      .from("user_branches")
+      .select("user_id")
+      .in("branch_id", ctx.branchIds)
+      .limit(MAX_LIST_ROWS + 1);
+    if (allocations.error) throw allocations.error;
+    if (allocations.data.length > MAX_LIST_ROWS) {
+      throw new ValidationError("Too many center users to display");
+    }
+    const userIds = [...new Set(allocations.data.map((row) => row.user_id))];
+    if (!userIds.length) return { users: [], total: 0, page, pageSize };
+    const allAllocations = await db
+      .from("user_branches")
+      .select("user_id, branch_id")
+      .in("user_id", userIds);
+    if (allAllocations.error) throw allAllocations.error;
+    const scopedIds = [...new Set(allAllocations.data
+      .filter((row) => ctx.branchIds.includes(row.branch_id))
+      .map((row) => row.user_id))];
+    const exclusiveIds = new Set(allAllocations.data.map((row) => row.user_id));
+    for (const row of allAllocations.data) {
+      if (!ctx.branchIds.includes(row.branch_id)) exclusiveIds.delete(row.user_id);
+    }
+    const manageableIds = scopedIds.filter((id) => exclusiveIds.has(id));
+    if (!manageableIds.length) return { users: [], total: 0, page, pageSize };
+    profilesQuery = profilesQuery.in("id", manageableIds).in("role", ["front_office", "doctor"]);
+  }
+  const profilesResult = await profilesQuery.range(from, from + pageSize - 1);
   if (profilesResult.error) throw profilesResult.error;
 
   const ids = profilesResult.data.map((profile) => profile.id);
@@ -149,10 +178,9 @@ export async function listUsers(
           .in("user_id", chunk)
       )
     ),
-    db
-      .from("branches")
-      .select("id, name, code")
-      .limit(MAX_LIST_ROWS + 1),
+    ctx.role === "admin"
+      ? db.from("branches").select("id, name, code").limit(MAX_LIST_ROWS + 1)
+      : db.from("branches").select("id, name, code").in("id", ctx.branchIds),
     db
       .from("doctors")
       .select("id, profile_id")
@@ -275,15 +303,27 @@ export async function createUser(
     doctorRecordId?: string;
   }
 ) {
-  requireAdmin(ctx);
+  requireUserManagementAccess(ctx);
   const role = assertUserRole(input.role);
+  if (ctx.role === "operations" && role !== "front_office" && role !== "doctor") {
+    throw new AuthorizationError("Center admins can create Front Office or Doctor accounts only");
+  }
   const branchIds = await validateBranchIds(input.branchIds);
+  if (
+    ctx.role === "operations" &&
+    (!branchIds.length || branchIds.some((branchId) => !ctx.branchIds.includes(branchId)))
+  ) {
+    throw new AuthorizationError("Users must be allocated to one of your centers");
+  }
   let doctor: { id: string; branch_id: string } | null = null;
   if (role === "doctor") {
     if (!input.doctorRecordId) {
       throw new ValidationError("A doctor account must be linked to a doctor record");
     }
     doctor = await validateDoctorLink(input.doctorRecordId);
+    if (ctx.role === "operations" && !ctx.branchIds.includes(doctor.branch_id)) {
+      throw new AuthorizationError("That doctor belongs to a different center");
+    }
     if (!branchIds.includes(doctor.branch_id)) branchIds.push(doctor.branch_id);
   } else if (input.doctorRecordId) {
     throw new ValidationError("Only a doctor account can link to a doctor record");
@@ -424,8 +464,11 @@ async function restoreUserSnapshot(
 }
 
 export async function updateUser(ctx: AuthContext, userId: string, input: UserUpdate) {
-  requireAdmin(ctx);
+  requireUserManagementAccess(ctx);
   const id = assertUuid(userId, "User");
+  if (ctx.role === "operations" && id === ctx.userId) {
+    throw new AuthorizationError("Use My profile to update your own account");
+  }
   if (id === ctx.userId && (input.role !== undefined || input.is_active === false)) {
     throw new AuthorizationError("You cannot change your own role or deactivate yourself");
   }
@@ -443,12 +486,30 @@ export async function updateUser(ctx: AuthContext, userId: string, input: UserUp
   if (allocationsResult.error) throw allocationsResult.error;
   if (doctorResult.error) throw doctorResult.error;
   if (!profileResult.data) throw new NotFoundError("User");
+  const currentBranchIds = allocationsResult.data.map((row) => row.branch_id);
+  if (
+    ctx.role === "operations" &&
+    (!currentBranchIds.length ||
+      currentBranchIds.some((branchId) => !ctx.branchIds.includes(branchId)) ||
+      (profileResult.data.role !== "front_office" && profileResult.data.role !== "doctor"))
+  ) {
+    throw new AuthorizationError("You can only manage Front Office or Doctor users assigned exclusively to your centers");
+  }
 
   const role = input.role === undefined ? profileResult.data.role : assertUserRole(input.role);
+  if (ctx.role === "operations" && role !== "front_office" && role !== "doctor") {
+    throw new AuthorizationError("Center admins cannot assign elevated roles");
+  }
   let branchIds =
     input.branchIds === undefined
       ? allocationsResult.data.map((row) => row.branch_id)
       : await validateBranchIds(input.branchIds);
+  if (ctx.role === "operations") {
+    if (!branchIds.length) throw new ValidationError("A center user must remain assigned to at least one center");
+    if (branchIds.some((branchId) => !ctx.branchIds.includes(branchId))) {
+      throw new AuthorizationError("Users must remain allocated only to your centers");
+    }
+  }
   const requestedDoctorId =
     input.doctorRecordId === undefined
       ? doctorResult.data?.id ?? null
@@ -460,6 +521,9 @@ export async function updateUser(ctx: AuthContext, userId: string, input: UserUp
       throw new ValidationError("A doctor account must be linked to a doctor record");
     }
     const doctor = await validateDoctorLink(targetDoctorId, id);
+    if (ctx.role === "operations" && !ctx.branchIds.includes(doctor.branch_id)) {
+      throw new AuthorizationError("That doctor belongs to a different center");
+    }
     if (!branchIds.includes(doctor.branch_id)) branchIds = [...branchIds, doctor.branch_id];
   }
 
@@ -578,11 +642,24 @@ export async function updatePassword(
   userId: string,
   password: string
 ): Promise<void> {
-  requireAdmin(ctx);
+  requireUserManagementAccess(ctx);
   const id = assertUuid(userId, "User");
-  const profile = await db.from("profiles").select("id").eq("id", id).maybeSingle();
+  if (ctx.role === "operations" && id === ctx.userId) {
+    throw new AuthorizationError("Use My profile to update your own password");
+  }
+  const profile = await db.from("profiles").select("id, role").eq("id", id).maybeSingle();
   if (profile.error) throw profile.error;
   if (!profile.data) throw new NotFoundError("User");
+  if (ctx.role === "operations") {
+    if (profile.data.role !== "front_office" && profile.data.role !== "doctor") {
+      throw new AuthorizationError("You can only reset passwords for Front Office or Doctor users");
+    }
+    const allocations = await db.from("user_branches").select("branch_id").eq("user_id", id);
+    if (allocations.error) throw allocations.error;
+    if (!allocations.data.length || allocations.data.some((row) => !ctx.branchIds.includes(row.branch_id))) {
+      throw new AuthorizationError("You can only reset passwords for users assigned exclusively to your centers");
+    }
+  }
 
   const result = await authAdmin.updateUserById(id, {
     password,
@@ -592,16 +669,20 @@ export async function updatePassword(
 
 /** Doctor rows for the admin-only account-linking picker. */
 export async function listDoctorsForLinking(ctx: AuthContext) {
-  requireAdmin(ctx);
-  const result = await db
+  requireUserManagementAccess(ctx);
+  let query = db
     .from("doctors")
     .select(
       "id, full_name, profile_id, branch:branches!inner(name, is_active)"
     )
     .eq("is_active", true)
     .eq("branch.is_active", true)
-    .order("full_name")
-    .limit(MAX_LIST_ROWS + 1);
+    .order("full_name");
+  if (ctx.role === "operations") {
+    if (!ctx.branchIds.length) return [];
+    query = query.in("branch_id", ctx.branchIds);
+  }
+  const result = await query.limit(MAX_LIST_ROWS + 1);
   if (result.error) throw result.error;
   if (result.data.length > MAX_LIST_ROWS) {
     throw new ValidationError("Too many doctors to display in one picker");
