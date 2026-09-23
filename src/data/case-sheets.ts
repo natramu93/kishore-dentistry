@@ -26,6 +26,7 @@ import type {
   PatientMedicalHistoryVersion,
   ToothAssessment,
 } from "@/lib/database.types";
+import type { CaseSheetTreatmentInput, ToothAssessmentInput } from "@/lib/clinical";
 import { isTreatmentAttachmentSchemaUnavailable } from "@/lib/clinical-files";
 import {
   createMedicalHistoryDraft,
@@ -55,7 +56,7 @@ export type CaseSheetFormContext = {
   lead: {
     id: string;
     name: string;
-    mobile: string;
+    mobile?: string;
     branch_id: string;
     branch: { name: string } | null;
   };
@@ -92,6 +93,7 @@ export type FinalizeCaseSheetInput = {
     notes: string;
   }>;
   treatments: Array<{
+    treatment_id?: string | null;
     treatment_code: string;
     status: "planned" | "completed";
     site_scope: "not_applicable" | "full_mouth" | "arch" | "quadrant" | "tooth" | "multi_tooth";
@@ -100,6 +102,21 @@ export type FinalizeCaseSheetInput = {
     tooth_numbers: string[];
     surfaces: string[];
     notes: string;
+  }>;
+};
+
+export type EditableCaseSheet = {
+  caseSheet: CaseSheet;
+  lead: { id: string; name: string; branch_id: string; branch: { name: string } | null };
+  doctorName: string | null;
+  medicalHistory: MedicalHistoryDraft;
+  prescriptions: PrescriptionItemDraft[];
+  toothAssessments: ToothAssessmentInput[];
+  treatments: Array<CaseSheetTreatmentInput & {
+    treatment_id: string;
+    treatment_name: string;
+    locked: boolean;
+    hasAttachments: boolean;
   }>;
 };
 
@@ -157,10 +174,13 @@ export async function getCaseSheetFormContext(
 
   if (input.appointmentId) {
     const appointmentId = assertUuid(input.appointmentId, "Appointment");
+    const leadProjection = ctx.role === "doctor"
+      ? "id, name, branch_id, deleted_at, branch:branches(name)"
+      : "id, name, mobile, branch_id, deleted_at, branch:branches(name)";
     const { data, error } = await db
       .from("appointments")
       .select(
-        "id, doctor_id, scheduled_at, status, branch_id, lead:leads!inner(id, name, mobile, branch_id, deleted_at, branch:branches(name))"
+        `id, doctor_id, scheduled_at, status, branch_id, lead:leads!inner(${leadProjection})`
       )
       .eq("id", appointmentId)
       .maybeSingle();
@@ -278,6 +298,199 @@ export async function finalizeCaseSheet(
   return { id: row.id, lead_id: row.lead_id };
 }
 
+export async function getCaseSheetForEdit(
+  ctx: AuthContext,
+  idValue: string,
+): Promise<EditableCaseSheet> {
+  assertClinicalAuthor(ctx);
+  const id = assertUuid(idValue, "Case sheet");
+  const { data, error } = await db
+    .from("case_sheets")
+    .select(`
+      *,
+      lead:leads!inner(id, name, branch_id, assignee_id, deleted_at, branch:branches(name)),
+      doctor:doctors(full_name),
+      treatments(*, invoice_items(id, active_billing), treatment_attachments:case_sheet_attachments!case_sheet_attachments_treatment_id_fkey(id)),
+      tooth_assessments(*),
+      medical_history:case_sheet_medical_history(*, history:patient_medical_history_versions(*)),
+      prescription_items(*)
+    `)
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new NotFoundError("Case sheet");
+
+  const row = data as unknown as {
+    id: string;
+    lead: {
+      id: string;
+      name: string;
+      branch_id: string;
+      assignee_id: string | null;
+      deleted_at: string | null;
+      branch: { name: string } | null;
+    };
+    doctor: { full_name: string } | null;
+    treatments: Array<{
+      id: string;
+      treatment_code: string | null;
+      treatment_name: string | null;
+      clinical_status: "planned" | "completed" | null;
+      site_scope: CaseSheetTreatmentInput["site_scope"] | null;
+      site_detail: string | null;
+      tooth_number: string | null;
+      tooth_numbers: string[] | null;
+    surfaces: string[] | null;
+    notes: string | null;
+    invoice_items: Array<{ id: string; active_billing: boolean }>;
+    treatment_attachments: Array<{ id: string }>;
+    }>;
+    tooth_assessments: Array<{
+      tooth_number: string;
+      tooth_state: string;
+      conditions: string[] | null;
+      surfaces: string[] | null;
+      clinical_findings: string | null;
+      diagnosis: string | null;
+      prognosis: ToothAssessmentInput["prognosis"] | null;
+      recommended_action: ToothAssessmentInput["recommended_action"] | null;
+      future_plan: string | null;
+      notes: string | null;
+    }>;
+    medical_history: Array<{ history: PatientMedicalHistoryVersion | null }> | { history: PatientMedicalHistoryVersion | null } | null;
+    prescription_items: Array<{
+      id: string;
+      medicine_name: string;
+      strength: string | null;
+      dosage: string | null;
+      morning: boolean;
+      noon: boolean;
+      night: boolean;
+      food_timing: PrescriptionItemDraft["food_timing"];
+      duration_days: number | null;
+      instructions: string | null;
+    }>;
+  };
+  if (!row.lead || row.lead.deleted_at) throw new NotFoundError("Case sheet");
+  if (ctx.role === "doctor") {
+    if (!ctx.doctorId || data.doctor_id !== ctx.doctorId) throw new NotFoundError("Case sheet");
+  } else if (!canReadLead(ctx, row.lead)) {
+    throw new NotFoundError("Case sheet");
+  }
+
+  const medicalHistoryLink = Array.isArray(row.medical_history)
+    ? row.medical_history[0]
+    : row.medical_history;
+  const visitHistory = medicalHistoryLink?.history ?? await loadCurrentMedicalHistory(row.lead.id);
+
+  return {
+    caseSheet: data as unknown as CaseSheet,
+    lead: {
+      id: row.lead.id,
+      name: row.lead.name,
+      branch_id: row.lead.branch_id,
+      branch: row.lead.branch,
+    },
+    doctorName: row.doctor?.full_name ?? null,
+    medicalHistory: createMedicalHistoryDraft(visitHistory ? {
+      reviewStatus: visitHistory.review_status,
+      reviewedToday: visitHistory.reviewed_with_patient,
+      conditions: visitHistory.conditions,
+      description: visitHistory.description ?? "",
+    } : undefined),
+    prescriptions: row.prescription_items.map((item) => ({
+      client_id: item.id,
+      medicine_name: item.medicine_name,
+      strength: item.strength ?? "",
+      dosage: item.dosage ?? "",
+      morning: item.morning,
+      noon: item.noon,
+      night: item.night,
+      food_timing: item.food_timing,
+      duration_days: item.duration_days,
+      instructions: item.instructions ?? "",
+    })),
+    toothAssessments: row.tooth_assessments.map((item) => ({
+      tooth_number: item.tooth_number as ToothAssessmentInput["tooth_number"],
+      tooth_state: item.tooth_state as ToothAssessmentInput["tooth_state"],
+      conditions: (item.conditions ?? []) as ToothAssessmentInput["conditions"],
+      surfaces: (item.surfaces ?? []) as ToothAssessmentInput["surfaces"],
+      clinical_findings: item.clinical_findings ?? "",
+      diagnosis: item.diagnosis ?? "",
+      prognosis: item.prognosis,
+      recommended_action: item.recommended_action,
+      future_plan: item.future_plan ?? "",
+      notes: item.notes ?? "",
+    })),
+    treatments: row.treatments.flatMap((item) => item.treatment_code ? [{
+      treatment_id: item.id,
+      treatment_code: item.treatment_code,
+      treatment_name: item.treatment_name ?? item.treatment_code,
+      status: item.clinical_status ?? "planned",
+      site_scope: item.site_scope ?? "not_applicable",
+      site_detail: item.site_detail,
+      tooth_number: item.tooth_number,
+      tooth_numbers: (item.tooth_numbers ?? (item.tooth_number ? [item.tooth_number] : [])) as CaseSheetTreatmentInput["tooth_numbers"],
+      surfaces: (item.surfaces ?? []) as CaseSheetTreatmentInput["surfaces"],
+      notes: item.notes ?? "",
+      locked: item.invoice_items.length > 0,
+      hasAttachments: item.treatment_attachments.length > 0,
+    }] : []),
+  };
+}
+
+export async function amendCaseSheet(
+  ctx: AuthContext,
+  input: FinalizeCaseSheetInput & {
+    case_sheet_id: string;
+    expected_version: number;
+    amendment_reason: string;
+  },
+): Promise<{ id: string; lead_id: string; version: number }> {
+  assertClinicalAuthor(ctx);
+  const caseSheetId = assertUuid(input.case_sheet_id, "Case sheet");
+  if (!Number.isSafeInteger(input.expected_version) || input.expected_version < 1) {
+    throw new ValidationError("Case-sheet version is invalid");
+  }
+  const reason = input.amendment_reason.trim();
+  if (reason.length < 5 || reason.length > 1000) {
+    throw new ValidationError("Enter a reason for this amendment (5–1,000 characters)");
+  }
+  if (!input.appointment_id) throw new ValidationError("The visit appointment is required");
+  const prescriptions = input.prescriptions.map((prescription) => ({
+    client_id: prescription.client_id,
+    medicine_name: prescription.medicine_name,
+    strength: prescription.strength,
+    dosage: prescription.dosage,
+    morning: prescription.morning,
+    noon: prescription.noon,
+    night: prescription.night,
+    food_timing: prescription.food_timing,
+    duration_days: prescription.duration_days,
+    instructions: prescription.instructions,
+  }));
+  const { data, error } = await db.rpc("amend_clinical_visit", {
+    p_case_sheet_id: caseSheetId,
+    p_expected_version: input.expected_version,
+    p_reason: reason,
+    p_chief_complaint: input.chief_complaint?.trim() || null,
+    p_findings: input.findings?.trim() || null,
+    p_diagnosis: input.diagnosis?.trim() || null,
+    p_plan: input.plan?.trim() || null,
+    p_medical_history_review_status: input.medical_history.reviewStatus as Exclude<MedicalHistoryDraft["reviewStatus"], "not_reviewed">,
+    p_medical_history_confirmed: input.medical_history.reviewedToday,
+    p_medical_history_conditions: input.medical_history.conditions as MedicalHistoryCondition[],
+    p_medical_history_description: input.medical_history.description.trim() || null,
+    p_tooth_assessments: input.tooth_assessments as unknown as Json,
+    p_treatments: input.treatments as unknown as Json,
+    p_prescriptions: prescriptions as unknown as Json,
+    p_actor: ctx.userId,
+  });
+  if (error) throwMappedDatabaseError(error, "Case sheet");
+  const result = data as unknown as CaseSheet;
+  return { id: result.id, lead_id: result.lead_id, version: result.version };
+}
+
 export async function listCaseSheetsForLead(
   ctx: AuthContext,
   leadIdValue: string,
@@ -311,11 +524,11 @@ export async function listCaseSheetsForLead(
     ctx.role === "front_office" ||
     ctx.role === "clinical_head";
   const clinicalProjection =
-    "*, doctor:doctors(full_name), tooth_assessments(*), treatments(*, treatment_code_ref:treatment_codes!treatments_treatment_code_fkey(name, category), invoice_items(id, invoice_id, active_billing), treatment_attachments:case_sheet_attachments!case_sheet_attachments_treatment_id_fkey(id, case_sheet_id, treatment_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at)), medical_history:case_sheet_medical_history(*, history:patient_medical_history_versions(*)), prescription_items(*), case_sheet_attachments(id, case_sheet_id, treatment_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at)";
+    "*, doctor:doctors(full_name), tooth_assessments(*), treatments(*, treatment_code_ref:treatment_codes!treatments_treatment_code_fkey(name, category), invoice_items(id, invoice_id, active_billing), treatment_attachments:case_sheet_attachments!case_sheet_attachments_treatment_id_fkey(id, case_sheet_id, treatment_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at)), medical_history:case_sheet_medical_history(*, history:patient_medical_history_versions(*)), prescription_items(*), amendments:case_sheet_amendments(id, revision, reason, changed_by, changed_by_name, changed_at), case_sheet_attachments(id, case_sheet_id, treatment_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at)";
   const legacyClinicalProjection =
-    "*, doctor:doctors(full_name), tooth_assessments(*), treatments(*, treatment_code_ref:treatment_codes!treatments_treatment_code_fkey(name, category), invoice_items(id, invoice_id, active_billing)), medical_history:case_sheet_medical_history(*, history:patient_medical_history_versions(*)), prescription_items(*), case_sheet_attachments(id, case_sheet_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at)";
+    "*, doctor:doctors(full_name), tooth_assessments(*), treatments(*, treatment_code_ref:treatment_codes!treatments_treatment_code_fkey(name, category), invoice_items(id, invoice_id, active_billing)), medical_history:case_sheet_medical_history(*, history:patient_medical_history_versions(*)), prescription_items(*), amendments:case_sheet_amendments(id, revision, reason, changed_by, changed_by_name, changed_at), case_sheet_attachments(id, case_sheet_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at)";
   const businessProjection =
-    "id, lead_id, branch_id, appointment_id, doctor_id, visit_at, finalized_at, created_at, doctor:doctors(full_name), treatments(id, treatment_code, treatment_name, treatment_category, clinical_status, site_scope, site_detail, tooth_number, tooth_numbers, surfaces, quantity, cost, invoice_items(id, invoice_id, active_billing))";
+    "id, lead_id, branch_id, appointment_id, doctor_id, visit_at, finalized_at, created_at, version, doctor:doctors(full_name), amendments:case_sheet_amendments(id, revision, reason, changed_by, changed_by_name, changed_at), treatments(id, treatment_code, treatment_name, treatment_category, clinical_status, site_scope, site_detail, tooth_number, tooth_numbers, surfaces, quantity, cost, invoice_items(id, invoice_id, active_billing))";
   const buildQuery = (projection: string) => {
     let query = db
       .from("case_sheets")

@@ -33,9 +33,26 @@ export function throwMappedDatabaseError(
     throw new ConflictError("The doctor already has an overlapping appointment");
   }
   if (code === "P0002") throw new NotFoundError(resource);
-  if (code === "42501") throw new AuthorizationError();
+  if (code === "42501") {
+    if (/only the treating doctor may amend prescriptions/i.test(databaseMessage)) {
+      throw new AuthorizationError(databaseMessage);
+    }
+    if (/this patient is not assigned to you/i.test(databaseMessage)) {
+      throw new AuthorizationError(databaseMessage);
+    }
+    throw new AuthorizationError();
+  }
   if (code === "23514" || code === "22023" || code === "55000") {
     if (resource === "Case sheet") {
+      if (/a treatment linked to an invoice or file cannot be (changed|removed)/i.test(databaseMessage)) {
+        throw new ConflictError(databaseMessage);
+      }
+      if (/only the treating doctor may amend prescriptions/i.test(databaseMessage)) {
+        throw new AuthorizationError(databaseMessage);
+      }
+      if (/this patient is not assigned to you/i.test(databaseMessage)) {
+        throw new AuthorizationError(databaseMessage);
+      }
       if (/lead must have a booked appointment/i.test(databaseMessage)) {
         throw new ConflictError(
           "This patient no longer has an active booked appointment. Refresh the lead and open the current appointment before saving the case sheet."

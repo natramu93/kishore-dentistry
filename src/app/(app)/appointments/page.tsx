@@ -255,7 +255,7 @@ export default async function AppointmentsPage({
                     </Link>
                   )
                 ) : "—"}
-                {a.lead?.mobile && (
+                {!isDoctor && a.lead?.mobile && (
                   <a
                     href={`tel:${a.lead.mobile}`}
                     className="block text-xs text-muted-foreground underline-offset-2 hover:underline"

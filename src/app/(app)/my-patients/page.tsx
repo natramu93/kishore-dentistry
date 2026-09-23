@@ -76,7 +76,7 @@ export default async function MyPatientsPage({
                 type="search"
                 name="q"
                 defaultValue={params.q ?? ""}
-                placeholder="Name or mobile"
+                placeholder="Name"
                 className="block h-11 min-w-48 rounded-md border border-input bg-transparent px-3 text-sm"
               />
             </div>
@@ -189,14 +189,6 @@ export default async function MyPatientsPage({
                   </Link>
                 ) : (
                   <span className="font-medium">—</span>
-                )}
-                {r.lead?.mobile && (
-                  <a
-                    href={`tel:${r.lead.mobile}`}
-                    className="block text-xs text-muted-foreground underline-offset-2 hover:underline"
-                  >
-                    {r.lead.mobile}
-                  </a>
                 )}
               </TableCell>
               <TableCell className="whitespace-normal">

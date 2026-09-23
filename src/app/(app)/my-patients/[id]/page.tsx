@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Phone } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { getAuthContext } from "@/lib/auth/context";
 import { getMyPatientHistory } from "@/data/doctor-portal";
 import { NotFoundError } from "@/lib/errors";
@@ -77,11 +77,6 @@ export default async function MyPatientHistoryPage({
             Access is limited to clinicians with a current appointment or treatment relationship to this patient.
           </p>
         </div>
-        <Button asChild variant="outline">
-          <a href={`tel:${lead.mobile}`}>
-            <Phone aria-hidden="true" /> {lead.mobile}
-          </a>
-        </Button>
       </div>
 
       <Card>
@@ -90,7 +85,6 @@ export default async function MyPatientHistoryPage({
         </CardHeader>
         <CardContent>
           <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-            <Field label="Mobile" value={lead.mobile} />
             <Field label="Email" value={lead.email} />
             <Field label="Date of birth" value={lead.dob ? fmtDate(lead.dob) : null} />
             <Field label="Age" value={lead.age != null ? `${lead.age} years` : null} />
@@ -154,6 +148,13 @@ export default async function MyPatientHistoryPage({
           } | null;
           const visitMedicalHistory = historyLink?.history ?? null;
           const prescriptions = (sheet.prescription_items ?? []) as PrescriptionItem[];
+          const amendments = (sheet.amendments ?? []) as Array<{
+            id: string;
+            revision: number;
+            reason: string;
+            changed_by_name: string;
+            changed_at: string;
+          }>;
           const clinicalAttachments = (
             (sheet.case_sheet_attachments ?? []) as ClinicalAttachmentView[]
           ).filter((attachment) => attachment.status === "ready" && !attachment.treatment_id);
@@ -168,10 +169,32 @@ export default async function MyPatientHistoryPage({
                       {doctor?.full_name ?? "Doctor not recorded"} · Signed {fmt(sheet.finalized_at)}
                     </p>
                   </div>
-                  <Badge variant="secondary">Finalized</Badge>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {canManageClinicalFiles && (
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/case-sheets/${sheet.id}/edit`}>Edit case sheet</Link>
+                      </Button>
+                    )}
+                    <Badge variant="secondary">Finalized · v{sheet.version ?? 1}</Badge>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
+                {amendments.length > 0 && (
+                  <details className="rounded-md border bg-muted/20 p-3">
+                    <summary className="cursor-pointer text-sm font-semibold">
+                      Amendment history ({amendments.length})
+                    </summary>
+                    <ol className="mt-2 space-y-2 text-sm">
+                      {amendments.map((amendment) => (
+                        <li key={amendment.id} className="border-l-2 border-primary/30 pl-3">
+                          <p className="font-medium">Revision {amendment.revision} · {fmt(amendment.changed_at)} · {amendment.changed_by_name}</p>
+                          <p className="text-muted-foreground">{amendment.reason}</p>
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                )}
                 <dl className="grid gap-3 rounded-md bg-muted/40 p-3 text-sm sm:grid-cols-2">
                   <Field label="Chief complaint" value={sheet.chief_complaint} />
                   <Field label="Clinical findings" value={sheet.findings} />

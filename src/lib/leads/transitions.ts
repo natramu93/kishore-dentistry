@@ -6,7 +6,7 @@ import type { LeadStatus } from "@/lib/database.types";
 export const ALLOWED_TRANSITIONS: Record<LeadStatus, LeadStatus[]> = {
   open: ["assigned", "dropped"],
   assigned: ["open", "appointment_booked", "dropped"],
-  appointment_booked: ["visited_treated", "missed", "assigned", "dropped"],
+  appointment_booked: ["appointment_booked", "visited_treated", "missed", "assigned", "dropped"],
   visited_treated: ["follow_up", "dropped"],
   follow_up: ["appointment_booked", "dropped"],
   missed: ["assigned", "dropped"],
@@ -51,7 +51,7 @@ export const transitionPayloadSchemas = {
   appointment_booked: z.object({
     scheduled_at: z.string().min(1).max(64),
     doctor_id: z.string().uuid().optional().or(z.literal("")),
-    duration_minutes: z.coerce.number().int().min(5).max(480).default(30),
+    duration_minutes: z.coerce.number().int().min(5).max(480).default(15),
     notes: z.string().trim().max(4_000).optional(),
   }),
   visited_treated: z.object({

@@ -12,7 +12,7 @@ import { runAction, type ActionResult } from "./util";
 const rescheduleSchema = z.object({
   scheduled_at: z.string().min(1, "Pick a date and time").max(64),
   doctor_id: optionalUuidSchema,
-  duration_minutes: z.coerce.number().int().min(5).max(480).default(30),
+  duration_minutes: z.coerce.number().int().min(5).max(480).default(15),
   notes: z.string().trim().max(4_000).optional(),
 });
 

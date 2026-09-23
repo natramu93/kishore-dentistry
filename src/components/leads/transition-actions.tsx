@@ -109,6 +109,7 @@ export function TransitionActions({
 
       {s === "appointment_booked" && (
         <>
+          <Button size="sm" onClick={() => setDialog("book")}>Book another appointment</Button>
           {(role === "admin" || role === "clinical_head") && activeAppointmentId && (
             <Button size="sm" asChild>
               <Link href={`/case-sheets/new?lead=${lead.id}&appointment=${activeAppointmentId}`}>
@@ -227,7 +228,7 @@ export function TransitionActions({
             </div>
             <div className="space-y-2">
               <Label htmlFor="duration_minutes">Duration (minutes)</Label>
-              <Input id="duration_minutes" name="duration_minutes" type="number" defaultValue={30} min={5} max={480} />
+              <Input id="duration_minutes" name="duration_minutes" type="number" defaultValue={15} min={5} max={480} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="notes">Notes</Label>

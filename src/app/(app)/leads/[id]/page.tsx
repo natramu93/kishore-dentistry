@@ -418,6 +418,13 @@ export default async function LeadDetailPage({
                 } | null | undefined;
                 const visitMedicalHistory = historyLink?.history ?? null;
                 const prescriptionItems = (sheet.prescription_items ?? []) as PrescriptionItem[];
+                const amendments = (sheet.amendments ?? []) as Array<{
+                  id: string;
+                  revision: number;
+                  reason: string;
+                  changed_by_name: string;
+                  changed_at: string;
+                }>;
                 const clinicalAttachments = (
                   (sheet.case_sheet_attachments ?? []) as ClinicalAttachmentView[]
                 ).filter((attachment) => attachment.status === "ready" && !attachment.treatment_id);
@@ -432,8 +439,30 @@ export default async function LeadDetailPage({
                           {doctor?.full_name ?? "Doctor not recorded"} · Digitally finalized {fmt(sheet.finalized_at)}
                         </p>
                       </div>
-                      <Badge variant="secondary">Finalized</Badge>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {canAuthorCaseSheet && (
+                          <Button asChild size="sm" variant="outline">
+                            <Link href={`/case-sheets/${sheet.id}/edit`}>Edit case sheet</Link>
+                          </Button>
+                        )}
+                        <Badge variant="secondary">Finalized · v{sheet.version ?? 1}</Badge>
+                      </div>
                     </div>
+                    {amendments.length > 0 && (
+                      <details className="mt-3 rounded-md border bg-muted/20 p-3">
+                        <summary className="cursor-pointer text-sm font-semibold">
+                          Amendment history ({amendments.length})
+                        </summary>
+                        <ol className="mt-2 space-y-2 text-sm">
+                          {amendments.map((amendment) => (
+                            <li key={amendment.id} className="border-l-2 border-primary/30 pl-3">
+                              <p className="font-medium">Revision {amendment.revision} · {fmt(amendment.changed_at)} · {amendment.changed_by_name}</p>
+                              <p className="text-muted-foreground">{amendment.reason}</p>
+                            </li>
+                          ))}
+                        </ol>
+                      </details>
+                    )}
                     {canViewClinicalNarrative && (
                       <>
                         <dl className="mt-3 grid gap-2 rounded-md bg-muted/40 p-3 text-sm sm:grid-cols-2">
@@ -618,16 +647,17 @@ export default async function LeadDetailPage({
             <CardContent className="space-y-4">
               {invoices.length === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  Raise one from a treatment record above.
+                  Raise one from a treatment record above, or create an ad-hoc consultation invoice.
                 </p>
               )}
               {invoices.map((inv) => (
                 <div key={inv.id} className="rounded-lg border p-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
                     <Link href={`/invoices/${inv.id}`} className="text-sm font-medium hover:underline">
                       {inv.invoice_number}
                     </Link>
                     <div className="flex flex-wrap items-center gap-2">
+                      {inv.invoice_kind === "consultation" && <Badge variant="outline">Consultation</Badge>}
                       <span className="text-sm font-semibold">{formatINR(inv.total)}</span>
                       <Badge variant={inv.status === "paid" ? "default" : "secondary"} className="capitalize">
                         {inv.status}

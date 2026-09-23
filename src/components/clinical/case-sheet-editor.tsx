@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState, useTransition } from "reac
 import { useRouter } from "next/navigation";
 import { Check, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { finalizeCaseSheetAction } from "@/actions/case-sheets";
+import { amendCaseSheetAction, finalizeCaseSheetAction } from "@/actions/case-sheets";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -40,6 +40,7 @@ import {
   type ToothAssessmentInput,
   type TreatmentSiteScope,
 } from "@/lib/clinical";
+import { toClinicInputValue } from "@/lib/tz";
 
 export type ClinicalDoctorOption = { id: string; label: string };
 
@@ -62,7 +63,28 @@ export type CaseSheetEditorProps = {
   treatmentCodes: TreatmentCodeOption[];
   canPrescribe?: boolean;
   initialMedicalHistory?: MedicalHistoryDraft;
+  initialValues?: CaseSheetEditorInitialValues;
+  caseSheetId?: string;
+  expectedVersion?: number;
   successHref?: string;
+};
+
+export type CaseSheetEditorInitialValues = {
+  doctorId: string;
+  visitAt: string;
+  chiefComplaint: string;
+  findings: string;
+  diagnosis: string;
+  plan: string;
+  medicalHistory: MedicalHistoryDraft;
+  prescriptions: PrescriptionItemDraft[];
+  toothAssessments: ToothAssessmentInput[];
+  treatments: Array<CaseSheetTreatmentInput & {
+    treatment_id: string;
+    treatment_name: string;
+    locked: boolean;
+    hasAttachments: boolean;
+  }>;
 };
 
 type EditableTreatment = CaseSheetTreatmentInput & {
@@ -70,6 +92,8 @@ type EditableTreatment = CaseSheetTreatmentInput & {
   codeSearch: string;
   codePickerOpen: boolean;
   dentition: "permanent" | "primary";
+  locked: boolean;
+  hasAttachments: boolean;
 };
 
 type FieldErrors = Record<string, string>;
@@ -117,6 +141,8 @@ function blankTreatment(rowKey: string): EditableTreatment {
     tooth_numbers: [],
     surfaces: [],
     notes: "",
+    locked: false,
+    hasAttachments: false,
   };
 }
 
@@ -134,27 +160,39 @@ export function CaseSheetEditor({
   treatmentCodes,
   canPrescribe = false,
   initialMedicalHistory,
+  initialValues,
+  caseSheetId,
+  expectedVersion,
   successHref,
 }: CaseSheetEditorProps) {
   const router = useRouter();
   const idPrefix = useId();
-  const nextRowKey = useRef(1);
+  const nextRowKey = useRef((initialValues?.treatments.length ?? 0) + 1);
   const errorSummaryRef = useRef<HTMLDivElement>(null);
   const [pending, startTransition] = useTransition();
   const [dirty, setDirty] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
-  const [doctorId, setDoctorId] = useState(() => doctors.length === 1 ? doctors[0]!.id : "");
-  const [visitAt] = useState(localDateTimeNow);
-  const [chiefComplaint, setChiefComplaint] = useState("");
-  const [findings, setFindings] = useState("");
-  const [diagnosis, setDiagnosis] = useState("");
-  const [plan, setPlan] = useState("");
+  const [doctorId, setDoctorId] = useState(() => initialValues?.doctorId ?? (doctors.length === 1 ? doctors[0]!.id : ""));
+  const [visitAt] = useState(() => initialValues ? toClinicInputValue(initialValues.visitAt) : localDateTimeNow());
+  const [chiefComplaint, setChiefComplaint] = useState(initialValues?.chiefComplaint ?? "");
+  const [findings, setFindings] = useState(initialValues?.findings ?? "");
+  const [diagnosis, setDiagnosis] = useState(initialValues?.diagnosis ?? "");
+  const [plan, setPlan] = useState(initialValues?.plan ?? "");
   const [medicalHistory, setMedicalHistory] = useState<MedicalHistoryDraft>(() => (
-    createMedicalHistoryDraft(initialMedicalHistory)
+    createMedicalHistoryDraft(initialValues?.medicalHistory ?? initialMedicalHistory)
   ));
-  const [prescriptions, setPrescriptions] = useState<PrescriptionItemDraft[]>([]);
-  const [toothAssessments, setToothAssessments] = useState<ToothAssessmentInput[]>([]);
-  const [treatments, setTreatments] = useState<EditableTreatment[]>([]);
+  const [prescriptions, setPrescriptions] = useState<PrescriptionItemDraft[]>(initialValues?.prescriptions ?? []);
+  const [toothAssessments, setToothAssessments] = useState<ToothAssessmentInput[]>(initialValues?.toothAssessments ?? []);
+  const [amendmentReason, setAmendmentReason] = useState("");
+  const [treatments, setTreatments] = useState<EditableTreatment[]>(() => (
+    initialValues?.treatments.map((treatment, index) => ({
+      ...treatment,
+      rowKey: `treatment-${index + 1}`,
+      codeSearch: `${treatment.treatment_code} — ${treatment.treatment_name}`,
+      codePickerOpen: false,
+      dentition: treatment.tooth_numbers.some(isPrimaryIndianTooth) ? "primary" : "permanent",
+    })) ?? []
+  ));
 
   const searchableTreatmentCodes = useMemo(
     () => treatmentCodes.map((treatment) => ({
@@ -225,6 +263,7 @@ export function CaseSheetEditor({
       prescriptions,
       tooth_assessments: toothAssessments,
       treatments: treatments.map(({
+        treatment_id,
         treatment_code,
         status,
         site_scope,
@@ -234,6 +273,7 @@ export function CaseSheetEditor({
         surfaces,
         notes,
       }) => ({
+        ...(treatment_id ? { treatment_id } : {}),
         treatment_code,
         status,
         site_scope,
@@ -257,11 +297,14 @@ export function CaseSheetEditor({
         if (!nextErrors[key]) nextErrors[key] = issue.message;
       }
     }
-    payload.treatments.forEach((treatment, index) => {
-      if (treatment.treatment_code && !treatmentCodeSet.has(treatment.treatment_code)) {
+    treatments.forEach((treatment, index) => {
+      if (treatment.treatment_code && !treatment.locked && !treatment.treatment_id && !treatmentCodeSet.has(treatment.treatment_code)) {
         nextErrors[`treatments.${index}.treatment_code`] = "Select a treatment from the approved code list";
       }
     });
+    if (caseSheetId && amendmentReason.trim().length < 5) {
+      nextErrors.amendment_reason = "Enter why this case sheet is being amended (at least 5 characters)";
+    }
 
     if (!parsed.success || Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
@@ -271,10 +314,17 @@ export function CaseSheetEditor({
 
     setErrors({});
     startTransition(async () => {
-      const result = await finalizeCaseSheetAction(parsed.data);
+      const result = caseSheetId && expectedVersion
+        ? await amendCaseSheetAction({
+            ...parsed.data,
+            case_sheet_id: caseSheetId,
+            expected_version: expectedVersion,
+            amendment_reason: amendmentReason,
+          })
+        : await finalizeCaseSheetAction(parsed.data);
       if (result.ok) {
         setDirty(false);
-        toast.success("Case sheet finalized");
+        toast.success(caseSheetId ? "Case sheet amendment saved" : "Case sheet finalized");
         if (successHref) router.push(successHref);
         else router.refresh();
       } else {
@@ -290,9 +340,11 @@ export function CaseSheetEditor({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Digital dental case sheet</CardTitle>
+        <CardTitle>{caseSheetId ? "Amend digital dental case sheet" : "Digital dental case sheet"}</CardTitle>
         <CardDescription>
-          Record the whole-mouth examination first. Treatments are optional, but every planned or completed procedure must use an approved code.
+          {caseSheetId
+            ? "This visit is closed. Amendments keep the original visit time and store a before-and-after audit record. Treatments already linked to invoices or files remain protected."
+            : "Record the whole-mouth examination first. Treatments are optional, but every planned or completed procedure must use an approved code."}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -328,7 +380,7 @@ export function CaseSheetEditor({
                   id={`${idPrefix}-doctor`}
                   value={doctorId}
                   required
-                  disabled={doctorLocked}
+                  disabled={doctorLocked || Boolean(caseSheetId)}
                   aria-invalid={Boolean(errors.doctor_id)}
                   onChange={(event) => { setDirty(true); setDoctorId(event.target.value); }}
                   className="h-11 w-full rounded-lg border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive md:text-sm"
@@ -336,13 +388,13 @@ export function CaseSheetEditor({
                   <option value="">Select doctor…</option>
                   {doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.label}</option>)}
                 </select>
-                {doctorLocked && (
+                {(doctorLocked || caseSheetId) && (
                   <p className="text-xs text-muted-foreground">
-                    The treating doctor is fixed by this appointment.
+                    The treating doctor is fixed for this visit.
                   </p>
                 )}
               </Field>
-              <Field label="Visit date and time (captured on save)" htmlFor={`${idPrefix}-visit-at`} error={errors.visit_at}>
+              <Field label={caseSheetId ? "Original visit date and time" : "Visit date and time (captured on save)"} htmlFor={`${idPrefix}-visit-at`} error={errors.visit_at}>
                 <Input
                   id={`${idPrefix}-visit-at`}
                   type="datetime-local"
@@ -353,7 +405,9 @@ export function CaseSheetEditor({
                   aria-invalid={Boolean(errors.visit_at)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  The server records the entry time when this case sheet is finalized; it does not change or need to match the appointment schedule.
+                  {caseSheetId
+                    ? "The original patient visit time is preserved; this amendment records its own separate audit time."
+                    : "The server records the entry time when this case sheet is finalized; it does not change or need to match the appointment schedule."}
                 </p>
               </Field>
             </div>
@@ -414,6 +468,21 @@ export function CaseSheetEditor({
             }}
           />
 
+          {caseSheetId && (
+            <Field label="Reason for amendment" htmlFor={`${idPrefix}-amendment-reason`} error={errors.amendment_reason}>
+              <Textarea
+                id={`${idPrefix}-amendment-reason`}
+                rows={2}
+                maxLength={1000}
+                required
+                value={amendmentReason}
+                aria-invalid={Boolean(errors.amendment_reason)}
+                onChange={(event) => { setDirty(true); setAmendmentReason(event.target.value); }}
+                placeholder="Explain what needs correcting or updating"
+              />
+            </Field>
+          )}
+
           <OdontogramEditor
             value={toothAssessments}
             errors={errors}
@@ -449,7 +518,7 @@ export function CaseSheetEditor({
                   treatment={treatment}
                   treatmentCodes={searchableTreatmentCodes}
                   errors={errors}
-                  canRemove
+                  canRemove={!treatment.locked && !treatment.hasAttachments}
                   onChange={(patch) => changeTreatment(treatment.rowKey, patch)}
                   onRemove={() => removeTreatment(treatment.rowKey)}
                 />
@@ -480,11 +549,11 @@ export function CaseSheetEditor({
           )}
 
           <div className="flex flex-col-reverse gap-2 border-t pt-5 sm:flex-row sm:justify-end">
-            <Button type="submit" disabled={pending || (treatments.length > 0 && treatmentCodes.length === 0)} className="sm:min-w-44">
-              {pending ? "Finalizing…" : "Finalize case sheet"}
+            <Button type="submit" disabled={pending || (treatments.some((treatment) => !treatment.locked) && treatmentCodes.length === 0)} className="sm:min-w-44">
+              {pending ? (caseSheetId ? "Saving amendment…" : "Finalizing…") : (caseSheetId ? "Save case-sheet amendment" : "Finalize case sheet")}
             </Button>
           </div>
-          {treatmentCodes.length === 0 && treatments.length > 0 && (
+          {treatmentCodes.length === 0 && treatments.some((treatment) => !treatment.locked) && (
             <p role="alert" className="text-sm text-destructive">
               The approved treatment-code list is unavailable. This case sheet cannot be finalized.
             </p>
@@ -544,8 +613,18 @@ function TreatmentRow({
   }
 
   return (
-    <fieldset className="rounded-xl border bg-muted/15 p-3 sm:p-4">
+    <fieldset disabled={treatment.locked} className="rounded-xl border bg-muted/15 p-3 sm:p-4 disabled:opacity-75">
       <legend className="px-1 text-sm font-semibold">Treatment {index + 1}</legend>
+      {treatment.locked && (
+        <p className="mb-3 text-xs text-muted-foreground">
+          This treatment is locked because it is linked to an invoice.
+        </p>
+      )}
+      {!treatment.locked && treatment.hasAttachments && (
+        <p className="mb-3 text-xs text-muted-foreground">
+          This treatment has linked files. Its code and tooth/site are protected, but its status can still be updated.
+        </p>
+      )}
       <div className="space-y-5">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_160px_48px]">
           <Field label="Approved dental code" htmlFor={`${idPrefix}-code`} error={error("treatment_code")}>
@@ -561,6 +640,7 @@ function TreatmentRow({
                 aria-invalid={Boolean(error("treatment_code"))}
                 autoComplete="off"
                 className="pl-9"
+                disabled={treatment.hasAttachments}
                 value={treatment.codeSearch}
                 placeholder="Search ICD-10 diagnosis or clinic treatment code"
                 onFocus={() => {
@@ -680,6 +760,7 @@ function TreatmentRow({
             <select
               id={`${idPrefix}-scope`}
               value={treatment.site_scope}
+              disabled={treatment.hasAttachments}
               onChange={(event) => changeScope(event.target.value as TreatmentSiteScope)}
               className="h-11 w-full rounded-lg border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
             >
@@ -693,6 +774,7 @@ function TreatmentRow({
             <select
               id={`${idPrefix}-site-detail`}
               value={treatment.site_detail ?? ""}
+              disabled={treatment.hasAttachments}
               aria-invalid={Boolean(error("site_detail"))}
               onChange={(event) => onChange({ site_detail: event.target.value || null })}
               className="h-11 w-full rounded-lg border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive md:max-w-sm md:text-sm"
@@ -710,6 +792,7 @@ function TreatmentRow({
             toothError={error(treatment.site_scope === "multi_tooth" ? "tooth_numbers" : "tooth_number")}
             surfaceError={error("surfaces")}
             onChange={onChange}
+            disabled={treatment.hasAttachments}
           />
         )}
 
@@ -735,12 +818,14 @@ function ToothSiteEditor({
   toothError,
   surfaceError,
   onChange,
+  disabled = false,
 }: {
   treatment: EditableTreatment;
   multi: boolean;
   toothError?: string;
   surfaceError?: string;
   onChange: (patch: Partial<EditableTreatment>) => void;
+  disabled?: boolean;
 }) {
   const teeth = treatment.dentition === "permanent" ? INDIAN_PERMANENT_TEETH : INDIAN_PRIMARY_TEETH;
   const half = teeth.length / 2;
@@ -771,7 +856,7 @@ function ToothSiteEditor({
 
   return (
     <div className="space-y-4 rounded-lg border bg-background p-3">
-      <fieldset aria-invalid={Boolean(toothError)} className="space-y-3">
+      <fieldset disabled={disabled} aria-invalid={Boolean(toothError)} className="space-y-3">
         <legend className="text-sm font-medium">
           {multi ? "Select teeth — Indian Standard IS 8815" : "Tooth number — Indian Standard IS 8815"}
         </legend>
@@ -838,7 +923,7 @@ function ToothSiteEditor({
         {toothError && <FieldError message={toothError} />}
       </fieldset>
 
-      <fieldset className="space-y-2">
+      <fieldset disabled={disabled} className="space-y-2">
         <legend className="text-sm font-medium">Tooth surfaces <span className="font-normal text-muted-foreground">(optional)</span></legend>
         <div className="flex flex-wrap gap-2">
           {DENTAL_SURFACES.map((surface) => {

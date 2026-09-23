@@ -22,7 +22,7 @@ export default async function InvoicePrintPage({
   const ctx = await getAuthContext();
   const invoice = await getInvoice(ctx, id);
   if (!invoice) notFound();
-  if (!invoice.code_enforced) notFound();
+  if (!invoice.code_enforced && invoice.invoice_kind !== "consultation") notFound();
 
   const isTirupur = invoice.branch?.code === TIRUPUR_CLINIC.branchCode;
   const issuerName =

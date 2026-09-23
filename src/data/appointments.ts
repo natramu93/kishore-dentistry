@@ -30,7 +30,7 @@ export type AppointmentWithRefs = Appointment & {
   lead: {
     id: string;
     name: string;
-    mobile: string;
+    mobile?: string;
     status: string;
     assignee_id: string | null;
   } | null;
@@ -56,10 +56,13 @@ export async function listAppointments(
   pageSize: number;
 }> {
   const { page, pageSize } = normalizePagination(opts.page, opts.pageSize);
+  const leadProjection = ctx.role === "doctor"
+    ? "id, name, status, assignee_id"
+    : "id, name, mobile, status, assignee_id";
   let query = db
     .from("appointments")
     .select(
-      "*, lead:leads!inner(id, name, mobile, status, assignee_id), doctor:doctors(full_name), branch:branches(name, code)",
+      `*, lead:leads!inner(${leadProjection}), doctor:doctors(full_name), branch:branches(name, code)`,
       { count: "exact" }
     )
     .order("scheduled_at");

@@ -88,6 +88,17 @@ const invoiceUpdateSchema = invoiceDetailsSchema
     expected_version: z.coerce.number().int().positive(),
   })
   .superRefine(validateInvoiceTotal);
+const consultationInvoiceSchema = z.object({
+  lead_id: uuidSchema,
+  amount: z.coerce
+    .number()
+    .finite()
+    .positive()
+    .max(MAX_UNIT_PRICE)
+    .refine(hasAtMostTwoDecimals, "Consultation amount supports at most two decimals")
+    .default(200),
+  notes: z.string().trim().max(4_000).optional(),
+});
 
 async function invoiceMutationLimit(userId: string): Promise<void> {
   await assertActionRateLimit(userId, "invoice:mutation", {
@@ -111,6 +122,27 @@ export async function createInvoiceAction(
       tax_rate: parsed.data.tax_rate,
       notes: parsed.data.notes || null,
       items: parsed.data.items,
+    });
+    revalidatePath(`/leads/${parsed.data.lead_id}`);
+    revalidatePath("/invoices");
+    return { id: invoice.id };
+  });
+}
+
+export async function createConsultationInvoiceAction(
+  input: unknown
+): Promise<ActionResult & { id?: string }> {
+  const ctx = await getAuthContext();
+  const parsed = consultationInvoiceSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid consultation invoice" };
+  }
+  return runActionWithValue(async () => {
+    await invoiceMutationLimit(ctx.userId);
+    const invoice = await invoices.createConsultationInvoice(ctx, {
+      lead_id: parsed.data.lead_id,
+      amount: parsed.data.amount,
+      notes: parsed.data.notes || null,
     });
     revalidatePath(`/leads/${parsed.data.lead_id}`);
     revalidatePath("/invoices");
@@ -196,6 +228,12 @@ export async function deleteInvoiceAction(
 
 export async function createInvoiceAndRedirect(input: unknown) {
   const result = await createInvoiceAction(input);
+  if (result.ok && result.id) redirect(`/invoices/${result.id}`);
+  return result;
+}
+
+export async function createConsultationInvoiceAndRedirect(input: unknown) {
+  const result = await createConsultationInvoiceAction(input);
   if (result.ok && result.id) redirect(`/invoices/${result.id}`);
   return result;
 }

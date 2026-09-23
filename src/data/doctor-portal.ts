@@ -16,7 +16,7 @@ import { isTreatmentAttachmentSchemaUnavailable } from "@/lib/clinical-files";
 import type { ToothAssessment, Treatment } from "@/lib/database.types";
 
 export type DoctorTreatmentRecord = Treatment & {
-  lead: { id: string; name: string; mobile: string } | null;
+  lead: { id: string; name: string } | null;
   treatment_type: { name: string; category: string | null } | null;
   branch: { name: string } | null;
 };
@@ -35,7 +35,7 @@ export type DoctorCaseSheetRecord = {
   lead_id: string;
   visit_at: string;
   finalized_at: string;
-  lead: { id: string; name: string; mobile: string } | null;
+  lead: { id: string; name: string } | null;
   branch: { name: string } | null;
   tooth_assessments: Array<{ id: string }>;
   treatments: Array<{ id: string }>;
@@ -127,7 +127,7 @@ async function loadDoctorClinicalAttachments(
 
 /**
  * The doctor portal's patient-record list: treatments THIS doctor performed,
- * with the patient's name/mobile and the treatment type. Never exposes other
+ * with the patient's name and the treatment type. Never exposes other
  * doctors' work — the doctor_id equality is applied unconditionally.
  */
 export async function listMyTreatments(
@@ -145,7 +145,7 @@ export async function listMyTreatments(
   let query = db
     .from("treatments")
     .select(
-      "*, lead:leads!inner(id, name, mobile), treatment_type:treatment_types(name, category), branch:branches(name)",
+      "*, lead:leads!inner(id, name), treatment_type:treatment_types(name, category), branch:branches(name)",
       { count: "exact" }
     )
     .eq("doctor_id", doctorId)
@@ -167,7 +167,7 @@ export async function listMyTreatments(
   }
   const search = normalizeSearch(filters.search);
   if (search) {
-    query = query.or(`name.ilike.%${search}%,mobile.ilike.%${search}%`, {
+    query = query.or(`name.ilike.%${search}%`, {
       referencedTable: "lead",
     });
   }
@@ -199,7 +199,7 @@ export async function listMyCaseSheets(
   let query = db
     .from("case_sheets")
     .select(
-      "id, lead_id, visit_at, finalized_at, lead:leads!inner(id, name, mobile), branch:branches(name), tooth_assessments(id), treatments(id)",
+      "id, lead_id, visit_at, finalized_at, lead:leads!inner(id, name), branch:branches(name), tooth_assessments(id), treatments(id)",
       { count: "exact" }
     )
     .eq("doctor_id", doctorId)
@@ -211,7 +211,7 @@ export async function listMyCaseSheets(
   if (filters.to) query = query.lt("visit_at", assertIsoDateTime(filters.to, "End date"));
   const search = normalizeSearch(filters.search);
   if (search) {
-    query = query.or(`name.ilike.%${search}%,mobile.ilike.%${search}%`, {
+    query = query.or(`name.ilike.%${search}%`, {
       referencedTable: "lead",
     });
   }
@@ -292,7 +292,7 @@ export async function getMyPatientHistory(
   const from = (page - 1) * pageSize;
   const sheetsQuery = db
     .from("case_sheets")
-    .select("*, doctor:doctors(full_name), tooth_assessments(*), treatments(*), medical_history:case_sheet_medical_history(*, history:patient_medical_history_versions(*)), prescription_items(*)", { count: "exact" })
+    .select("*, doctor:doctors(full_name), tooth_assessments(*), treatments(*), medical_history:case_sheet_medical_history(*, history:patient_medical_history_versions(*)), prescription_items(*), amendments:case_sheet_amendments(id, revision, reason, changed_by, changed_by_name, changed_at)", { count: "exact" })
     .eq("lead_id", leadId)
     .eq("branch_id", relationship.branch_id)
     .order("visit_at", { ascending: false })
@@ -301,7 +301,7 @@ export async function getMyPatientHistory(
   const results = await Promise.all([
     db
       .from("leads")
-      .select("id, name, mobile, email, dob, age, branch_id, branch:branches(name)")
+      .select("id, name, email, dob, age, branch_id, branch:branches(name)")
       .eq("id", leadId)
       .eq("branch_id", relationship.branch_id)
       .is("deleted_at", null)

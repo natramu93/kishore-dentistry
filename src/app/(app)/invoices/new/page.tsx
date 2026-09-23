@@ -3,6 +3,7 @@ import { getAuthContext } from "@/lib/auth/context";
 import { getLeadRelated } from "@/data/leads";
 import { listInvoiceEligibleTreatments } from "@/data/invoices";
 import { InvoiceEditor } from "@/components/invoices/invoice-editor";
+import { ConsultationInvoiceForm } from "@/components/invoices/consultation-invoice-form";
 import { Card, CardContent } from "@/components/ui/card";
 
 export const metadata = { title: "New Invoice — Dr. Kishor's Dentistry CRM" };
@@ -48,14 +49,15 @@ export default async function NewInvoicePage({
       {eligibleTreatments.length === 0 && (
         <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20">
           <CardContent className="pt-6 text-sm">
-            <p className="font-medium">Invoice generation is locked</p>
+            <p className="font-medium">Coded treatment invoice is unavailable</p>
             <p className="mt-1 text-muted-foreground">
               This patient has no finalized, completed, coded treatment that remains uninvoiced.
-              Record the treatment in a digital case sheet first.
+              Record the treatment in a digital case sheet first, or use the consultation invoice above.
             </p>
           </CardContent>
         </Card>
       )}
+      <ConsultationInvoiceForm leadId={lead.id} />
       <InvoiceEditor
         mode="create"
         leadId={lead.id}

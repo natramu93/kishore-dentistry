@@ -348,6 +348,40 @@ export async function createInvoice(
   return invoiceResult.data;
 }
 
+export async function createConsultationInvoice(
+  ctx: AuthContext,
+  input: { lead_id: string; amount: number; notes?: string | null }
+): Promise<Invoice> {
+  requireAnyRole(ctx, INVOICE_ROLES, "Invoices access required");
+  const leadId = assertUuid(input.lead_id, "Lead");
+  if (!Number.isFinite(input.amount) || input.amount <= 0 || input.amount > MAX_UNIT_PRICE) {
+    throw new ValidationError("Consultation amount must be greater than zero");
+  }
+  if (!hasAtMostTwoDecimals(input.amount)) {
+    throw new ValidationError("Consultation amount supports at most two decimals");
+  }
+  if (input.notes && input.notes.length > 4_000) {
+    throw new ValidationError("Invoice notes are too long");
+  }
+  const leadResult = await db
+    .from("leads")
+    .select("branch_id, assignee_id")
+    .eq("id", leadId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (leadResult.error) throw leadResult.error;
+  if (!leadResult.data) throw new NotFoundError("Lead");
+  assertInvoiceWriteAccess(ctx, leadResult.data);
+  const result = await db.rpc("create_consultation_invoice", {
+    p_lead_id: leadId,
+    p_amount: roundCurrency(input.amount),
+    p_notes: input.notes?.trim() || null,
+    p_actor: ctx.userId,
+  });
+  if (result.error) throwMappedDatabaseError(result.error, "Invoice");
+  return result.data;
+}
+
 const ALLOWED_INVOICE_TRANSITIONS: Record<InvoiceStatus, readonly InvoiceStatus[]> = {
   draft: ["sent", "paid"],
   sent: ["paid"],
@@ -368,7 +402,7 @@ export async function updateInvoiceStatus(
     branch_id: invoice.branch_id,
     assignee_id: invoice.lead?.assignee_id ?? null,
   });
-  if (!invoice.code_enforced) {
+  if (!invoice.code_enforced && invoice.invoice_kind !== "consultation") {
     throw new ConflictError(
       "Legacy uncoded invoices cannot be issued or marked paid. Create a coded invoice from a finalized case sheet."
     );
@@ -412,7 +446,7 @@ export async function updateInvoice(
   if (invoice.status === "paid") {
     throw new ConflictError("A paid invoice cannot be edited");
   }
-  if (!invoice.code_enforced) {
+  if (!invoice.code_enforced && invoice.invoice_kind !== "consultation") {
     throw new ConflictError(
       "Legacy invoices cannot be edited. Create a new invoice from finalized coded treatments."
     );

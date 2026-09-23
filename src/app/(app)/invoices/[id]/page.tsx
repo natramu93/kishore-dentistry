@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { fmtDate, formatINR } from "@/lib/tz";
 import { InvoiceActions } from "./status-buttons";
+import { WhatsAppInvoiceShare } from "@/components/invoices/whatsapp-invoice-share";
 import { Printer } from "lucide-react";
 
 const getInvoicePageData = cache(async (id: string) => {
@@ -52,8 +53,12 @@ export default async function InvoiceDetailPage({
             <Badge variant={invoice.status === "paid" ? "default" : "secondary"} className="capitalize">
               {invoice.status}
             </Badge>
-            <Badge variant={invoice.code_enforced ? "outline" : "destructive"}>
-              {invoice.code_enforced ? "Case-sheet coded" : "Legacy uncoded"}
+            <Badge variant={invoice.code_enforced || invoice.invoice_kind === "consultation" ? "outline" : "destructive"}>
+              {invoice.code_enforced
+                ? "Case-sheet coded"
+                : invoice.invoice_kind === "consultation"
+                  ? "Consultation"
+                  : "Legacy uncoded"}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
@@ -66,14 +71,22 @@ export default async function InvoiceDetailPage({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {invoice.code_enforced && (
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/invoices/${invoice.id}/print`} target="_blank" rel="noreferrer">
-                <Printer className="h-4 w-4 mr-1" />
-                Print / PDF
-                <span className="sr-only"> (opens in a new tab)</span>
-              </Link>
-            </Button>
+          {(invoice.code_enforced || invoice.invoice_kind === "consultation") && (
+            <>
+              <WhatsAppInvoiceShare
+                invoiceId={invoice.id}
+                invoiceNumber={invoice.invoice_number}
+                patientName={invoice.lead?.name ?? null}
+                patientMobile={invoice.lead?.mobile ?? null}
+              />
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/invoices/${invoice.id}/print`} target="_blank" rel="noreferrer">
+                  <Printer className="h-4 w-4 mr-1" />
+                  Print / PDF
+                  <span className="sr-only"> (opens in a new tab)</span>
+                </Link>
+              </Button>
+            </>
           )}
           <InvoiceActions
             invoiceId={invoice.id}
@@ -81,13 +94,14 @@ export default async function InvoiceDetailPage({
             role={ctx.role}
             version={invoice.version}
             codeEnforced={invoice.code_enforced}
+            consultation={invoice.invoice_kind === "consultation"}
           />
         </div>
       </div>
 
       <Card>
         <CardContent className="pt-6">
-          {!invoice.code_enforced && (
+          {!invoice.code_enforced && invoice.invoice_kind !== "consultation" && (
             <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:bg-amber-950/20 dark:text-amber-100">
               This historical invoice predates coded digital case sheets. It remains readable,
               but editing, sending, payment changes, and print generation are locked.

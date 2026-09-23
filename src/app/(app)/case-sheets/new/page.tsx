@@ -45,7 +45,7 @@ export default async function NewCaseSheetPage({
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Digital case sheet</h1>
         <p className="text-sm text-muted-foreground">
-          {scope.lead.name} · {scope.lead.mobile} · {scope.lead.branch?.name}
+          {scope.lead.name} · {scope.lead.branch?.name}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
           Use the Indian Standard tooth chart for general findings and future planning. Any

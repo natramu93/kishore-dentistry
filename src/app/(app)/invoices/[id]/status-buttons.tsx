@@ -26,12 +26,14 @@ export function InvoiceActions({
   role,
   version,
   codeEnforced,
+  consultation,
 }: {
   invoiceId: string;
   status: InvoiceStatus;
   role: UserRole;
   version: number;
   codeEnforced: boolean;
+  consultation: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -73,12 +75,12 @@ export function InvoiceActions({
           </Link>
         </Button>
       )}
-      {codeEnforced && status === "draft" && (
+      {(codeEnforced || consultation) && status === "draft" && (
         <Button size="sm" disabled={pending} onClick={() => setStatus("sent")}>
           Mark sent
         </Button>
       )}
-      {codeEnforced && status !== "paid" && (
+      {(codeEnforced || consultation) && status !== "paid" && (
         <AlertDialog open={paidOpen} onOpenChange={setPaidOpen}>
           <AlertDialogTrigger
             render={

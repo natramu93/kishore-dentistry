@@ -245,6 +245,20 @@ export type CaseSheet = Timestamps & {
   finalized_at: string;
   signed_by: string;
   created_by: string;
+  version: number;
+  updated_at: string;
+};
+
+export type CaseSheetAmendment = {
+  id: string;
+  case_sheet_id: string;
+  revision: number;
+  reason: string;
+  changed_by: string;
+  changed_by_name: string;
+  changed_at: string;
+  old_data: Json;
+  new_data: Json;
 };
 
 export type ToothAssessment = Timestamps & {
@@ -368,6 +382,7 @@ export type Invoice = Timestamps & {
   delete_reason: string | null;
   version: number;
   code_enforced: boolean;
+  invoice_kind: "clinical" | "consultation";
 };
 
 export type InvoiceItem = Timestamps & {
@@ -642,7 +657,7 @@ export type Database = {
         | "finalized_at"
         | "signed_by"
         | "created_by",
-        "id" | "created_at",
+        "id" | "created_at" | "version" | "updated_at",
         [
           FK<"case_sheets_lead_id_fkey", "lead_id", "leads">,
           FK<"case_sheets_branch_id_fkey", "branch_id", "branches">,
@@ -690,6 +705,18 @@ export type Database = {
           FK<"call_log_status_events_call_log_id_fkey", "call_log_id", "call_logs">,
           FK<"call_log_status_events_webhook_event_id_fkey", "webhook_event_id", "webhook_events">
         ]
+      >;
+      case_sheet_amendments: TableDef<
+        CaseSheetAmendment,
+        | "case_sheet_id"
+        | "revision"
+        | "reason"
+        | "changed_by"
+        | "changed_by_name"
+        | "old_data"
+        | "new_data",
+        "id" | "changed_at",
+        [FK<"case_sheet_amendments_case_sheet_id_fkey", "case_sheet_id", "case_sheets">]
       >;
       external_appointments: TableDef<
         ExternalAppointment,
@@ -851,6 +878,7 @@ export type Database = {
         | "deleted_at"
         | "deleted_by"
         | "delete_reason"
+        | "invoice_kind"
         | "version",
         [
           FK<"invoices_lead_id_fkey", "lead_id", "leads">,
@@ -943,6 +971,26 @@ export type Database = {
         };
         Returns: CaseSheet;
       };
+      amend_clinical_visit: {
+        Args: {
+          p_case_sheet_id: string;
+          p_expected_version: number;
+          p_reason: string;
+          p_chief_complaint: string | null;
+          p_findings: string | null;
+          p_diagnosis: string | null;
+          p_plan: string | null;
+          p_medical_history_review_status: Exclude<MedicalHistoryReviewStatus, "not_reviewed">;
+          p_medical_history_confirmed: boolean;
+          p_medical_history_conditions: MedicalHistoryCondition[];
+          p_medical_history_description: string | null;
+          p_tooth_assessments: Json;
+          p_treatments: Json;
+          p_prescriptions: Json;
+          p_actor: string;
+        };
+        Returns: CaseSheet;
+      };
       create_invoice: {
         Args: {
           p_lead_id: string;
@@ -950,6 +998,15 @@ export type Database = {
           p_tax_rate: number;
           p_notes: string | null;
           p_items: Json;
+          p_actor: string;
+        };
+        Returns: Invoice;
+      };
+      create_consultation_invoice: {
+        Args: {
+          p_lead_id: string;
+          p_amount: number;
+          p_notes: string | null;
           p_actor: string;
         };
         Returns: Invoice;

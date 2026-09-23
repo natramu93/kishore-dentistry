@@ -287,6 +287,7 @@ export const treatmentSiteSchema = z.object({
 });
 
 export const caseSheetTreatmentSchema = z.object({
+  treatment_id: z.string().uuid("Treatment reference is invalid").nullable().optional(),
   treatment_code: z.string().trim().regex(dentalCodePattern, "Select a valid dental code"),
   status: z.enum(["planned", "completed"]),
   site_scope: z.enum(TREATMENT_SITE_SCOPES),
