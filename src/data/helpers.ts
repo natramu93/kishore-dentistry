@@ -22,6 +22,10 @@ export function throwMappedDatabaseError(
     typeof error === "object" && error !== null && "code" in error
       ? String(error.code)
       : "";
+  const databaseMessage =
+    typeof error === "object" && error !== null && "message" in error
+      ? String(error.message)
+      : "";
   if (code === "40001") {
     throw new ConflictError(`${resource} changed in another request. Refresh and try again.`);
   }
@@ -31,6 +35,36 @@ export function throwMappedDatabaseError(
   if (code === "P0002") throw new NotFoundError(resource);
   if (code === "42501") throw new AuthorizationError();
   if (code === "23514" || code === "22023" || code === "55000") {
+    if (resource === "Case sheet") {
+      if (/lead must have a booked appointment/i.test(databaseMessage)) {
+        throw new ConflictError(
+          "This patient no longer has an active booked appointment. Refresh the lead and open the current appointment before saving the case sheet."
+        );
+      }
+      if (/case sheet requires this patient.?s scheduled appointment/i.test(databaseMessage)) {
+        throw new ConflictError(
+          "The selected appointment is no longer scheduled. Refresh the lead and open a current scheduled appointment before saving."
+        );
+      }
+      if (/treatment status, scope, quantity, or cost is invalid|multi-tooth treatments require/i.test(databaseMessage)) {
+        throw new ConflictError(
+          "Review the treatment code, status, and tooth selection. A completed case sheet can only contain valid coded treatment details."
+        );
+      }
+      if (/medical history details are invalid|medical history must be reviewed/i.test(databaseMessage)) {
+        throw new ConflictError(
+          "Review the Medical History section and confirm the patient’s conditions before saving the case sheet."
+        );
+      }
+      if (/prescription line/i.test(databaseMessage)) {
+        throw new ConflictError(
+          "Review the prescription details. Each medicine needs a dose timing and valid duration before the case sheet can be saved."
+        );
+      }
+      throw new ConflictError(
+        "This case sheet could not be saved because the appointment or clinical record changed. Refresh the lead and try again."
+      );
+    }
     throw new ConflictError(`${resource} cannot be changed in its current state`);
   }
   throw error;

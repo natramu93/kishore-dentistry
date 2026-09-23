@@ -311,7 +311,9 @@ export function CaseSheetEditor({
               tabIndex={-1}
               className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
-              <p className="font-medium text-destructive">Review the highlighted case-sheet details.</p>
+              <p className="font-medium text-destructive">
+                {errors.form ? "Unable to save this case sheet." : "Review the highlighted case-sheet details."}
+              </p>
               <ul className="mt-1 list-disc space-y-0.5 pl-5 text-muted-foreground">
                 {errorMessages.map((message) => <li key={message}>{message}</li>)}
               </ul>
