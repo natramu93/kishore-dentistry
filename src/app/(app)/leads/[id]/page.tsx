@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CommentThread } from "@/components/comment-thread";
+import { ConsultationInvoiceForm } from "@/components/invoices/consultation-invoice-form";
 import { PaginationNav } from "@/components/pagination-nav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -645,6 +646,7 @@ export default async function LeadDetailPage({
               <CardTitle className="text-base">Invoices</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <ConsultationInvoiceForm leadId={lead.id} />
               {invoices.length === 0 && (
                 <p className="text-sm text-muted-foreground">
                   Raise one from a treatment record above, or create an ad-hoc consultation invoice.
