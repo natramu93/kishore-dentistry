@@ -35,6 +35,7 @@ declare
   v_unallocated constant uuid := '90000000-0000-0000-0000-000000000003';
   v_doctor constant uuid := '90000000-0000-0000-0000-000000000004';
   v_inactive constant uuid := '90000000-0000-0000-0000-000000000005';
+  v_front_office constant uuid := '90000000-0000-0000-0000-000000000006';
   v_branch uuid;
   v_other_branch uuid;
   v_source uuid;
@@ -49,12 +50,14 @@ begin
     (v_operations, 'transaction-operations@example.test', '{"full_name":"Transaction Operations"}'),
     (v_unallocated, 'transaction-unallocated@example.test', '{"full_name":"Transaction Unallocated"}'),
     (v_doctor, 'transaction-doctor@example.test', '{"full_name":"Transaction Doctor"}'),
-    (v_inactive, 'transaction-inactive@example.test', '{"full_name":"Transaction Inactive"}');
+    (v_inactive, 'transaction-inactive@example.test', '{"full_name":"Transaction Inactive"}'),
+    (v_front_office, 'transaction-front-office@example.test', '{"full_name":"Transaction Front Office"}');
 
   update crm.profiles set role = 'admin', is_active = true where id = v_admin;
   update crm.profiles set role = 'operations', is_active = true where id = v_operations;
   update crm.profiles set role = 'operations', is_active = true where id = v_unallocated;
   update crm.profiles set role = 'doctor', is_active = true where id = v_doctor;
+  update crm.profiles set role = 'front_office', is_active = true where id = v_front_office;
 
   insert into crm.branches (name, code)
   values ('Transaction Test Branch', 'T09')
@@ -65,7 +68,7 @@ begin
   returning id into v_other_branch;
 
   insert into crm.user_branches (user_id, branch_id)
-  values (v_operations, v_branch);
+  values (v_operations, v_branch), (v_front_office, v_branch);
 
   insert into crm.lead_sources (name)
   values ('Transaction Test Source')
@@ -95,8 +98,9 @@ begin
      or v_lead.email <> 'atomic@example.test'
      or v_lead.notes <> 'Created transactionally'
      or v_lead.created_by is distinct from v_operations
+     or v_lead.assignee_id is distinct from v_operations
      or v_lead.branch_id is distinct from v_branch then
-    raise exception 'create_lead did not normalize and attribute the lead';
+    raise exception 'create_lead did not normalize, attribute, and self-assign the Operations lead';
   end if;
 
   select count(*)
@@ -105,10 +109,23 @@ begin
   where a.lead_id = v_lead.id
     and a.actor_id = v_operations
     and a.type = 'note'
-    and a.detail = '{"event":"lead_created"}'::jsonb;
+    and a.detail = jsonb_build_object(
+      'event', 'lead_created',
+      'assigned_to', v_operations
+    );
 
   if v_count <> 1 then
     raise exception 'create_lead did not add exactly one lead_created activity';
+  end if;
+
+  select *
+  into v_lead
+  from crm.create_lead(
+    v_branch, 'Front Office Lead', '9000000906', null,
+    null, null, null, null, null, v_front_office
+  );
+  if v_lead.assignee_id is distinct from v_front_office then
+    raise exception 'create_lead did not keep Front Office intake self-assigned';
   end if;
 
   -- Force the activity half to fail and prove that the lead insert rolls back
