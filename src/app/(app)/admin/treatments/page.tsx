@@ -6,6 +6,7 @@ import { createTreatmentTypeAction, toggleTreatmentTypeActive, updateTreatmentTy
 import { FormDialog } from "@/components/admin/form-dialog";
 import { RowEditDialog } from "@/components/admin/row-edit-dialog";
 import { ToggleActiveButton } from "@/components/admin/toggle-active-button";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,11 +54,14 @@ export default async function TreatmentTypesPage({ searchParams }: { searchParam
             {types.length} treatments. Prices auto-fill invoices and treatment records.
           </p>
         </div>
-        <form method="get" className="min-w-48 space-y-1">
-          <label htmlFor="branch" className="text-sm font-medium">Center</label>
-          <select id="branch" name="branch" defaultValue={branch.id} onChange={(event) => event.currentTarget.form?.requestSubmit()} className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm">
-            {branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </select>
+        <form method="get" className="flex items-end gap-2">
+          <div className="min-w-48 space-y-1">
+            <label htmlFor="branch" className="text-sm font-medium">Center</label>
+            <select id="branch" name="branch" defaultValue={branch.id} className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm">
+              {branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+          </div>
+          <Button type="submit" variant="outline">View</Button>
         </form>
         <FormDialog triggerLabel="New treatment" title="Add treatment type" action={createTreatmentTypeAction}>
           <input type="hidden" name="branch_id" value={branch.id} />

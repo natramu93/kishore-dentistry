@@ -6,6 +6,7 @@ import { createMedicationSuggestionAction, toggleMedicationSuggestionActive, upd
 import { FormDialog } from "@/components/admin/form-dialog";
 import { RowEditDialog } from "@/components/admin/row-edit-dialog";
 import { ToggleActiveButton } from "@/components/admin/toggle-active-button";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +25,7 @@ export default async function MedicationSuggestionsPage({ searchParams }: { sear
   return <div className="space-y-4">
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div><h1 className="text-2xl font-bold tracking-tight">Medication suggestions</h1><p className="text-sm text-muted-foreground">Center-specific picker for prescriptions. Doctors can also type medicines not listed here.</p></div>
-      <form method="get" className="min-w-48 space-y-1"><label htmlFor="branch" className="text-sm font-medium">Center</label><select id="branch" name="branch" defaultValue={branch.id} onChange={(event) => event.currentTarget.form?.requestSubmit()} className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm">{branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></form>
+      <form method="get" className="flex items-end gap-2"><div className="min-w-48 space-y-1"><label htmlFor="branch" className="text-sm font-medium">Center</label><select id="branch" name="branch" defaultValue={branch.id} className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm">{branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div><Button type="submit" variant="outline">View</Button></form>
       <FormDialog triggerLabel="Add medicine" title="Add medication suggestion" action={createMedicationSuggestionAction}>
         <input type="hidden" name="branch_id" value={branch.id} />
         <div className="space-y-2"><Label htmlFor="name">Medicine name</Label><Input id="name" name="name" required maxLength={200} /></div>
