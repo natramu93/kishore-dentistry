@@ -17,7 +17,7 @@ export default async function EditInvoicePage({
   if (!invoice.code_enforced) redirect(`/invoices/${invoice.id}`);
   const [eligible, treatmentOptions] = await Promise.all([
     listInvoiceEligibleTreatments(ctx, invoice.lead_id),
-    listInvoiceTreatmentCatalog(ctx),
+    listInvoiceTreatmentCatalog(ctx, invoice.branch_id),
   ]);
   const currentCatalog = invoice.items
     .filter((item) => item.treatment_id && item.treatment_code)

@@ -290,6 +290,7 @@ export async function toggleLeadSourceActive(id: string, isActive: boolean): Pro
 }
 
 const treatmentTypeSchema = z.object({
+  branch_id: idSchema,
   name: catalogNameSchema,
   category: text(200),
   default_cost: z.coerce.number().finite().min(0).max(100_000_000).optional(),
@@ -383,6 +384,7 @@ export async function toggleTreatmentCodeActive(code: string, isActive: boolean)
 export async function createTreatmentTypeAction(formData: FormData): Promise<ActionResult> {
   const ctx = await getAuthContext();
   const parsed = treatmentTypeSchema.safeParse({
+    branch_id: formData.get("branch_id"),
     name: formData.get("name"),
     category: String(formData.get("category") ?? "").trim(),
     default_cost: formData.get("default_cost") || undefined,
@@ -391,6 +393,7 @@ export async function createTreatmentTypeAction(formData: FormData): Promise<Act
   return runAction(async () => {
     await adminMutationLimit(ctx.userId, "admin:catalog");
     await catalogs.createTreatmentType(ctx, {
+      branch_id: parsed.data.branch_id,
       name: parsed.data.name,
       category: parsed.data.category || null,
       default_cost: parsed.data.default_cost,
@@ -399,9 +402,10 @@ export async function createTreatmentTypeAction(formData: FormData): Promise<Act
   });
 }
 
-export async function updateTreatmentTypeAction(id: string, formData: FormData): Promise<ActionResult> {
+export async function updateTreatmentTypeAction(id: string, branchId: string, formData: FormData): Promise<ActionResult> {
   const ctx = await getAuthContext();
   const parsed = treatmentTypeSchema.safeParse({
+    branch_id: branchId,
     name: formData.get("name"),
     category: String(formData.get("category") ?? "").trim(),
     default_cost: formData.get("default_cost") || undefined,
@@ -412,6 +416,7 @@ export async function updateTreatmentTypeAction(id: string, formData: FormData):
   return runAction(async () => {
     await adminMutationLimit(ctx.userId, "admin:catalog");
     await catalogs.updateTreatmentType(ctx, parsedId.data, {
+      branch_id: parsed.data.branch_id,
       name: parsed.data.name,
       category: parsed.data.category || null,
       default_cost: parsed.data.default_cost ?? null,
@@ -420,14 +425,60 @@ export async function updateTreatmentTypeAction(id: string, formData: FormData):
   });
 }
 
-export async function toggleTreatmentTypeActive(id: string, isActive: boolean): Promise<ActionResult> {
+export async function toggleTreatmentTypeActive(id: string, branchId: string, isActive: boolean): Promise<ActionResult> {
   const ctx = await getAuthContext();
-  const parsed = z.object({ id: idSchema, isActive: activeSchema }).safeParse({ id, isActive });
+  const parsed = z.object({ id: idSchema, branchId: idSchema, isActive: activeSchema }).safeParse({ id, branchId, isActive });
   if (!parsed.success) return invalid(parsed.error);
   return runAction(async () => {
     await adminMutationLimit(ctx.userId, "admin:catalog");
-    await catalogs.updateTreatmentType(ctx, parsed.data.id, { is_active: parsed.data.isActive });
+    await catalogs.updateTreatmentType(ctx, parsed.data.id, { branch_id: parsed.data.branchId, is_active: parsed.data.isActive });
     revalidatePath("/admin/treatments");
+  });
+}
+
+const medicationSuggestionSchema = z.object({
+  branch_id: idSchema,
+  name: z.string().trim().min(1, "Medicine name is required").max(200),
+  strength: z.string().trim().max(100),
+});
+
+export async function createMedicationSuggestionAction(formData: FormData): Promise<ActionResult> {
+  const ctx = await getAuthContext();
+  const parsed = medicationSuggestionSchema.safeParse({
+    branch_id: formData.get("branch_id"), name: formData.get("name"),
+    strength: String(formData.get("strength") ?? "").trim(),
+  });
+  if (!parsed.success) return invalid(parsed.error);
+  return runAction(async () => {
+    await adminMutationLimit(ctx.userId, "admin:catalog");
+    await catalogs.createMedicationSuggestion(ctx, { ...parsed.data, strength: parsed.data.strength || null });
+    revalidatePath("/admin/medications");
+  });
+}
+
+export async function updateMedicationSuggestionAction(id: string, branchId: string, formData: FormData): Promise<ActionResult> {
+  const ctx = await getAuthContext();
+  const parsedId = idSchema.safeParse(id);
+  const parsedBranch = idSchema.safeParse(branchId);
+  const parsed = z.object({ name: medicationSuggestionSchema.shape.name, strength: medicationSuggestionSchema.shape.strength })
+    .safeParse({ name: formData.get("name"), strength: String(formData.get("strength") ?? "").trim() });
+  if (!parsedId.success || !parsedBranch.success) return { ok: false, error: "Medication or center is invalid" };
+  if (!parsed.success) return invalid(parsed.error);
+  return runAction(async () => {
+    await adminMutationLimit(ctx.userId, "admin:catalog");
+    await catalogs.updateMedicationSuggestion(ctx, parsedId.data, parsedBranch.data, { ...parsed.data, strength: parsed.data.strength || null });
+    revalidatePath("/admin/medications");
+  });
+}
+
+export async function toggleMedicationSuggestionActive(id: string, branchId: string, isActive: boolean): Promise<ActionResult> {
+  const ctx = await getAuthContext();
+  const parsed = z.object({ id: idSchema, branchId: idSchema, isActive: activeSchema }).safeParse({ id, branchId, isActive });
+  if (!parsed.success) return invalid(parsed.error);
+  return runAction(async () => {
+    await adminMutationLimit(ctx.userId, "admin:catalog");
+    await catalogs.updateMedicationSuggestion(ctx, parsed.data.id, parsed.data.branchId, { is_active: parsed.data.isActive });
+    revalidatePath("/admin/medications");
   });
 }
 

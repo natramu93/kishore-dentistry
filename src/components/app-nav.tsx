@@ -20,6 +20,7 @@ import {
   PhoneCall,
   Webhook,
   UserCircle,
+  Pill,
   Menu,
   type LucideIcon,
 } from "lucide-react";
@@ -31,7 +32,7 @@ import type { NavItem } from "@/components/nav-items";
 
 const ICONS: Record<string, LucideIcon> = {
   LayoutDashboard, Users, CalendarDays, BellRing, ReceiptText,
-  Building2, UserCog, Stethoscope, Megaphone, ClipboardList, Tags, BarChart3, BookUser, PhoneCall, Webhook, UserCircle,
+  Building2, UserCog, Stethoscope, Megaphone, ClipboardList, Tags, BarChart3, BookUser, PhoneCall, Webhook, UserCircle, Pill,
 };
 
 function NavList({

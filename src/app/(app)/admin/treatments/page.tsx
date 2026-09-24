@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/auth/context";
 import { listTreatmentTypes } from "@/data/catalogs";
+import { listMyBranches } from "@/data/branches";
 import { createTreatmentTypeAction, toggleTreatmentTypeActive, updateTreatmentTypeAction } from "@/actions/admin";
 import { FormDialog } from "@/components/admin/form-dialog";
 import { RowEditDialog } from "@/components/admin/row-edit-dialog";
@@ -32,11 +33,15 @@ function CategoryField({ id, defaultValue }: { id: string; defaultValue?: string
   );
 }
 
-export default async function TreatmentTypesPage() {
+export default async function TreatmentTypesPage({ searchParams }: { searchParams: Promise<{ branch?: string }> }) {
+  const params = await searchParams;
   const ctx = await getAuthContext();
-  if (ctx.role !== "admin" && ctx.role !== "clinical_head") redirect("/dashboard");
-  const types = (await listTreatmentTypes(ctx, { includeInactive: true })).sort(
-    (a, b) => categoryRank(a.category) - categoryRank(b.category) || a.name.localeCompare(b.name)
+  if (!["admin", "operations", "clinical_head"].includes(ctx.role)) redirect("/dashboard");
+  const branches = await listMyBranches(ctx);
+  const branch = branches.find((item) => item.id === params.branch) ?? branches[0];
+  if (!branch) redirect("/dashboard");
+  const types = (await listTreatmentTypes(ctx, { includeInactive: true, branchId: branch.id })).sort(
+    (a, b) => Number(b.is_general_consultation) - Number(a.is_general_consultation) || categoryRank(a.category) - categoryRank(b.category) || a.name.localeCompare(b.name)
   );
 
   return (
@@ -48,7 +53,14 @@ export default async function TreatmentTypesPage() {
             {types.length} treatments. Prices auto-fill invoices and treatment records.
           </p>
         </div>
+        <form method="get" className="min-w-48 space-y-1">
+          <label htmlFor="branch" className="text-sm font-medium">Center</label>
+          <select id="branch" name="branch" defaultValue={branch.id} onChange={(event) => event.currentTarget.form?.requestSubmit()} className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm">
+            {branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+        </form>
         <FormDialog triggerLabel="New treatment" title="Add treatment type" action={createTreatmentTypeAction}>
+          <input type="hidden" name="branch_id" value={branch.id} />
           <div className="space-y-2">
             <Label htmlFor="name">Name</Label>
             <Input id="name" name="name" required />
@@ -74,7 +86,7 @@ export default async function TreatmentTypesPage() {
         <TableBody>
           {types.map((t) => (
             <TableRow key={t.id}>
-              <TableCell className="font-medium">{t.name}</TableCell>
+              <TableCell className="font-medium">{t.is_general_consultation ? "General consultation" : t.name}</TableCell>
               <TableCell className="hidden text-muted-foreground md:table-cell">{t.category ?? "—"}</TableCell>
               <TableCell className="whitespace-nowrap">
                 {t.default_cost != null ? formatINR(t.default_cost) : "—"}
@@ -86,7 +98,7 @@ export default async function TreatmentTypesPage() {
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-1">
-                  <RowEditDialog title="Edit treatment type" action={updateTreatmentTypeAction.bind(null, t.id)}>
+                  <RowEditDialog title="Edit treatment type" action={updateTreatmentTypeAction.bind(null, t.id, branch.id)}>
                     <div className="space-y-2">
                       <Label htmlFor={`tname-${t.id}`}>Name</Label>
                       <Input id={`tname-${t.id}`} name="name" defaultValue={t.name} required />
@@ -106,7 +118,7 @@ export default async function TreatmentTypesPage() {
                   </RowEditDialog>
                   <ToggleActiveButton
                     isActive={t.is_active}
-                    action={toggleTreatmentTypeActive.bind(null, t.id, !t.is_active)}
+                    action={toggleTreatmentTypeActive.bind(null, t.id, branch.id, !t.is_active)}
                   />
                 </div>
               </TableCell>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getAuthContext } from "@/lib/auth/context";
 import { getCaseSheetForEdit, isCaseSheetAmendmentWindowOpen, listTreatmentCodes } from "@/data/case-sheets";
 import { CaseSheetEditor } from "@/components/clinical/case-sheet-editor";
+import { listMedicationSuggestions } from "@/data/catalogs";
 
 export const metadata: Metadata = {
   title: "Amend Digital Case Sheet — Dr. Kishor's Dentistry CRM",
@@ -35,7 +36,9 @@ export default async function EditCaseSheetPage({
       </div>
     );
   }
-  const treatmentCodes = await listTreatmentCodes(ctx);
+  const [treatmentCodes, medicationSuggestions] = await Promise.all([
+    listTreatmentCodes(ctx), listMedicationSuggestions(ctx, record.lead.branch_id),
+  ]);
   const doctors = [{
     id: record.caseSheet.doctor_id,
     label: ctx.role === "doctor" ? "Treating doctor (you)" : record.doctorName ?? "Treating doctor",
@@ -60,6 +63,7 @@ export default async function EditCaseSheetPage({
         doctorLocked
         treatmentCodes={treatmentCodes}
         canPrescribe={ctx.role === "doctor"}
+        medicationSuggestions={medicationSuggestions}
         caseSheetId={record.caseSheet.id}
         expectedVersion={record.caseSheet.version}
         initialValues={{

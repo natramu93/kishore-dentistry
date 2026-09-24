@@ -11,6 +11,7 @@ import {
   PRESCRIPTION_FOOD_TIMINGS,
   type PrescriptionItemDraft,
 } from "@/lib/prescriptions";
+import type { MedicationSuggestion } from "@/lib/database.types";
 
 export type PrescriptionItemsEditorProps = {
   value: PrescriptionItemDraft[];
@@ -19,6 +20,7 @@ export type PrescriptionItemsEditorProps = {
   errors?: Record<string, string | undefined>;
   errorPrefix?: string;
   legend?: string;
+  suggestions?: MedicationSuggestion[];
 };
 
 type EditablePrescriptionField = Exclude<keyof PrescriptionItemDraft, "client_id">;
@@ -30,6 +32,7 @@ export function PrescriptionItemsEditor({
   errors = {},
   errorPrefix = "prescriptions",
   legend = "Prescription",
+  suggestions = [],
 }: PrescriptionItemsEditorProps) {
   const idPrefix = useId();
   const nextClientId = useRef(1);
@@ -100,6 +103,7 @@ export function PrescriptionItemsEditor({
             index={index}
             item={item}
             error={(field) => fieldError(index, field)}
+            suggestions={suggestions}
             onChange={(patch) => updateItem(item.client_id, patch)}
             onRemove={() => removeItem(item.client_id)}
           />
@@ -123,6 +127,7 @@ function PrescriptionItemRow({
   index,
   item,
   error,
+  suggestions,
   onChange,
   onRemove,
 }: {
@@ -130,6 +135,7 @@ function PrescriptionItemRow({
   index: number;
   item: PrescriptionItemDraft;
   error: (field: EditablePrescriptionField) => string | undefined;
+  suggestions: MedicationSuggestion[];
   onChange: (patch: Partial<Omit<PrescriptionItemDraft, "client_id">>) => void;
   onRemove: () => void;
 }) {
@@ -141,6 +147,15 @@ function PrescriptionItemRow({
     <fieldset className="rounded-xl border bg-muted/15 p-3 sm:p-4">
       <legend className="px-1 text-sm font-semibold">Medicine {index + 1}</legend>
       <div className="space-y-4">
+        {suggestions.length > 0 && <Field label="Pick from this center’s medication list" htmlFor={`${idPrefix}-suggestion`}>
+          <select id={`${idPrefix}-suggestion`} value="" onChange={(event) => {
+            const selected = suggestions.find((entry) => entry.id === event.target.value);
+            if (selected) onChange({ medicine_name: selected.name, strength: selected.strength ?? "" });
+          }} className="h-11 w-full rounded-lg border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm">
+            <option value="">Choose a saved medicine or enter one below</option>
+            {suggestions.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}{entry.strength ? ` — ${entry.strength}` : ""}</option>)}
+          </select>
+        </Field>}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field
             label="Medicine name"

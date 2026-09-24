@@ -30,7 +30,7 @@ describe("new lead form", () => {
           },
         ]}
         sources={[]}
-        interestGroups={[]}
+        treatmentOptions={[]}
       />
     );
 

@@ -38,13 +38,6 @@ export function requireUserManagementAccess(ctx: AuthContext): void {
   }
 }
 
-/** The Clinical Head owns the treatment catalog (pricing/categories) alongside admin. */
-export function requireClinicalCatalogAccess(ctx: AuthContext): void {
-  if (ctx.role !== "admin" && ctx.role !== "clinical_head") {
-    throw new AuthorizationError("Clinical Head or Admin access required");
-  }
-}
-
 /** Admin passes always; others must be allocated to the branch. */
 export function assertBranchAccess(ctx: AuthContext, branchId: string): void {
   if (ctx.role === "admin") return;

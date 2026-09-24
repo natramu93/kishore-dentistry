@@ -25,6 +25,7 @@ import {
   type MedicalHistoryDraft,
 } from "@/lib/medical-history";
 import type { PrescriptionItemDraft } from "@/lib/prescriptions";
+import type { MedicationSuggestion } from "@/lib/database.types";
 import {
   ARCH_SITES,
   caseSheetPayloadSchema,
@@ -62,6 +63,7 @@ export type CaseSheetEditorProps = {
   doctorLocked?: boolean;
   treatmentCodes: TreatmentCodeOption[];
   canPrescribe?: boolean;
+  medicationSuggestions?: MedicationSuggestion[];
   initialMedicalHistory?: MedicalHistoryDraft;
   initialValues?: CaseSheetEditorInitialValues;
   caseSheetId?: string;
@@ -159,6 +161,7 @@ export function CaseSheetEditor({
   doctorLocked = false,
   treatmentCodes,
   canPrescribe = false,
+  medicationSuggestions = [],
   initialMedicalHistory,
   initialValues,
   caseSheetId,
@@ -533,6 +536,7 @@ export function CaseSheetEditor({
                 value={prescriptions}
                 errors={errors}
                 legend="Prescription for this visit"
+                suggestions={medicationSuggestions}
                 onChange={(next) => {
                   setDirty(true);
                   setPrescriptions(next);

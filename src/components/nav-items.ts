@@ -7,9 +7,9 @@ export type NavItem = {
   roles: UserRole[];
 };
 
-// Front Office = reception/intake. Operations = branch business management.
-// Clinical Head = senior clinical oversight (full pipeline + the treatment
-// catalog/doctor roster). Doctor = self-scoped to their own schedule.
+// Front Office = reception/intake. Operations = center business management.
+// Clinical Head = senior clinical oversight. Both can manage center treatment,
+// medication, and doctor catalogs. Doctor = self-scoped to their own schedule.
 export const PRIMARY_NAV: NavItem[] = [
   {
     href: "/dashboard",
@@ -81,8 +81,9 @@ export const ADMIN_NAV: NavItem[] = [
     href: "/admin/treatments",
     label: "Treatments",
     icon: "ClipboardList",
-    roles: ["admin", "clinical_head"],
+    roles: ["admin", "operations", "clinical_head"],
   },
+  { href: "/admin/medications", label: "Medications", icon: "Pill", roles: ["admin", "operations", "clinical_head"] },
   { href: "/admin/dental-codes", label: "Dental Codes", icon: "Tags", roles: ["admin"] },
   { href: "/admin/webhooks", label: "Webhooks", icon: "Webhook", roles: ["admin"] },
 ];

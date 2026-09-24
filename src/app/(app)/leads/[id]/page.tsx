@@ -96,7 +96,7 @@ export default async function LeadDetailPage({
     listCaseSheetsForLead(ctx, id, { page: Number(queryParams.page) }),
     listAssignableUsers(ctx, lead.branch_id),
     listDoctors(ctx, { branchId: lead.branch_id }),
-    listTreatmentTypes(ctx),
+    listTreatmentTypes(ctx, { branchId: lead.branch_id }),
     listLeadSources(ctx),
   ]);
   const {

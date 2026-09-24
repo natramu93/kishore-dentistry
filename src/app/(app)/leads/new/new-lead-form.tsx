@@ -11,21 +11,23 @@ import { Textarea } from "@/components/ui/textarea";
 import type { Branch, LeadSource } from "@/lib/database.types";
 import Link from "next/link";
 
-type InterestGroup = { category: string; items: { id: string; name: string }[] };
+type TreatmentOption = { id: string; name: string; category: string; branch_id: string };
 
 export function NewLeadForm({
   branches,
   sources,
-  interestGroups,
+  treatmentOptions = [],
 }: {
   branches: Branch[];
   sources: LeadSource[];
-  interestGroups: InterestGroup[];
+  treatmentOptions?: TreatmentOption[];
 }) {
   const [pending, startTransition] = useTransition();
   const [dupes, setDupes] = useState<{ id: string; name: string; status: string }[]>([]);
   const [checkingDuplicates, setCheckingDuplicates] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [branchId, setBranchId] = useState(branches[0]?.id ?? "");
+  const [interestId, setInterestId] = useState("");
   const duplicateRequest = useRef(0);
 
   useEffect(() => {
@@ -158,11 +160,16 @@ export function NewLeadForm({
             <select
               id="interest_id"
               name="interest_id"
+              value={interestId}
+              onChange={(event) => setInterestId(event.target.value)}
               className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-              defaultValue=""
             >
               <option value="">— What are they enquiring about? —</option>
-              {interestGroups.map((g) => (
+              {Object.values(treatmentOptions.filter((item) => item.branch_id === branchId).reduce<Record<string, { category: string; items: { id: string; name: string }[] }>>((groups, treatment) => {
+                const group = groups[treatment.category] ?? (groups[treatment.category] = { category: treatment.category, items: [] });
+                group.items.push({ id: treatment.id, name: treatment.name });
+                return groups;
+              }, {})).map((g) => (
                 <optgroup key={g.category} label={g.category}>
                   {g.items.map((t) => (
                     <option key={t.id} value={t.id}>{t.name}</option>
@@ -179,6 +186,11 @@ export function NewLeadForm({
                 id="branch_id"
                 name="branch_id"
                 required
+                value={branchId}
+                onChange={(event) => {
+                  setBranchId(event.target.value);
+                  setInterestId("");
+                }}
                 className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm"
               >
                 {branches.map((b) => (

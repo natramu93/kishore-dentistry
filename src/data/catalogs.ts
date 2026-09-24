@@ -6,9 +6,8 @@ import {
   assertBranchAccess,
   requireAdmin,
   requireManagerOf,
-  requireClinicalCatalogAccess,
 } from "@/lib/auth/guards";
-import type { Doctor, LeadSource, TreatmentCode, TreatmentType } from "@/lib/database.types";
+import type { Doctor, LeadSource, MedicationSuggestion, TreatmentCode, TreatmentType } from "@/lib/database.types";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { MAX_LIST_ROWS, assertUuid } from "@/lib/validation";
 
@@ -62,14 +61,22 @@ export async function updateLeadSource(
 // ---------- Treatment types ----------
 
 export async function listTreatmentTypes(
-  _ctx: AuthContext,
-  opts: { includeInactive?: boolean } = {}
+  ctx: AuthContext,
+  opts: { includeInactive?: boolean; branchId?: string } = {}
 ): Promise<TreatmentType[]> {
   let q = db
     .from("treatment_types")
     .select("*")
+    .order("is_general_consultation", { ascending: false })
     .order("name")
     .limit(MAX_LIST_ROWS + 1);
+  if (opts.branchId) {
+    const branchId = assertUuid(opts.branchId, "Branch");
+    assertBranchAccess(ctx, branchId);
+    q = q.eq("branch_id", branchId);
+  } else if (ctx.role !== "admin") {
+    q = q.in("branch_id", ctx.branchIds.length ? ctx.branchIds : ["00000000-0000-0000-0000-000000000000"]);
+  }
   if (!opts.includeInactive) q = q.eq("is_active", true);
   const { data, error } = await q;
   if (error) throw error;
@@ -79,9 +86,10 @@ export async function listTreatmentTypes(
 
 export async function createTreatmentType(
   ctx: AuthContext,
-  input: { name: string; category?: string | null; default_cost?: number }
+  input: { branch_id: string; name: string; category?: string | null; default_cost?: number }
 ) {
-  requireClinicalCatalogAccess(ctx);
+  const branchId = assertUuid(input.branch_id, "Branch");
+  requireManagerOf(ctx, branchId);
   const { error } = await db.from("treatment_types").insert(input);
   if (error) throw error;
 }
@@ -89,18 +97,64 @@ export async function createTreatmentType(
 export async function updateTreatmentType(
   ctx: AuthContext,
   id: string,
-  input: { name?: string; category?: string | null; default_cost?: number | null; is_active?: boolean }
+  input: { branch_id: string; name?: string; category?: string | null; default_cost?: number | null; is_active?: boolean }
 ) {
-  requireClinicalCatalogAccess(ctx);
   const treatmentTypeId = assertUuid(id, "Treatment type");
+  const branchId = assertUuid(input.branch_id, "Branch");
+  requireManagerOf(ctx, branchId);
+  const { branch_id, ...changes } = input;
+  void branch_id;
   const { data, error } = await db
     .from("treatment_types")
-    .update(input)
+    .update(changes)
     .eq("id", treatmentTypeId)
+    .eq("branch_id", branchId)
     .select("id")
     .maybeSingle();
   if (error) throw error;
   if (!data) throw new NotFoundError("Treatment type");
+}
+
+// ---------- Branch medication suggestions ----------
+
+export async function listMedicationSuggestions(
+  ctx: AuthContext,
+  branchIdValue: string,
+  opts: { includeInactive?: boolean } = {},
+): Promise<MedicationSuggestion[]> {
+  const branchId = assertUuid(branchIdValue, "Branch");
+  assertBranchAccess(ctx, branchId);
+  let q = db.from("medication_suggestions").select("*").eq("branch_id", branchId)
+    .order("name").order("strength").limit(1_001);
+  if (!opts.includeInactive) q = q.eq("is_active", true);
+  const { data, error } = await q;
+  if (error) throw error;
+  rejectOversizedLookup(data ?? [], "medication suggestions");
+  return data ?? [];
+}
+
+export async function createMedicationSuggestion(
+  ctx: AuthContext,
+  input: { branch_id: string; name: string; strength?: string | null },
+) {
+  const branchId = assertUuid(input.branch_id, "Branch");
+  requireManagerOf(ctx, branchId);
+  const { error } = await db.from("medication_suggestions").insert({ ...input, branch_id: branchId, strength: input.strength ?? null, created_by: ctx.userId });
+  if (error) throw error;
+}
+
+export async function updateMedicationSuggestion(
+  ctx: AuthContext,
+  id: string,
+  branchIdValue: string,
+  input: { name?: string; strength?: string | null; is_active?: boolean },
+) {
+  const branchId = assertUuid(branchIdValue, "Branch");
+  requireManagerOf(ctx, branchId);
+  const { data, error } = await db.from("medication_suggestions").update(input)
+    .eq("id", assertUuid(id, "Medication")).eq("branch_id", branchId).select("id").maybeSingle();
+  if (error) throw error;
+  if (!data) throw new NotFoundError("Medication suggestion");
 }
 
 // ---------- Managed dental codes ----------

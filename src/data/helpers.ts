@@ -140,12 +140,14 @@ export async function requireActiveDoctorForBranch(
   return data;
 }
 
-export async function requireActiveTreatmentType(treatmentTypeId: string): Promise<void> {
+export async function requireActiveTreatmentType(treatmentTypeId: string, branchId: string): Promise<void> {
   assertUuid(treatmentTypeId, "Treatment type");
+  assertUuid(branchId, "Branch");
   const { data, error } = await db
     .from("treatment_types")
     .select("id")
     .eq("id", treatmentTypeId)
+    .eq("branch_id", branchId)
     .eq("is_active", true)
     .maybeSingle();
   if (error) throw error;

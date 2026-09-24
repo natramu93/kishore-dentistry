@@ -14,7 +14,6 @@ import {
   canViewReports,
   requireAdmin,
   requireAnyRole,
-  requireClinicalCatalogAccess,
   requireManagerOf,
   requireReportAccess,
 } from "@/lib/auth/guards";
@@ -89,15 +88,7 @@ describe("authorization policy matrix", () => {
     ).toThrow("Business role required");
   });
 
-  it("separates global catalog administration from branch clinical management", () => {
-    expect(() => requireClinicalCatalogAccess(context("admin"))).not.toThrow();
-    expect(() =>
-      requireClinicalCatalogAccess(context("clinical_head"))
-    ).not.toThrow();
-    expect(() =>
-      requireClinicalCatalogAccess(context("operations"))
-    ).toThrow();
-
+  it("allows center managers to manage only their assigned center catalogs", () => {
     for (const role of [
       "admin",
       "operations",

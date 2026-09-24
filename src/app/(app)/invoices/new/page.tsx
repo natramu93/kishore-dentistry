@@ -17,13 +17,13 @@ export default async function NewInvoicePage({
   if (!params.lead) redirect("/leads");
 
   const ctx = await getAuthContext();
-  const [related, eligibleTreatments, treatmentOptions] = await Promise.all([
-    getLeadRelated(ctx, params.lead),
-    listInvoiceEligibleTreatments(ctx, params.lead),
-    listInvoiceTreatmentCatalog(ctx),
-  ]);
+  const related = await getLeadRelated(ctx, params.lead);
   if (!related) notFound();
   const { lead } = related;
+  const [eligibleTreatments, treatmentOptions] = await Promise.all([
+    listInvoiceEligibleTreatments(ctx, params.lead),
+    listInvoiceTreatmentCatalog(ctx, lead.branch_id),
+  ]);
   const selectedTreatment =
     eligibleTreatments.find((treatment) => treatment.id === params.treatment) ?? null;
   const initialItems = selectedTreatment

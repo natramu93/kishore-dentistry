@@ -150,10 +150,21 @@ export type Doctor = Timestamps & {
 
 export type TreatmentType = Timestamps & {
   id: string;
+  branch_id: string;
   name: string;
   category: string | null;
   default_cost: number | null;
   is_active: boolean;
+  is_general_consultation: boolean;
+};
+
+export type MedicationSuggestion = Timestamps & {
+  id: string;
+  branch_id: string;
+  name: string;
+  strength: string | null;
+  is_active: boolean;
+  created_by: string | null;
 };
 
 export type TreatmentCode = Timestamps & {
@@ -632,7 +643,8 @@ export type Database = {
           FK<"doctors_profile_id_fkey", "profile_id", "profiles">
         ]
       >;
-      treatment_types: TableDef<TreatmentType, "name", "id" | "created_at">;
+      treatment_types: TableDef<TreatmentType, "branch_id" | "name", "id" | "created_at" | "is_general_consultation">;
+      medication_suggestions: TableDef<MedicationSuggestion, "branch_id" | "name" | "strength", "id" | "created_at">;
       treatment_codes: TableDef<
         TreatmentCode,
         "code" | "name" | "status",

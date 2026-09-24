@@ -36,6 +36,7 @@ export type InvoiceCatalogTreatment = {
   name: string;
   category: string | null;
   default_cost: number | null;
+  is_general_consultation: boolean;
 };
 
 type EditableItem = CodedInvoiceItem & { rowKey: string };
@@ -267,7 +268,7 @@ export function InvoiceEditor({
                         >
                           <option value="">Choose a treatment…</option>
                           {treatmentOptions.map((option) => (
-                            <option key={option.id} value={option.id}>{option.name}{option.category ? ` — ${option.category}` : ""}</option>
+                            <option key={option.id} value={option.id}>{option.is_general_consultation ? "General consultation" : option.name}{option.category ? ` — ${option.category}` : ""}</option>
                           ))}
                         </select>
                       </div>

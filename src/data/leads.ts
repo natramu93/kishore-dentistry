@@ -156,7 +156,7 @@ export async function createLead(
   await Promise.all([
     input.source_id ? requireActiveLeadSource(input.source_id) : Promise.resolve(),
     input.interest_id
-      ? requireActiveTreatmentType(input.interest_id)
+      ? requireActiveTreatmentType(input.interest_id, branchId)
       : Promise.resolve(),
   ]);
 
@@ -204,7 +204,7 @@ export async function updateLeadDetails(
   await Promise.all([
     input.source_id ? requireActiveLeadSource(input.source_id) : Promise.resolve(),
     input.interest_id
-      ? requireActiveTreatmentType(input.interest_id)
+      ? requireActiveTreatmentType(input.interest_id, lookup.data.branch_id)
       : Promise.resolve(),
   ]);
   const { error } = await db.from("leads").update(input).eq("id", leadId);

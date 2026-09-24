@@ -80,7 +80,7 @@ function paymentTotals(invoice: Pick<Invoice, "total" | "status">, payments: Pic
   return { amount_paid, balance_due: Math.max(0, Math.round((invoice.total - amount_paid) * 100) / 100) };
 }
 
-export type InvoiceCatalogTreatment = Pick<TreatmentType, "id" | "name" | "category" | "default_cost">;
+export type InvoiceCatalogTreatment = Pick<TreatmentType, "id" | "name" | "category" | "default_cost" | "is_general_consultation">;
 
 export type InvoiceEligibleTreatment = {
   id: string;
@@ -177,12 +177,25 @@ function validateInvoiceInput(items: InvoiceItemInput[], taxRate: number): void 
   }
 }
 
-export async function listInvoiceTreatmentCatalog(ctx: AuthContext): Promise<InvoiceCatalogTreatment[]> {
+async function validateCatalogTreatmentsForBranch(items: InvoiceItemInput[], branchId: string) {
+  const ids = [...new Set(items.flatMap((item) => item.treatment_type_id ? [assertUuid(item.treatment_type_id, "Treatment type")] : []))];
+  if (!ids.length) return;
+  const { data, error } = await db.from("treatment_types").select("id")
+    .eq("branch_id", branchId).eq("is_active", true).in("id", ids);
+  if (error) throw error;
+  if ((data ?? []).length !== ids.length) throw new ValidationError("Choose active treatments from this patient’s center");
+}
+
+export async function listInvoiceTreatmentCatalog(ctx: AuthContext, branchIdValue: string): Promise<InvoiceCatalogTreatment[]> {
   requireAnyRole(ctx, INVOICE_ROLES, "Invoices access required");
+  const branchId = assertUuid(branchIdValue, "Branch");
+  assertBranchAccess(ctx, branchId);
   const { data, error } = await db
     .from("treatment_types")
-    .select("id, name, category, default_cost")
+    .select("id, name, category, default_cost, is_general_consultation")
+    .eq("branch_id", branchId)
     .eq("is_active", true)
+    .order("is_general_consultation", { ascending: false })
     .order("name")
     .limit(500);
   if (error) throw error;
@@ -417,6 +430,7 @@ export async function createInvoice(
   if (leadResult.error) throw leadResult.error;
   if (!leadResult.data) throw new NotFoundError("Lead");
   assertInvoiceWriteAccess(ctx, leadResult.data);
+  await validateCatalogTreatmentsForBranch(input.items, leadResult.data.branch_id);
   const invoiceResult = await db.rpc("create_invoice", {
     p_lead_id: leadId,
     p_treatment_id: input.items.find((item) => item.treatment_id)?.treatment_id ?? null,
@@ -542,6 +556,7 @@ export async function updateInvoice(
     );
   }
   validateInvoiceInput(input.items, input.tax_rate);
+  await validateCatalogTreatmentsForBranch(input.items, invoice.branch_id);
   if (input.notes && input.notes.length > 4_000) {
     throw new ValidationError("Invoice notes are too long");
   }

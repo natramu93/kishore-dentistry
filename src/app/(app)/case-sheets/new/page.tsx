@@ -5,7 +5,7 @@ import {
   getCaseSheetFormContext,
   listTreatmentCodes,
 } from "@/data/case-sheets";
-import { listDoctors } from "@/data/catalogs";
+import { listDoctors, listMedicationSuggestions } from "@/data/catalogs";
 import { CaseSheetEditor } from "@/components/clinical/case-sheet-editor";
 
 export const metadata: Metadata = {
@@ -25,11 +25,12 @@ export default async function NewCaseSheetPage({
     leadId: params.lead,
     appointmentId: params.appointment,
   });
-  const [treatmentCodes, branchDoctors] = await Promise.all([
+  const [treatmentCodes, branchDoctors, medicationSuggestions] = await Promise.all([
     listTreatmentCodes(ctx),
     ctx.role === "doctor"
       ? Promise.resolve([])
       : listDoctors(ctx, { branchId: scope.lead.branch_id }),
+    listMedicationSuggestions(ctx, scope.lead.branch_id),
   ]);
   const doctors =
     ctx.role === "doctor" && ctx.doctorId
@@ -61,6 +62,7 @@ export default async function NewCaseSheetPage({
         doctorLocked={Boolean(scope.appointment?.doctor_id)}
         treatmentCodes={treatmentCodes}
         canPrescribe={ctx.role === "doctor"}
+        medicationSuggestions={medicationSuggestions}
         initialMedicalHistory={scope.medicalHistory}
         successHref={ctx.role === "doctor" ? `/my-patients/${scope.lead.id}` : `/leads/${scope.lead.id}`}
       />
