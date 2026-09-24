@@ -16,9 +16,13 @@ describe("lead state machine", () => {
     expect(canTransition("dropped", "assigned")).toBe(false);
   });
 
-  it("does not permit an implicit same-state replay", () => {
+  it("permits same-state booking only when adding another appointment", () => {
     for (const [from, targets] of Object.entries(ALLOWED_TRANSITIONS)) {
-      expect(targets).not.toContain(from);
+      if (from === "appointment_booked") {
+        expect(targets.filter((target) => target === from)).toHaveLength(1);
+      } else {
+        expect(targets).not.toContain(from);
+      }
     }
   });
 

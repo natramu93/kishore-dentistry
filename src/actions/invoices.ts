@@ -31,7 +31,8 @@ const money = z.coerce
   .max(MAX_UNIT_PRICE)
   .refine(hasAtMostTwoDecimals, "Amounts support at most two decimals");
 const invoiceItemSchema = z.object({
-  treatment_id: uuidSchema,
+  treatment_id: uuidSchema.nullable().optional(),
+  treatment_type_id: uuidSchema.nullable().optional(),
   quantity: z.coerce
     .number()
     .finite()
@@ -39,7 +40,10 @@ const invoiceItemSchema = z.object({
     .max(100_000)
     .refine(hasAtMostTwoDecimals, "Quantity supports at most two decimals"),
   unit_price: money,
-});
+}).refine(
+  (item) => Boolean(item.treatment_id) !== Boolean(item.treatment_type_id),
+  "Choose either a case-sheet treatment or a catalog treatment for each line"
+);
 const invoiceDetailsSchema = z.object({
   tax_rate: z.coerce
     .number()

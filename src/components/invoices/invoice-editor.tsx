@@ -13,8 +13,9 @@ import { formatINR } from "@/lib/tz";
 import { LockKeyhole, Trash2 } from "lucide-react";
 
 export type CodedInvoiceItem = {
-  treatment_id: string;
-  treatment_code: string;
+  treatment_id?: string | null;
+  treatment_type_id?: string | null;
+  treatment_code?: string | null;
   description: string;
   site_label: string;
   quantity: number;
@@ -30,6 +31,13 @@ export type EligibleInvoiceTreatment = {
   unit_price: number;
 };
 
+export type InvoiceCatalogTreatment = {
+  id: string;
+  name: string;
+  category: string | null;
+  default_cost: number | null;
+};
+
 type EditableItem = CodedInvoiceItem & { rowKey: string };
 
 export function InvoiceEditor({
@@ -39,6 +47,7 @@ export function InvoiceEditor({
   primaryTreatmentId,
   leadId,
   treatmentCatalog,
+  treatmentOptions,
   initialItems,
   initialTaxRate = 0,
   initialNotes = "",
@@ -49,6 +58,7 @@ export function InvoiceEditor({
   primaryTreatmentId?: string | null;
   leadId: string;
   treatmentCatalog: EligibleInvoiceTreatment[];
+  treatmentOptions: InvoiceCatalogTreatment[];
   initialItems: CodedInvoiceItem[];
   initialTaxRate?: number;
   initialNotes?: string;
@@ -106,6 +116,34 @@ export function InvoiceEditor({
     ]);
   }
 
+  function addCatalogLine() {
+    const rowKey = `catalog-${nextRowKey.current++}`;
+    setDirty(true);
+    setItems((previous) => [...previous, {
+      rowKey,
+      treatment_id: null,
+      treatment_type_id: null,
+      treatment_code: null,
+      description: "",
+      site_label: "Additional invoice item",
+      quantity: 1,
+      unit_price: 0,
+    }]);
+  }
+
+  function selectCatalogTreatment(rowKey: string, treatmentTypeId: string) {
+    const selection = treatmentOptions.find((option) => option.id === treatmentTypeId);
+    if (!selection) return;
+    setDirty(true);
+    setItems((previous) => previous.map((item) => item.rowKey === rowKey ? {
+      ...item,
+      treatment_type_id: selection.id,
+      description: selection.name,
+      site_label: selection.category ?? "Additional invoice item",
+      unit_price: selection.default_cost ?? item.unit_price,
+    } : item));
+  }
+
   function removeItem(rowKey: string) {
     setDirty(true);
     setItems((previous) => previous.filter((item) => item.rowKey !== rowKey));
@@ -121,8 +159,16 @@ export function InvoiceEditor({
       toast.error("Select at least one completed coded treatment");
       return;
     }
-    const payloadItems = items.map(({ treatment_id, quantity, unit_price }) => ({
-      treatment_id,
+    if (!items.some((item) => item.treatment_id)) {
+      toast.error("Include at least one completed coded case-sheet treatment on the invoice");
+      return;
+    }
+    if (items.some((item) => !item.treatment_id && !item.treatment_type_id)) {
+      toast.error("Choose a treatment from the dropdown for every added invoice line");
+      return;
+    }
+    const payloadItems = items.map(({ treatment_id, treatment_type_id, quantity, unit_price }) => ({
+      ...(treatment_id ? { treatment_id } : { treatment_type_id }),
       quantity,
       unit_price,
     }));
@@ -160,10 +206,10 @@ export function InvoiceEditor({
           <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100">
             <p className="flex items-center gap-2 font-medium">
               <LockKeyhole aria-hidden="true" className="size-4" />
-              Coded clinical treatments only
+              Coded case-sheet treatment required
             </p>
             <p className="mt-1 text-xs">
-              Descriptions and codes come from the finalized digital case sheet and cannot be replaced with free text.
+              At least one completed treatment with its case-sheet code is required. Add itemized charges from the treatment catalog below.
             </p>
           </div>
 
@@ -188,17 +234,19 @@ export function InvoiceEditor({
           </div>
 
           <section aria-labelledby={`${idPrefix}-items-heading`} className="space-y-3">
-            <h2 id={`${idPrefix}-items-heading`} className="text-base font-semibold">
-              Treatment lines
-            </h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 id={`${idPrefix}-items-heading`} className="text-base font-semibold">Invoice line items</h2>
+              <Button type="button" variant="outline" onClick={addCatalogLine}>Add catalog item</Button>
+            </div>
             {items.length === 0 && (
               <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                There is no invoice line yet. Select a finalized completed treatment above.
+                There is no invoice line yet. Select a completed case-sheet treatment or add an item from the treatment catalog.
               </p>
             )}
             {items.map((item, index) => {
               const quantityId = `${idPrefix}-${item.rowKey}-quantity`;
               const priceId = `${idPrefix}-${item.rowKey}-price`;
+              const isCatalogLine = !item.treatment_id;
               const isPrimary = mode === "edit" && item.treatment_id === primaryTreatmentId;
               return (
                 <fieldset
@@ -206,7 +254,24 @@ export function InvoiceEditor({
                   className="grid grid-cols-1 items-end gap-3 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_90px_130px_40px]"
                 >
                   <legend className="sr-only">Treatment line {index + 1}</legend>
-                  <div>
+                  <div className="space-y-2">
+                    {isCatalogLine ? (
+                      <div className="space-y-1.5">
+                        <Label htmlFor={`${idPrefix}-${item.rowKey}-catalog`}>Treatment</Label>
+                        <select
+                          id={`${idPrefix}-${item.rowKey}-catalog`}
+                          value={item.treatment_type_id ?? ""}
+                          onChange={(event) => selectCatalogTreatment(item.rowKey, event.target.value)}
+                          className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                          required
+                        >
+                          <option value="">Choose a treatment…</option>
+                          {treatmentOptions.map((option) => (
+                            <option key={option.id} value={option.id}>{option.name}{option.category ? ` — ${option.category}` : ""}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : (
                     <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
                       <span className="rounded border px-1.5 py-0.5 font-mono text-xs">
                         {item.treatment_code}
@@ -218,6 +283,7 @@ export function InvoiceEditor({
                         </span>
                       )}
                     </div>
+                    )}
                     <p className="mt-1 text-xs text-muted-foreground">{item.site_label}</p>
                   </div>
                   <div className="space-y-1.5">
@@ -304,7 +370,7 @@ export function InvoiceEditor({
 
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button variant="ghost" type="button" onClick={cancel}>Cancel</Button>
-            <Button type="submit" disabled={pending || items.length === 0 || subtotal <= 0}>
+            <Button type="submit" disabled={pending || items.length === 0 || !items.some((item) => item.treatment_id) || subtotal <= 0 || items.some((item) => !item.treatment_id && !item.treatment_type_id)}>
               {pending ? "Saving…" : mode === "create" ? "Create coded invoice" : "Save changes"}
             </Button>
           </div>

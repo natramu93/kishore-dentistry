@@ -439,6 +439,19 @@ export async function getCaseSheetForEdit(
   };
 }
 
+export async function isCaseSheetAmendmentWindowOpen(
+  ctx: AuthContext,
+  caseSheetIdValue: string,
+): Promise<boolean> {
+  assertClinicalAuthor(ctx);
+  const caseSheetId = assertUuid(caseSheetIdValue, "Case sheet");
+  const { data, error } = await db.rpc("case_sheet_amendment_window_open", {
+    p_case_sheet_id: caseSheetId,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
 export async function amendCaseSheet(
   ctx: AuthContext,
   input: FinalizeCaseSheetInput & {

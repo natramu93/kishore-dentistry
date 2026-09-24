@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getAuthContext } from "@/lib/auth/context";
-import { getCaseSheetForEdit, listTreatmentCodes } from "@/data/case-sheets";
+import { getCaseSheetForEdit, isCaseSheetAmendmentWindowOpen, listTreatmentCodes } from "@/data/case-sheets";
 import { CaseSheetEditor } from "@/components/clinical/case-sheet-editor";
 
 export const metadata: Metadata = {
@@ -14,6 +14,27 @@ export default async function EditCaseSheetPage({
 }) {
   const [{ id }, ctx] = await Promise.all([params, getAuthContext()]);
   const record = await getCaseSheetForEdit(ctx, id);
+  const amendmentWindowOpen = await isCaseSheetAmendmentWindowOpen(ctx, id);
+  if (!amendmentWindowOpen) {
+    const finalizedAt = new Intl.DateTimeFormat("en-IN", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "Asia/Kolkata",
+    }).format(new Date(record.caseSheet.finalized_at));
+    return (
+      <div className="mx-auto max-w-3xl space-y-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Case sheet is read-only</h1>
+          <p className="text-sm text-muted-foreground">
+            {record.lead.name} · {record.lead.branch?.name} · {record.doctorName ?? "Treating doctor"}
+          </p>
+        </div>
+        <div role="status" className="rounded-lg border bg-muted/30 p-4 text-sm">
+          Case sheets can only be amended within 24 hours of finalization. This case sheet was finalized {finalizedAt}.
+        </div>
+      </div>
+    );
+  }
   const treatmentCodes = await listTreatmentCodes(ctx);
   const doctors = [{
     id: record.caseSheet.doctor_id,

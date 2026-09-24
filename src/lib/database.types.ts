@@ -393,6 +393,7 @@ export type InvoiceItem = Timestamps & {
   unit_price: number;
   amount: number;
   treatment_id: string | null;
+  treatment_type_id: string | null;
   treatment_code: string | null;
   treatment_name: string | null;
   treatment_category: string | null;
@@ -892,7 +893,8 @@ export type Database = {
         "id" | "created_at" | "active_billing",
         [
           FK<"invoice_items_invoice_id_fkey", "invoice_id", "invoices">,
-          FK<"invoice_items_treatment_id_fkey", "treatment_id", "treatments">
+          FK<"invoice_items_treatment_id_fkey", "treatment_id", "treatments">,
+          FK<"invoice_items_treatment_type_id_fkey", "treatment_type_id", "treatment_types">
         ]
       >;
       lead_activity: TableDef<
@@ -941,6 +943,10 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      case_sheet_amendment_window_open: {
+        Args: { p_case_sheet_id: string };
+        Returns: boolean;
+      };
       current_tooth_assessments: {
         Args: { p_lead_id: string };
         Returns: ToothAssessment[];

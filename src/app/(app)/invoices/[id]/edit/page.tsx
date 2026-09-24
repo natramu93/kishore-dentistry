@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/auth/context";
-import { getInvoice, listInvoiceEligibleTreatments } from "@/data/invoices";
+import { getInvoice, listInvoiceEligibleTreatments, listInvoiceTreatmentCatalog } from "@/data/invoices";
 import { InvoiceEditor } from "@/components/invoices/invoice-editor";
 
 export const metadata = { title: "Edit Invoice — Dr. Kishor's Dentistry CRM" };
@@ -15,7 +15,10 @@ export default async function EditInvoicePage({
   const invoice = await getInvoice(ctx, id);
   if (!invoice) notFound();
   if (!invoice.code_enforced) redirect(`/invoices/${invoice.id}`);
-  const eligible = await listInvoiceEligibleTreatments(ctx, invoice.lead_id);
+  const [eligible, treatmentOptions] = await Promise.all([
+    listInvoiceEligibleTreatments(ctx, invoice.lead_id),
+    listInvoiceTreatmentCatalog(ctx),
+  ]);
   const currentCatalog = invoice.items
     .filter((item) => item.treatment_id && item.treatment_code)
     .map((item) => ({
@@ -55,16 +58,16 @@ export default async function EditInvoicePage({
         primaryTreatmentId={invoice.treatment_id}
         leadId={invoice.lead_id}
         treatmentCatalog={catalog}
-        initialItems={invoice.items
-          .filter((item) => item.treatment_id && item.treatment_code)
-          .map((item) => ({
-            treatment_id: item.treatment_id!,
-            treatment_code: item.treatment_code!,
-            description: item.treatment_name ?? item.description,
-            site_label: formatTreatmentSite(item),
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-          }))}
+        treatmentOptions={treatmentOptions}
+        initialItems={invoice.items.map((item) => ({
+          treatment_id: item.treatment_id,
+          treatment_type_id: item.treatment_type_id,
+          treatment_code: item.treatment_code,
+          description: item.treatment_name ?? item.description,
+          site_label: item.treatment_id ? formatTreatmentSite(item) : item.treatment_category ?? "Additional invoice item",
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+        }))}
         initialTaxRate={invoice.tax_rate}
         initialNotes={invoice.notes ?? ""}
       />

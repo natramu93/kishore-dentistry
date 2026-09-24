@@ -27,6 +27,7 @@ import type {
   InvoiceItem,
   InvoiceStatus,
   Json,
+  TreatmentType,
 } from "@/lib/database.types";
 
 const INVOICE_ROLES = ["admin", "operations", "front_office", "clinical_head"] as const;
@@ -55,10 +56,13 @@ type InvoiceScopeRow = Invoice & {
 };
 
 export type InvoiceItemInput = {
-  treatment_id: string;
+  treatment_id?: string | null;
+  treatment_type_id?: string | null;
   quantity: number;
   unit_price: number;
 };
+
+export type InvoiceCatalogTreatment = Pick<TreatmentType, "id" | "name" | "category" | "default_cost">;
 
 export type InvoiceEligibleTreatment = {
   id: string;
@@ -109,13 +113,26 @@ function validateInvoiceInput(items: InvoiceItemInput[], taxRate: number): void 
   if (!items.length || items.length > 100) {
     throw new ValidationError("Invoice must contain between 1 and 100 line items");
   }
+  if (!items.some((item) => item.treatment_id)) {
+    throw new ValidationError("Include at least one completed coded case-sheet treatment on the invoice");
+  }
   const treatmentIds = new Set<string>();
   for (const item of items) {
-    const treatmentId = assertUuid(item.treatment_id, "Treatment");
-    if (treatmentIds.has(treatmentId)) {
-      throw new ValidationError("A treatment can appear only once on an invoice");
+    if (item.treatment_id && item.treatment_type_id) {
+      throw new ValidationError("An invoice line must be either a case-sheet treatment or a catalog treatment");
     }
-    treatmentIds.add(treatmentId);
+    if (!item.treatment_id && !item.treatment_type_id) {
+      throw new ValidationError("Choose a treatment for every invoice line");
+    }
+    if (item.treatment_id) {
+      const treatmentId = assertUuid(item.treatment_id, "Treatment");
+      if (treatmentIds.has(treatmentId)) {
+        throw new ValidationError("A case-sheet treatment can appear only once on an invoice");
+      }
+      treatmentIds.add(treatmentId);
+    } else if (item.treatment_type_id) {
+      assertUuid(item.treatment_type_id, "Treatment type");
+    }
     if (!Number.isFinite(item.quantity) || item.quantity <= 0 || item.quantity > 100_000) {
       throw new ValidationError("Invoice item quantity is invalid");
     }
@@ -140,6 +157,18 @@ function validateInvoiceInput(items: InvoiceItemInput[], taxRate: number): void 
   ) {
     throw new ValidationError("Invoice total is too large");
   }
+}
+
+export async function listInvoiceTreatmentCatalog(ctx: AuthContext): Promise<InvoiceCatalogTreatment[]> {
+  requireAnyRole(ctx, INVOICE_ROLES, "Invoices access required");
+  const { data, error } = await db
+    .from("treatment_types")
+    .select("id, name, category, default_cost")
+    .eq("is_active", true)
+    .order("name")
+    .limit(500);
+  if (error) throw error;
+  return data ?? [];
 }
 
 export async function listInvoiceEligibleTreatments(
@@ -334,11 +363,11 @@ export async function createInvoice(
   assertInvoiceWriteAccess(ctx, leadResult.data);
   const invoiceResult = await db.rpc("create_invoice", {
     p_lead_id: leadId,
-    p_treatment_id: input.items[0]!.treatment_id,
+    p_treatment_id: input.items.find((item) => item.treatment_id)?.treatment_id ?? null,
     p_tax_rate: input.tax_rate,
     p_notes: input.notes?.trim() || null,
     p_items: input.items.map((item) => ({
-      treatment_id: item.treatment_id,
+      ...(item.treatment_id ? { treatment_id: item.treatment_id } : { treatment_type_id: item.treatment_type_id }),
       quantity: item.quantity,
       unit_price: item.unit_price,
     })) as Json,
@@ -466,7 +495,7 @@ export async function updateInvoice(
     p_tax_rate: input.tax_rate,
     p_notes: input.notes?.trim() || null,
     p_items: input.items.map((item) => ({
-      treatment_id: item.treatment_id,
+      ...(item.treatment_id ? { treatment_id: item.treatment_id } : { treatment_type_id: item.treatment_type_id }),
       quantity: item.quantity,
       unit_price: item.unit_price,
     })) as Json,

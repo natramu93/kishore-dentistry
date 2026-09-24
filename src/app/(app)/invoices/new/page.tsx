@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/auth/context";
 import { getLeadRelated } from "@/data/leads";
-import { listInvoiceEligibleTreatments } from "@/data/invoices";
+import { listInvoiceEligibleTreatments, listInvoiceTreatmentCatalog } from "@/data/invoices";
 import { InvoiceEditor } from "@/components/invoices/invoice-editor";
 import { ConsultationInvoiceForm } from "@/components/invoices/consultation-invoice-form";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,9 +17,10 @@ export default async function NewInvoicePage({
   if (!params.lead) redirect("/leads");
 
   const ctx = await getAuthContext();
-  const [related, eligibleTreatments] = await Promise.all([
+  const [related, eligibleTreatments, treatmentOptions] = await Promise.all([
     getLeadRelated(ctx, params.lead),
     listInvoiceEligibleTreatments(ctx, params.lead),
+    listInvoiceTreatmentCatalog(ctx),
   ]);
   if (!related) notFound();
   const { lead } = related;
@@ -69,6 +70,7 @@ export default async function NewInvoicePage({
           quantity: treatment.quantity,
           unit_price: treatment.cost ?? 0,
         }))}
+        treatmentOptions={treatmentOptions}
         initialItems={initialItems}
       />
     </div>

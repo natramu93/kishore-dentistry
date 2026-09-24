@@ -44,6 +44,9 @@ export function throwMappedDatabaseError(
   }
   if (code === "23514" || code === "22023" || code === "55000") {
     if (resource === "Case sheet") {
+      if (/case-sheet amendment window has expired/i.test(databaseMessage)) {
+        throw new ConflictError("Case sheets can only be amended within 24 hours of finalization.");
+      }
       if (/a treatment linked to an invoice or file cannot be (changed|removed)/i.test(databaseMessage)) {
         throw new ConflictError(databaseMessage);
       }
