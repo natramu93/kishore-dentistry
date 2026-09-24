@@ -43,6 +43,10 @@ export function throwMappedDatabaseError(
     throw new AuthorizationError();
   }
   if (code === "23514" || code === "22023" || code === "55000") {
+    if (resource === "Payment") {
+      if (code === "55000") throw new ConflictError(databaseMessage);
+      throw new ValidationError(databaseMessage || "Payment details are invalid");
+    }
     if (resource === "Case sheet") {
       if (/case-sheet amendment window has expired/i.test(databaseMessage)) {
         throw new ConflictError("Case sheets can only be amended within 24 hours of finalization.");

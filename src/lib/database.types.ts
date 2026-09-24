@@ -106,6 +106,9 @@ export type Branch = Timestamps & {
   code: string;
   address: string | null;
   phone: string | null;
+  company_name: string | null;
+  invoice_email: string | null;
+  gst_number: string | null;
   timezone: string;
   is_active: boolean;
   updated_at: string;
@@ -374,6 +377,8 @@ export type Invoice = Timestamps & {
   issuer_name: string;
   issuer_address: string | null;
   issuer_phone: string | null;
+  issuer_email: string | null;
+  issuer_gst_number: string | null;
   notes: string | null;
   created_by: string | null;
   updated_at: string;
@@ -459,6 +464,19 @@ export type ActionRateLimit = {
   expires_at: string;
   request_count: number;
   last_seen_at: string;
+};
+
+export type InvoicePaymentMethod = "upi" | "cash" | "card" | "neft";
+
+export type InvoicePayment = Timestamps & {
+  id: string;
+  invoice_id: string;
+  amount: number;
+  payment_method: InvoicePaymentMethod;
+  reference: string | null;
+  notes: string | null;
+  received_at: string;
+  created_by: string | null;
 };
 
 export type WebhookEndpoint = Timestamps & {
@@ -897,6 +915,12 @@ export type Database = {
           FK<"invoice_items_treatment_type_id_fkey", "treatment_type_id", "treatment_types">
         ]
       >;
+      invoice_payments: TableDef<
+        InvoicePayment,
+        "invoice_id" | "amount" | "payment_method",
+        "id" | "created_at" | "received_at",
+        [FK<"invoice_payments_invoice_id_fkey", "invoice_id", "invoices">]
+      >;
       lead_activity: TableDef<
         LeadActivity,
         "lead_id" | "type",
@@ -1037,6 +1061,17 @@ export type Database = {
         };
         Returns: Invoice;
       };
+      record_invoice_payment: {
+        Args: {
+          p_invoice_id: string;
+          p_amount: number;
+          p_method: InvoicePaymentMethod;
+          p_reference: string | null;
+          p_notes: string | null;
+          p_actor: string;
+        };
+        Returns: InvoicePayment;
+      };
       delete_invoice: {
         Args: {
           p_invoice_id: string;
@@ -1148,6 +1183,7 @@ export type Database = {
       lead_status: LeadStatus;
       appointment_status: AppointmentStatus;
       invoice_status: InvoiceStatus;
+      invoice_payment_method: InvoicePaymentMethod;
       follow_up_status: FollowUpStatus;
       comment_entity: CommentEntity;
     };

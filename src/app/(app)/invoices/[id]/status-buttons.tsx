@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -37,14 +37,11 @@ export function InvoiceActions({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [paidOpen, setPaidOpen] = useState(false);
-
-  function setStatus(next: InvoiceStatus) {
+  function setStatus(next: "sent") {
     startTransition(async () => {
       const result = await updateInvoiceStatusAction(invoiceId, next, version);
       if (result.ok) {
-        setPaidOpen(false);
-        toast.success(next === "paid" ? "Invoice marked paid" : "Invoice marked sent");
+        toast.success("Invoice marked sent");
       } else {
         toast.error(result.error);
       }
@@ -79,32 +76,6 @@ export function InvoiceActions({
         <Button size="sm" disabled={pending} onClick={() => setStatus("sent")}>
           Mark sent
         </Button>
-      )}
-      {(codeEnforced || consultation) && status !== "paid" && (
-        <AlertDialog open={paidOpen} onOpenChange={setPaidOpen}>
-          <AlertDialogTrigger
-            render={
-              <Button size="sm" variant="outline" disabled={pending}>
-                Mark paid
-              </Button>
-            }
-          />
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Confirm payment received?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Mark this invoice paid only after verifying the payment. Paid invoices can no
-                longer be edited.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={pending}>Go back</AlertDialogCancel>
-              <AlertDialogAction type="button" disabled={pending} onClick={() => setStatus("paid")}>
-                {pending ? "Updating…" : "Confirm payment"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       )}
       {canDelete && (
         <AlertDialog>

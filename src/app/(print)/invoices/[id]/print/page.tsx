@@ -71,6 +71,8 @@ export default async function InvoicePrintPage({
                   <span className="block">Call: {issuerPhoneDisplay}</span>
                 )
               )}
+              {invoice.issuer_email && <a href={`mailto:${invoice.issuer_email}`} className="block underline underline-offset-2">{invoice.issuer_email}</a>}
+              {invoice.issuer_gst_number && <span className="block">GSTIN: {invoice.issuer_gst_number}</span>}
             </address>
           )}
         </div>
@@ -133,7 +135,27 @@ export default async function InvoicePrintPage({
           <span>Total</span>
           <span>{formatINR(invoice.total)}</span>
         </div>
+        <div className="flex justify-between"><span>Paid</span><span>{formatINR(invoice.amount_paid)}</span></div>
+        <div className="flex justify-between font-semibold"><span>Balance due</span><span>{formatINR(invoice.balance_due)}</span></div>
       </div>
+
+      {invoice.payments.length > 0 && (
+        <section className="mt-6">
+          <h3 className="font-semibold text-xs uppercase tracking-wide text-neutral-500">Payments received</h3>
+          <table className="mt-2 w-full border-collapse">
+            <caption className="sr-only">Payment receipts against this invoice</caption>
+            <thead><tr className="border-b border-neutral-300 text-left"><th className="py-1">Date</th><th>Method</th><th>Reference</th><th className="text-right">Amount</th></tr></thead>
+            <tbody>{invoice.payments.map((payment) => (
+              <tr key={payment.id} className="border-b border-neutral-200">
+                <td className="py-1">{fmtDate(payment.received_at)}</td>
+                <td className="uppercase">{payment.payment_method}</td>
+                <td>{payment.reference ?? "—"}</td>
+                <td className="text-right">{formatINR(payment.amount)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </section>
+      )}
 
       {invoice.notes && (
         <p className="mt-6 text-neutral-600 border-t border-neutral-300 pt-3">{invoice.notes}</p>

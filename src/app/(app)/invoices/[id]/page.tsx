@@ -11,6 +11,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { fmtDate, formatINR } from "@/lib/tz";
+import { RecordPaymentForm } from "@/components/invoices/record-payment-form";
 import { InvoiceActions } from "./status-buttons";
 import { WhatsAppInvoiceShare } from "@/components/invoices/whatsapp-invoice-share";
 import { Printer } from "lucide-react";
@@ -147,7 +148,37 @@ export default async function InvoiceDetailPage({
               <span>Total</span>
               <span>{formatINR(invoice.total)}</span>
             </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Paid</span>
+              <span>{formatINR(invoice.amount_paid)}</span>
+            </div>
+            <div className="flex justify-between font-semibold">
+              <span>Balance due</span>
+              <span>{formatINR(invoice.balance_due)}</span>
+            </div>
           </div>
+          {invoice.payments.length > 0 && (
+            <div className="mt-6 space-y-2 border-t pt-4">
+              <h2 className="font-semibold">Payment history</h2>
+              <Table aria-label={`Payments for invoice ${invoice.invoice_number}`}>
+                <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Method</TableHead><TableHead>Reference</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+                <TableBody>{invoice.payments.map((payment) => (
+                  <TableRow key={payment.id}>
+                    <TableCell>{fmtDate(payment.received_at)}</TableCell>
+                    <TableCell className="uppercase">{payment.payment_method}</TableCell>
+                    <TableCell className="break-all">{payment.reference ?? "—"}</TableCell>
+                    <TableCell className="text-right">{formatINR(payment.amount)}</TableCell>
+                  </TableRow>
+                ))}</TableBody>
+              </Table>
+            </div>
+          )}
+          {invoice.balance_due > 0 && (invoice.code_enforced || invoice.invoice_kind === "consultation") && (
+            <div className="mt-6 border-t pt-4">
+              <h2 className="mb-3 font-semibold">Record a payment</h2>
+              <RecordPaymentForm invoiceId={invoice.id} balanceDue={invoice.balance_due} />
+            </div>
+          )}
           {invoice.notes && (
             <p className="mt-4 text-sm text-muted-foreground border-t pt-3">{invoice.notes}</p>
           )}

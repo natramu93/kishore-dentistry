@@ -647,6 +647,11 @@ export default async function LeadDetailPage({
             </CardHeader>
             <CardContent className="space-y-4">
               <ConsultationInvoiceForm leadId={lead.id} />
+              <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-md bg-muted/40 px-3 py-2 text-sm" aria-label="Patient payment summary">
+                <span>Total invoiced: <strong>{formatINR(invoices.reduce((sum, invoice) => sum + Number(invoice.total), 0))}</strong></span>
+                <span>Total paid: <strong>{formatINR(invoices.reduce((sum, invoice) => sum + Number(invoice.amount_paid), 0))}</strong></span>
+                <span>Balance due: <strong>{formatINR(invoices.reduce((sum, invoice) => sum + Number(invoice.balance_due), 0))}</strong></span>
+              </div>
               {invoices.length === 0 && (
                 <p className="text-sm text-muted-foreground">
                   Raise one from a treatment record above, or create an ad-hoc consultation invoice.
@@ -665,6 +670,10 @@ export default async function LeadDetailPage({
                         {inv.status}
                       </Badge>
                     </div>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
+                    <span>Paid: {formatINR(inv.amount_paid)}</span>
+                    <span>Pending: {formatINR(inv.balance_due)}</span>
                   </div>
                   <CommentThread
                     {...commentProps}

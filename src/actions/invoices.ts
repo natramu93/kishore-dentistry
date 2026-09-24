@@ -10,6 +10,7 @@ import {
   invoiceStatusSchema,
   uuidSchema,
 } from "@/lib/validation";
+import type { InvoicePaymentMethod } from "@/lib/database.types";
 import {
   runAction,
   runActionWithValue,
@@ -103,6 +104,12 @@ const consultationInvoiceSchema = z.object({
     .default(200),
   notes: z.string().trim().max(4_000).optional(),
 });
+const invoicePaymentSchema = z.object({
+  amount: z.coerce.number().finite().positive().max(MAX_INVOICE_TOTAL).refine(hasAtMostTwoDecimals, "Amounts support at most two decimals"),
+  method: z.enum(["upi", "cash", "card", "neft"] satisfies [InvoicePaymentMethod, ...InvoicePaymentMethod[]]),
+  reference: z.string().trim().max(120).optional(),
+  notes: z.string().trim().max(1000).optional(),
+});
 
 async function invoiceMutationLimit(userId: string): Promise<void> {
   await assertActionRateLimit(userId, "invoice:mutation", {
@@ -180,6 +187,21 @@ export async function updateInvoiceStatusAction(
     );
     revalidatePath(`/invoices/${parsed.data.id}`);
     revalidatePath("/invoices");
+  });
+}
+
+export async function recordInvoicePaymentAction(id: string, input: unknown): Promise<ActionResult> {
+  const ctx = await getAuthContext();
+  const invoiceId = uuidSchema.safeParse(id);
+  const parsed = invoicePaymentSchema.safeParse(input);
+  if (!invoiceId.success) return { ok: false, error: "Invoice is invalid" };
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid payment" };
+  return runAction(async () => {
+    await invoiceMutationLimit(ctx.userId);
+    await invoices.recordInvoicePayment(ctx, invoiceId.data, parsed.data);
+    revalidatePath(`/invoices/${invoiceId.data}`);
+    revalidatePath("/invoices");
+    revalidatePath("/leads", "layout");
   });
 }
 

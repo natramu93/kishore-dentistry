@@ -25,6 +25,8 @@ import {
 import type {
   Invoice,
   InvoiceItem,
+  InvoicePayment,
+  InvoicePaymentMethod,
   InvoiceStatus,
   Json,
   TreatmentType,
@@ -35,12 +37,17 @@ const MAX_UNIT_PRICE = 99_999_999.99;
 const MAX_INVOICE_TOTAL = 9_999_999_999.99;
 
 export type InvoiceWithRefs = Invoice & {
+  amount_paid: number;
+  balance_due: number;
   lead: { id: string; name: string; mobile: string; email: string | null } | null;
   branch: {
     name: string;
     code: string;
     address: string | null;
     phone: string | null;
+    company_name: string | null;
+    invoice_email: string | null;
+    gst_number: string | null;
   } | null;
 };
 
@@ -61,6 +68,17 @@ export type InvoiceItemInput = {
   quantity: number;
   unit_price: number;
 };
+
+function paidAmount(invoice: Pick<Invoice, "total" | "status">, payments: Pick<InvoicePayment, "amount">[]): number {
+  // Preserve historic paid invoices that predate the receipt ledger.
+  if (invoice.status === "paid" && payments.length === 0) return invoice.total;
+  return Math.round(payments.reduce((sum, payment) => sum + Number(payment.amount), 0) * 100) / 100;
+}
+
+function paymentTotals(invoice: Pick<Invoice, "total" | "status">, payments: Pick<InvoicePayment, "amount">[]) {
+  const amount_paid = paidAmount(invoice, payments);
+  return { amount_paid, balance_due: Math.max(0, Math.round((invoice.total - amount_paid) * 100) / 100) };
+}
 
 export type InvoiceCatalogTreatment = Pick<TreatmentType, "id" | "name" | "category" | "default_cost">;
 
@@ -225,7 +243,7 @@ function validateExpectedVersion(value: number): number {
   return value;
 }
 
-function toInvoiceDto(row: InvoiceScopeRow): InvoiceWithRefs {
+function toInvoiceDto(row: InvoiceScopeRow): Omit<InvoiceWithRefs, "amount_paid" | "balance_due"> {
   return {
     ...row,
     lead: row.lead
@@ -258,7 +276,7 @@ export async function listInvoices(
   let query = db
     .from("invoices")
     .select(
-      "*, lead:leads!inner(id, name, mobile, email, assignee_id), branch:branches(name, code, address, phone)",
+      "*, lead:leads!inner(id, name, mobile, email, assignee_id), branch:branches(name, code, address, phone, company_name, invoice_email, gst_number), payments:invoice_payments(amount)",
       { count: "exact" }
     )
     .is("deleted_at", null)
@@ -294,7 +312,10 @@ export async function listInvoices(
         assignee_id: invoice.lead?.assignee_id ?? null,
       })
     )
-    .map(toInvoiceDto);
+    .map((invoice) => {
+      const paymentRows = (invoice as InvoiceScopeRow & { payments?: Pick<InvoicePayment, "amount">[] }).payments ?? [];
+      return { ...toInvoiceDto(invoice), ...paymentTotals(invoice, paymentRows) };
+    });
   return { invoices, total: count ?? 0, page, pageSize };
 }
 
@@ -303,7 +324,7 @@ async function loadInvoiceScope(id: string): Promise<InvoiceScopeRow | null> {
   const { data, error } = await db
     .from("invoices")
     .select(
-      "*, lead:leads(id, name, mobile, email, assignee_id), branch:branches(name, code, address, phone)"
+      "*, lead:leads(id, name, mobile, email, assignee_id), branch:branches(name, code, address, phone, company_name, invoice_email, gst_number)"
     )
     .eq("id", invoiceId)
     .is("deleted_at", null)
@@ -315,7 +336,7 @@ async function loadInvoiceScope(id: string): Promise<InvoiceScopeRow | null> {
 export async function getInvoice(
   ctx: AuthContext,
   id: string
-): Promise<(InvoiceWithRefs & { items: InvoiceItem[] }) | null> {
+): Promise<(InvoiceWithRefs & { items: InvoiceItem[]; payments: InvoicePayment[] }) | null> {
   const invoice = await loadInvoiceScope(id);
   if (!invoice) return null;
   if (
@@ -334,7 +355,42 @@ export async function getInvoice(
     .order("created_at")
     .limit(100);
   if (itemsResult.error) throw itemsResult.error;
-  return { ...toInvoiceDto(invoice), items: itemsResult.data };
+  const paymentsResult = await db
+    .from("invoice_payments")
+    .select("*")
+    .eq("invoice_id", invoice.id)
+    .order("received_at", { ascending: false })
+    .limit(500);
+  if (paymentsResult.error) throw paymentsResult.error;
+  return { ...toInvoiceDto(invoice), ...paymentTotals(invoice, paymentsResult.data ?? []), items: itemsResult.data, payments: paymentsResult.data ?? [] };
+}
+
+export async function recordInvoicePayment(
+  ctx: AuthContext,
+  id: string,
+  input: { amount: number; method: InvoicePaymentMethod; reference?: string | null; notes?: string | null },
+): Promise<InvoicePayment> {
+  requireAnyRole(ctx, INVOICE_ROLES, "Invoices access required");
+  const invoice = await loadInvoiceScope(id);
+  if (!invoice) throw new NotFoundError("Invoice");
+  assertInvoiceWriteAccess(ctx, { branch_id: invoice.branch_id, assignee_id: invoice.lead?.assignee_id ?? null });
+  if (invoice.status === "paid") throw new ConflictError("This invoice is already paid");
+  if (!invoice.code_enforced && invoice.invoice_kind !== "consultation") {
+    throw new ConflictError("Legacy uncoded invoices cannot accept payments");
+  }
+  if (!Number.isFinite(input.amount) || input.amount <= 0 || input.amount > MAX_INVOICE_TOTAL || !hasAtMostTwoDecimals(input.amount)) {
+    throw new ValidationError("Payment amount must be positive with at most two decimals");
+  }
+  const result = await db.rpc("record_invoice_payment", {
+    p_invoice_id: invoice.id,
+    p_amount: roundCurrency(input.amount),
+    p_method: input.method,
+    p_reference: input.reference?.trim() || null,
+    p_notes: input.notes?.trim() || null,
+    p_actor: ctx.userId,
+  });
+  if (result.error) throwMappedDatabaseError(result.error, "Payment");
+  return result.data;
 }
 
 export async function createInvoice(

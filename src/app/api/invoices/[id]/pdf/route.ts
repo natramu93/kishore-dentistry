@@ -96,14 +96,18 @@ export async function GET(
 
     draw(issuerName, margin, y, 17, bold, accent);
     y -= 22;
-    for (const line of (issuerAddress ?? "").split(/\r?\n/).filter(Boolean)) {
-      draw(line, margin, y, 9, regular, muted);
-      y -= 13;
+    for (const paragraph of (issuerAddress ?? "").split(/\r?\n/).filter(Boolean)) {
+      for (const line of wrap(paragraph, page.getWidth() - margin * 2, 9)) {
+        draw(line, margin, y, 9, regular, muted);
+        y -= 13;
+      }
     }
     if (issuerPhone) {
       draw(`Phone: ${issuerPhone}`, margin, y, 9, regular, muted);
       y -= 13;
     }
+    if (invoice.issuer_email) { draw(`Email: ${invoice.issuer_email}`, margin, y, 9, regular, muted); y -= 13; }
+    if (invoice.issuer_gst_number) { draw(`GSTIN: ${invoice.issuer_gst_number}`, margin, y, 9, regular, muted); y -= 13; }
     page.drawText("INVOICE", {
       x: 385, y: page.getHeight() - margin - 2, size: 20, font: bold, color: ink,
     });
@@ -176,6 +180,20 @@ export async function GET(
     totalRow(`Tax (${invoice.tax_rate}%)`, invoice.tax_amount);
     page.drawLine({ start: { x: totalsX, y: y + 7 }, end: { x: page.getWidth() - margin, y: y + 7 }, thickness: 1, color: accent });
     totalRow("Total", invoice.total, true);
+    totalRow("Paid", invoice.amount_paid);
+    totalRow("Balance due", invoice.balance_due, true);
+
+    if (invoice.payments.length > 0) {
+      ensureSpace(24 + invoice.payments.length * 14);
+      y -= 4;
+      draw("PAYMENTS RECEIVED", margin, y, 8, bold, muted);
+      y -= 15;
+      for (const payment of invoice.payments) {
+        draw(`${fmtDate(payment.received_at)} | ${payment.payment_method.toUpperCase()} | ${payment.reference ?? "No reference"}`, margin, y, 8, regular, muted);
+        draw(pdfAmount(payment.amount), 480, y, 8, regular, ink);
+        y -= 13;
+      }
+    }
 
     if (invoice.notes) {
       const noteLines = wrap(`Notes: ${invoice.notes}`, page.getWidth() - margin * 2, 9);

@@ -31,6 +31,9 @@ const branchSchema = z.object({
     .regex(/^[A-Za-z0-9]+$/, "Code can contain only letters and numbers"),
   address: text(500).optional(),
   phone: text(32).optional(),
+  company_name: text(200).optional(),
+  invoice_email: z.union([z.literal(""), z.string().trim().email().max(254)]).optional(),
+  gst_number: text(32).optional(),
 });
 
 function invalid(error: z.ZodError): ActionResult {
@@ -50,7 +53,7 @@ export async function createBranchAction(formData: FormData): Promise<ActionResu
   if (!parsed.success) return invalid(parsed.error);
   return runAction(async () => {
     await adminMutationLimit(ctx.userId, "admin:branch");
-    await branches.createBranch(ctx, parsed.data);
+    await branches.createBranch(ctx, { ...parsed.data, invoice_email: parsed.data.invoice_email || undefined });
     revalidatePath("/admin/branches");
   });
 }
@@ -66,7 +69,7 @@ export async function updateBranchAction(id: string, formData: FormData): Promis
   if (!parsed.success) return invalid(parsed.error);
   return runAction(async () => {
     await adminMutationLimit(ctx.userId, "admin:branch");
-    await branches.updateBranch(ctx, parsedId.data, parsed.data);
+    await branches.updateBranch(ctx, parsedId.data, { ...parsed.data, invoice_email: parsed.data.invoice_email || null });
     revalidatePath("/admin/branches");
   });
 }

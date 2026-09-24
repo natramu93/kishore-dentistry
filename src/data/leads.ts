@@ -390,7 +390,7 @@ export async function getLeadRelated(ctx: AuthContext, leadIdValue: string) {
       .limit(limit),
     db
       .from("invoices")
-      .select("*")
+      .select("*, payments:invoice_payments(amount, payment_method)")
       .eq("lead_id", leadId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
@@ -413,7 +413,13 @@ export async function getLeadRelated(ctx: AuthContext, leadIdValue: string) {
     appointments: results[0].data,
     treatments: results[1].data,
     followUps: results[2].data,
-    invoices: results[3].data,
+    invoices: (results[3].data ?? []).map((invoice) => {
+      const payments = invoice.payments ?? [];
+      const amount_paid = invoice.status === "paid" && payments.length === 0
+        ? Number(invoice.total)
+        : payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+      return { ...invoice, payments, amount_paid, balance_due: Math.max(0, Number(invoice.total) - amount_paid) };
+    }),
     callLogs: results[4].data,
   };
 }

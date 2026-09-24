@@ -111,6 +111,9 @@ export default async function BranchesPage() {
             <Label htmlFor="phone">Phone</Label>
             <Input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" />
           </div>
+          <div className="space-y-2"><Label htmlFor="company_name">Invoice company name</Label><Input id="company_name" name="company_name" maxLength={200} /></div>
+          <div className="space-y-2"><Label htmlFor="invoice_email">Invoice email</Label><Input id="invoice_email" name="invoice_email" type="email" maxLength={254} /></div>
+          <div className="space-y-2"><Label htmlFor="gst_number">GST number</Label><Input id="gst_number" name="gst_number" maxLength={32} /></div>
         </FormDialog>
       </div>
 
@@ -194,6 +197,9 @@ export default async function BranchesPage() {
                         defaultValue={b.phone ?? ""}
                       />
                     </div>
+                    <div className="space-y-2"><Label htmlFor={`bcompany-${b.id}`}>Invoice company name</Label><Input id={`bcompany-${b.id}`} name="company_name" defaultValue={b.company_name ?? ""} maxLength={200} /></div>
+                    <div className="space-y-2"><Label htmlFor={`bemail-${b.id}`}>Invoice email</Label><Input id={`bemail-${b.id}`} name="invoice_email" type="email" defaultValue={b.invoice_email ?? ""} maxLength={254} /></div>
+                    <div className="space-y-2"><Label htmlFor={`bgst-${b.id}`}>GST number</Label><Input id={`bgst-${b.id}`} name="gst_number" defaultValue={b.gst_number ?? ""} maxLength={32} /></div>
                   </RowEditDialog>
                   <ToggleActiveButton
                     isActive={b.is_active}
