@@ -109,6 +109,7 @@ export type Branch = Timestamps & {
   company_name: string | null;
   invoice_email: string | null;
   gst_number: string | null;
+  appointment_whatsapp_enabled: boolean;
   timezone: string;
   is_active: boolean;
   updated_at: string;

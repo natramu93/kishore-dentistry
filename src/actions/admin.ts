@@ -34,6 +34,7 @@ const branchSchema = z.object({
   company_name: text(200).optional(),
   invoice_email: z.union([z.literal(""), z.string().trim().email().max(254)]).optional(),
   gst_number: text(32).optional(),
+  appointment_whatsapp_enabled: booleanInputSchema.optional(),
 });
 
 function invalid(error: z.ZodError): ActionResult {

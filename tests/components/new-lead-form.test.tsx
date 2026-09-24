@@ -23,6 +23,7 @@ describe("new lead form", () => {
             company_name: null,
             invoice_email: null,
             gst_number: null,
+            appointment_whatsapp_enabled: true,
             timezone: "Asia/Kolkata",
             is_active: true,
             created_at: "2026-09-03T00:00:00.000Z",

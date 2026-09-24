@@ -7,7 +7,7 @@ import * as appointments from "@/data/appointments";
 import { clinicTimeToUtc } from "@/lib/tz";
 import { assertActionRateLimit } from "@/lib/rate-limit";
 import { optionalUuidSchema, uuidSchema } from "@/lib/validation";
-import { runAction, type ActionResult } from "./util";
+import { runAction, runActionWithValue, type ActionResult, type ActionValueResult } from "./util";
 
 const rescheduleSchema = z.object({
   scheduled_at: z.string().min(1, "Pick a date and time").max(64),
@@ -20,7 +20,7 @@ export async function rescheduleAppointmentAction(
   appointmentId: string,
   leadId: string,
   formData: FormData
-): Promise<ActionResult> {
+): Promise<ActionValueResult<{ whatsappUrl?: string }>> {
   const ctx = await getAuthContext();
   const ids = z.object({ appointmentId: uuidSchema, leadId: uuidSchema }).safeParse({
     appointmentId,
@@ -32,16 +32,22 @@ export async function rescheduleAppointmentAction(
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
   const value = parsed.data;
-  return runAction(async () => {
+  return runActionWithValue(async () => {
     await assertActionRateLimit(ctx.userId, "appointment:reschedule", {
       limit: 30,
       windowMs: 5 * 60_000,
     });
+    const scheduledAt = clinicTimeToUtc(value.scheduled_at);
+    const whatsappUrl = await appointments.appointmentWhatsAppUrl(
+      ctx,
+      ids.data.leadId,
+      scheduledAt
+    );
     const updated = await appointments.updateAppointment(
       ctx,
       ids.data.appointmentId,
       {
-        scheduled_at: clinicTimeToUtc(value.scheduled_at),
+        scheduled_at: scheduledAt,
         doctor_id: value.doctor_id || null,
         duration_minutes: value.duration_minutes,
         notes: value.notes || null,
@@ -51,6 +57,7 @@ export async function rescheduleAppointmentAction(
     revalidatePath(`/leads/${updated.lead_id}`);
     revalidatePath("/appointments");
     revalidatePath("/dashboard");
+    return { whatsappUrl };
   });
 }
 

@@ -35,7 +35,7 @@ export async function listMyBranches(ctx: AuthContext): Promise<Branch[]> {
 
 export async function createBranch(
   ctx: AuthContext,
-  input: { name: string; code: string; address?: string; phone?: string; company_name?: string; invoice_email?: string; gst_number?: string }
+  input: { name: string; code: string; address?: string; phone?: string; company_name?: string; invoice_email?: string; gst_number?: string; appointment_whatsapp_enabled?: boolean }
 ) {
   requireAdmin(ctx);
   const { data, error } = await db
@@ -50,7 +50,7 @@ export async function createBranch(
 export async function updateBranch(
   ctx: AuthContext,
   id: string,
-  input: { name?: string; code?: string; address?: string | null; phone?: string | null; company_name?: string | null; invoice_email?: string | null; gst_number?: string | null; is_active?: boolean }
+  input: { name?: string; code?: string; address?: string | null; phone?: string | null; company_name?: string | null; invoice_email?: string | null; gst_number?: string | null; appointment_whatsapp_enabled?: boolean; is_active?: boolean }
 ) {
   requireAdmin(ctx);
   const branchId = assertUuid(id, "Branch");

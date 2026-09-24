@@ -59,6 +59,7 @@ export function TransitionActions({
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [confirmation, setConfirmation] = useState<QuickConfirmation | null>(null);
   const [pending, startTransition] = useTransition();
+  const [whatsappFallbackUrl, setWhatsappFallbackUrl] = useState<string | null>(null);
 
   function run(to: LeadStatus, formData: FormData) {
     startTransition(async () => {
@@ -77,6 +78,42 @@ export function TransitionActions({
     const fd = new FormData();
     for (const [k, v] of Object.entries(extra)) fd.set(k, v);
     run(to, fd);
+  }
+
+  function bookAppointment(formData: FormData) {
+    // Reserve a tab during the user's click so the browser won't block the
+    // WhatsApp handoff while the server saves the appointment.
+    let whatsappTab: Window | null = null;
+    try {
+      whatsappTab = window.open("about:blank", "_blank");
+      if (whatsappTab) whatsappTab.opener = null;
+    } catch {
+      whatsappTab = null;
+    }
+
+    setWhatsappFallbackUrl(null);
+    startTransition(async () => {
+      const result = await transitionLeadAction(lead.id, "appointment_booked", formData);
+      if (!result.ok) {
+        whatsappTab?.close();
+        toast.error(result.error);
+        return;
+      }
+
+      setDialog(null);
+      if (!result.whatsappUrl) {
+        whatsappTab?.close();
+        toast.success("Appointment created");
+        return;
+      }
+      if (whatsappTab) {
+        whatsappTab.location.href = result.whatsappUrl;
+        toast.success("Appointment created. Review and send the WhatsApp message.");
+      } else {
+        setWhatsappFallbackUrl(result.whatsappUrl);
+        toast.success("Appointment created. Open the WhatsApp message below.");
+      }
+    });
   }
 
   const s = lead.status;
@@ -207,7 +244,13 @@ export function TransitionActions({
           <DialogHeader>
             <DialogTitle>Book appointment</DialogTitle>
           </DialogHeader>
-          <form action={(fd) => run("appointment_booked", fd)} className="space-y-4">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              bookAppointment(new FormData(event.currentTarget));
+            }}
+            className="space-y-4"
+          >
             <div className="space-y-2">
               <Label htmlFor="scheduled_at">Date &amp; time (IST)</Label>
               <Input id="scheduled_at" name="scheduled_at" type="datetime-local" required />
@@ -234,7 +277,7 @@ export function TransitionActions({
               <Label htmlFor="notes">Notes</Label>
               <Textarea id="notes" name="notes" rows={2} />
             </div>
-            <SubmitRow pending={pending} label="Book" />
+            <SubmitRow pending={pending} label="Create appointment & open WhatsApp" />
           </form>
         </DialogContent>
       </Dialog>
@@ -308,6 +351,16 @@ export function TransitionActions({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {whatsappFallbackUrl && (
+        <a
+          className="text-sm font-medium text-primary underline underline-offset-4"
+          href={whatsappFallbackUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Open appointment message in WhatsApp<span className="sr-only"> (opens in a new tab)</span>
+        </a>
+      )}
     </div>
   );
 }

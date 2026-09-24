@@ -114,6 +114,14 @@ export default async function BranchesPage() {
           <div className="space-y-2"><Label htmlFor="company_name">Invoice company name</Label><Input id="company_name" name="company_name" maxLength={200} /></div>
           <div className="space-y-2"><Label htmlFor="invoice_email">Invoice email</Label><Input id="invoice_email" name="invoice_email" type="email" maxLength={254} /></div>
           <div className="space-y-2"><Label htmlFor="gst_number">GST number</Label><Input id="gst_number" name="gst_number" maxLength={32} /></div>
+          <div className="flex items-start gap-3 rounded-md border p-3">
+            <input type="hidden" name="appointment_whatsapp_enabled" value="false" />
+            <input id="new-appointment-whatsapp" name="appointment_whatsapp_enabled" type="checkbox" value="true" defaultChecked className="mt-1 h-4 w-4 accent-primary" />
+            <div className="space-y-1">
+              <Label htmlFor="new-appointment-whatsapp">Open WhatsApp after appointment changes</Label>
+              <p className="text-sm text-muted-foreground">When enabled, booking or rescheduling opens a prepared patient message for this center.</p>
+            </div>
+          </div>
         </FormDialog>
       </div>
 
@@ -200,6 +208,14 @@ export default async function BranchesPage() {
                     <div className="space-y-2"><Label htmlFor={`bcompany-${b.id}`}>Invoice company name</Label><Input id={`bcompany-${b.id}`} name="company_name" defaultValue={b.company_name ?? ""} maxLength={200} /></div>
                     <div className="space-y-2"><Label htmlFor={`bemail-${b.id}`}>Invoice email</Label><Input id={`bemail-${b.id}`} name="invoice_email" type="email" defaultValue={b.invoice_email ?? ""} maxLength={254} /></div>
                     <div className="space-y-2"><Label htmlFor={`bgst-${b.id}`}>GST number</Label><Input id={`bgst-${b.id}`} name="gst_number" defaultValue={b.gst_number ?? ""} maxLength={32} /></div>
+                    <div className="flex items-start gap-3 rounded-md border p-3">
+                      <input type="hidden" name="appointment_whatsapp_enabled" value="false" />
+                      <input id={`bwhatsapp-${b.id}`} name="appointment_whatsapp_enabled" type="checkbox" value="true" defaultChecked={b.appointment_whatsapp_enabled} className="mt-1 h-4 w-4 accent-primary" />
+                      <div className="space-y-1">
+                        <Label htmlFor={`bwhatsapp-${b.id}`}>Open WhatsApp after appointment changes</Label>
+                        <p className="text-sm text-muted-foreground">When enabled, booking or rescheduling opens a prepared patient message for this center.</p>
+                      </div>
+                    </div>
                   </RowEditDialog>
                   <ToggleActiveButton
                     isActive={b.is_active}

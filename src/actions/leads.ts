@@ -6,9 +6,11 @@ import { z } from "zod";
 import { getAuthContext } from "@/lib/auth/context";
 import { transitionPayloadSchemas } from "@/lib/leads/transitions";
 import * as leads from "@/data/leads";
+import * as appointments from "@/data/appointments";
 import * as comments from "@/data/comments";
 import { clinicTimeToUtc } from "@/lib/tz";
 import { assertActionRateLimit } from "@/lib/rate-limit";
+import { NotFoundError } from "@/lib/errors";
 import {
   commentEntitySchema,
   leadStatusSchema,
@@ -20,6 +22,7 @@ import {
   runAction,
   runActionWithValue,
   type ActionResult,
+  type ActionValueResult,
 } from "./util";
 
 const optionalDate = z
@@ -124,7 +127,7 @@ export async function transitionLeadAction(
   leadId: string,
   toValue: unknown,
   formData: FormData
-): Promise<ActionResult> {
+): Promise<ActionValueResult<{ whatsappUrl?: string }>> {
   const ctx = await getAuthContext();
   const id = uuidSchema.safeParse(leadId);
   const target = leadStatusSchema.safeParse(toValue);
@@ -145,8 +148,8 @@ export async function transitionLeadAction(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
-  return runAction(async () => {
-    await leadMutationLimit(ctx.userId);
+
+  const preparePayload = () => {
     const payload: Record<string, unknown> = { ...parsed.data };
     if (typeof payload.scheduled_at === "string" && payload.scheduled_at) {
       payload.scheduled_at = clinicTimeToUtc(payload.scheduled_at);
@@ -157,6 +160,41 @@ export async function transitionLeadAction(
     for (const key of Object.keys(payload)) {
       if (payload[key] === "" || payload[key] === undefined) delete payload[key];
     }
+    return payload;
+  };
+
+  if (target.data === "appointment_booked") {
+    return runActionWithValue(async () => {
+      await leadMutationLimit(ctx.userId);
+      const payload = preparePayload();
+      const scheduledAt = payload.scheduled_at as string;
+      const currentLead = await leads.getLead(ctx, id.data);
+      if (!currentLead) throw new NotFoundError("Lead");
+      const whatsappUrl = await appointments.appointmentWhatsAppUrl(ctx, id.data, scheduledAt);
+
+      if (currentLead.status === "appointment_booked") {
+        await appointments.createAdditionalAppointment(ctx, id.data, {
+          scheduled_at: scheduledAt,
+          doctor_id: typeof payload.doctor_id === "string" ? payload.doctor_id : null,
+          duration_minutes: typeof payload.duration_minutes === "number" ? payload.duration_minutes : 15,
+          notes: typeof payload.notes === "string" ? payload.notes : null,
+        });
+      } else {
+        await leads.transitionLead(ctx, id.data, target.data, payload);
+      }
+
+      revalidatePath(`/leads/${id.data}`);
+      revalidatePath("/leads");
+      revalidatePath("/dashboard");
+      revalidatePath("/appointments");
+      revalidatePath("/follow-ups");
+      return { whatsappUrl };
+    });
+  }
+
+  return runAction(async () => {
+    await leadMutationLimit(ctx.userId);
+    const payload = preparePayload();
     await leads.transitionLead(ctx, id.data, target.data, payload);
     revalidatePath(`/leads/${id.data}`);
     revalidatePath("/leads");

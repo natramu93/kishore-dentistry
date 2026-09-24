@@ -25,6 +25,7 @@ import {
   normalizePagination,
 } from "@/lib/validation";
 import type { Appointment, Json } from "@/lib/database.types";
+import { buildAppointmentWhatsAppUrl } from "@/lib/appointments/whatsapp";
 
 export type AppointmentWithRefs = Appointment & {
   lead: {
@@ -199,6 +200,104 @@ export async function updateAppointment(
     },
   });
   return { lead_id: appointment.lead_id };
+}
+
+/** Create an additional appointment when the lead already has a booking. */
+export async function createAdditionalAppointment(
+  ctx: AuthContext,
+  leadIdValue: string,
+  input: {
+    scheduled_at: string;
+    doctor_id?: string | null;
+    duration_minutes?: number;
+    notes?: string | null;
+  }
+): Promise<{ lead_id: string; scheduled_at: string }> {
+  const leadId = assertUuid(leadIdValue, "Lead");
+  const { data: lead, error: leadError } = await db
+    .from("leads")
+    .select("id, branch_id, assignee_id, status")
+    .eq("id", leadId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (leadError) throw leadError;
+  if (!lead) throw new NotFoundError("Lead");
+  assertLeadWriteAccess(ctx, lead);
+  if (lead.status !== "appointment_booked") {
+    throw new ConflictError("The lead no longer has a booked appointment. Refresh and try again.");
+  }
+
+  const scheduledAt = assertIsoDateTime(input.scheduled_at, "Appointment date");
+  const doctorId = input.doctor_id ? assertUuid(input.doctor_id, "Doctor") : null;
+  if (doctorId) await requireActiveDoctorForBranch(doctorId, lead.branch_id);
+  const duration = input.duration_minutes ?? 15;
+  if (!Number.isInteger(duration) || duration < 5 || duration > 480) {
+    throw new ValidationError("Duration must be between 5 and 480 minutes");
+  }
+
+  const { data: created, error } = await db
+    .from("appointments")
+    .insert({
+      lead_id: leadId,
+      doctor_id: doctorId,
+      scheduled_at: scheduledAt,
+      duration_minutes: duration,
+      notes: input.notes ?? null,
+      created_by: ctx.userId,
+    })
+    .select("id, scheduled_at")
+    .single();
+  if (error) throwMappedDatabaseError(error, "Appointment");
+
+  await recordLeadActivity({
+    lead_id: leadId,
+    actor_id: ctx.userId,
+    type: "appointment",
+    detail: {
+      event: "booked",
+      appointment_id: created.id,
+      scheduled_at: created.scheduled_at,
+    },
+  });
+  return { lead_id: leadId, scheduled_at: created.scheduled_at };
+}
+
+/** Build a patient message from saved CRM contact and branch details. */
+export async function appointmentWhatsAppUrl(
+  ctx: AuthContext,
+  leadIdValue: string,
+  scheduledAt: string
+): Promise<string | undefined> {
+  const leadId = assertUuid(leadIdValue, "Lead");
+  const { data: lead, error: leadError } = await db
+    .from("leads")
+    .select("id, branch_id, assignee_id, name, mobile")
+    .eq("id", leadId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (leadError) throw leadError;
+  if (!lead) throw new NotFoundError("Lead");
+  assertLeadWriteAccess(ctx, lead);
+
+  const { data: branch, error: branchError } = await db
+    .from("branches")
+    .select("name, address, phone, company_name, appointment_whatsapp_enabled")
+    .eq("id", lead.branch_id)
+    .maybeSingle();
+  if (branchError) throw branchError;
+  if (!branch) throw new NotFoundError("Center");
+  if (!branch.appointment_whatsapp_enabled) return undefined;
+
+  return buildAppointmentWhatsAppUrl({
+    patientName: lead.name,
+    patientMobile: lead.mobile,
+    scheduledAt,
+    centerName: branch.company_name
+      ? `${branch.company_name} — ${branch.name}`
+      : branch.name,
+    centerAddress: branch.address,
+    centerPhone: branch.phone,
+  });
 }
 
 async function loadOwnScheduledAppointment(ctx: AuthContext, appointmentIdValue: string) {
