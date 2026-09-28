@@ -39,7 +39,7 @@ export const leadStatusSchema = z.enum([
   "missed",
 ]);
 export const appointmentStatusSchema = z.enum(["scheduled", "completed", "cancelled", "no_show"]);
-export const invoiceStatusSchema = z.enum(["draft", "sent", "paid"]);
+export const invoiceStatusSchema = z.enum(["draft", "sent", "paid", "cancelled"]);
 export const followUpStatusSchema = z.enum(["pending", "done", "cancelled"]);
 export const commentEntitySchema = z.enum([
   "lead",

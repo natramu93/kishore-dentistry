@@ -52,6 +52,9 @@ export function InvoiceEditor({
   initialItems,
   initialTaxRate = 0,
   initialNotes = "",
+  initialDiscount = 0,
+  initialDiscountGivenBy = "",
+  initialMention = "",
 }: {
   mode: "create" | "edit";
   invoiceId?: string;
@@ -63,6 +66,9 @@ export function InvoiceEditor({
   initialItems: CodedInvoiceItem[];
   initialTaxRate?: number;
   initialNotes?: string;
+  initialDiscount?: number;
+  initialDiscountGivenBy?: string;
+  initialMention?: string;
 }) {
   const router = useRouter();
   const idPrefix = useId();
@@ -72,6 +78,9 @@ export function InvoiceEditor({
   );
   const [taxRate, setTaxRate] = useState(initialTaxRate);
   const [notes, setNotes] = useState(initialNotes);
+  const [discount, setDiscount] = useState(initialDiscount);
+  const [discountGivenBy, setDiscountGivenBy] = useState(initialDiscountGivenBy);
+  const [mention, setMention] = useState(initialMention);
   const [dirty, setDirty] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -83,8 +92,9 @@ export function InvoiceEditor({
   }, [dirty, pending]);
 
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
-  const tax = Math.round(subtotal * taxRate) / 100;
-  const total = subtotal + tax;
+  const safeDiscount = Math.min(Math.max(0, discount), subtotal);
+  const discountedTax = Math.round((subtotal - safeDiscount) * taxRate) / 100;
+  const total = subtotal - safeDiscount + discountedTax;
   const selectedIds = new Set(items.map((item) => item.treatment_id));
   const available = treatmentCatalog.filter((item) => !selectedIds.has(item.id));
 
@@ -157,11 +167,7 @@ export function InvoiceEditor({
 
   function submit() {
     if (!items.length) {
-      toast.error("Select at least one completed coded treatment");
-      return;
-    }
-    if (!items.some((item) => item.treatment_id)) {
-      toast.error("Include at least one completed coded case-sheet treatment on the invoice");
+      toast.error("Add at least one treatment line");
       return;
     }
     if (items.some((item) => !item.treatment_id && !item.treatment_type_id)) {
@@ -178,6 +184,9 @@ export function InvoiceEditor({
         const result = await createInvoiceAndRedirect({
           lead_id: leadId,
           tax_rate: taxRate,
+          discount_amount: safeDiscount,
+          discount_given_by: discountGivenBy,
+          mention,
           notes,
           items: payloadItems,
         });
@@ -185,6 +194,9 @@ export function InvoiceEditor({
       } else {
         const result = await updateInvoiceAction(invoiceId!, {
           tax_rate: taxRate,
+          discount_amount: safeDiscount,
+          discount_given_by: discountGivenBy,
+          mention,
           notes,
           items: payloadItems,
           expected_version: initialVersion,
@@ -207,15 +219,15 @@ export function InvoiceEditor({
           <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100">
             <p className="flex items-center gap-2 font-medium">
               <LockKeyhole aria-hidden="true" className="size-4" />
-              Coded case-sheet treatment required
+              Patient invoice
             </p>
             <p className="mt-1 text-xs">
-              At least one completed treatment with its case-sheet code is required. Add itemized charges from the treatment catalog below.
+              Create this invoice independently of the case sheet. Add one or more treatments from this center’s treatment list; coded case-sheet treatments can also be included when available.
             </p>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor={`${idPrefix}-treatment`}>Add completed treatment</Label>
+            <Label htmlFor={`${idPrefix}-treatment`}>Add a completed case-sheet treatment (optional)</Label>
             <select
               id={`${idPrefix}-treatment`}
               value=""
@@ -241,7 +253,7 @@ export function InvoiceEditor({
             </div>
             {items.length === 0 && (
               <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                There is no invoice line yet. Select a completed case-sheet treatment or add an item from the treatment catalog.
+                There is no invoice line yet. Choose a treatment from the center treatment list below.
               </p>
             )}
             {items.map((item, index) => {
@@ -352,6 +364,18 @@ export function InvoiceEditor({
                 onChange={(event) => { setDirty(true); setNotes(event.target.value); }}
               />
             </div>
+            {mode === "create" && <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-discount`}>Discount amount (₹)</Label>
+              <Input id={`${idPrefix}-discount`} type="number" inputMode="decimal" min={0} max={subtotal} step={0.01} value={discount} onChange={(event) => { setDirty(true); setDiscount(Number(event.target.value)); }} />
+            </div>}
+            {mode === "create" && <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-discount-by`}>Discount given by</Label>
+              <Input id={`${idPrefix}-discount-by`} maxLength={200} value={discountGivenBy} onChange={(event) => { setDirty(true); setDiscountGivenBy(event.target.value); }} />
+            </div>}
+            {mode === "create" && <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor={`${idPrefix}-mention`}>Mention / remarks</Label>
+              <Textarea id={`${idPrefix}-mention`} rows={2} maxLength={1000} value={mention} onChange={(event) => { setDirty(true); setMention(event.target.value); }} />
+            </div>}
           </div>
 
           <div aria-live="polite" aria-atomic="true" className="space-y-1 border-t pt-4 text-sm">
@@ -360,8 +384,12 @@ export function InvoiceEditor({
               <span>{formatINR(subtotal)}</span>
             </div>
             <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Discount</span>
+              <span>−{formatINR(safeDiscount)}</span>
+            </div>
+            <div className="flex justify-between gap-4">
               <span className="text-muted-foreground">Tax ({taxRate}%)</span>
-              <span>{formatINR(tax)}</span>
+              <span>{formatINR(discountedTax)}</span>
             </div>
             <div className="flex justify-between gap-4 text-base font-bold">
               <span>Total</span>
@@ -371,8 +399,8 @@ export function InvoiceEditor({
 
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button variant="ghost" type="button" onClick={cancel}>Cancel</Button>
-            <Button type="submit" disabled={pending || items.length === 0 || !items.some((item) => item.treatment_id) || subtotal <= 0 || items.some((item) => !item.treatment_id && !item.treatment_type_id)}>
-              {pending ? "Saving…" : mode === "create" ? "Create coded invoice" : "Save changes"}
+            <Button type="submit" disabled={pending || items.length === 0 || subtotal <= 0 || discount > subtotal || items.some((item) => !item.treatment_id && !item.treatment_type_id)}>
+              {pending ? "Saving…" : mode === "create" ? "Create invoice" : "Save changes"}
             </Button>
           </div>
         </CardContent>

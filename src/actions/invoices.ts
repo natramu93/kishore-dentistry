@@ -54,6 +54,9 @@ const invoiceDetailsSchema = z.object({
     .refine(hasAtMostTwoDecimals, "Tax rate supports at most two decimals")
     .default(0),
   notes: z.string().trim().max(4_000).optional(),
+  discount_amount: money.default(0),
+  discount_given_by: z.string().trim().max(200).optional(),
+  mention: z.string().trim().max(1_000).optional(),
   items: z
     .array(invoiceItemSchema)
     .min(1, "At least one line item is required")
@@ -132,11 +135,26 @@ export async function createInvoiceAction(
       lead_id: parsed.data.lead_id,
       tax_rate: parsed.data.tax_rate,
       notes: parsed.data.notes || null,
+      discount_amount: parsed.data.discount_amount,
+      discount_given_by: parsed.data.discount_given_by || null,
+      mention: parsed.data.mention || null,
       items: parsed.data.items,
     });
     revalidatePath(`/leads/${parsed.data.lead_id}`);
     revalidatePath("/invoices");
     return { id: invoice.id };
+  });
+}
+
+export async function cancelInvoiceAction(id: string, reason: unknown): Promise<ActionResult> {
+  const ctx = await getAuthContext();
+  const parsed = z.object({ id: uuidSchema, reason: z.string().trim().min(1).max(1000) }).safeParse({ id, reason });
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Cancellation reason is required" };
+  return runAction(async () => {
+    await invoiceMutationLimit(ctx.userId);
+    await invoices.cancelInvoice(ctx, parsed.data.id, parsed.data.reason);
+    revalidatePath(`/invoices/${parsed.data.id}`);
+    revalidatePath("/invoices");
   });
 }
 

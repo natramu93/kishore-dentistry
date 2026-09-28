@@ -37,6 +37,7 @@ export type ReportsData = {
   byCenter: ReportRow[];
   byDay: ReportRow[];
   byTreatment: ReportRow[];
+  collectedByDay: { day: string; amount: number }[];
   totals: {
     leads: number;
     appointments: number;
@@ -134,14 +135,20 @@ export async function getReportsData(
     }
   }
 
-  const result = await db.rpc("get_report_aggregates", {
+  const [result, collectionsResult] = await Promise.all([db.rpc("get_report_aggregates", {
     p_actor: ctx.userId,
     p_from: from,
     p_to: to,
     p_branch_id: branchId ?? null,
     p_doctor_id: doctorId ?? null,
-  });
+  }), db.rpc("get_report_collections", {
+    p_actor: ctx.userId,
+    p_from: from,
+    p_to: to,
+    p_branch_id: branchId ?? null,
+  })]);
   if (result.error) throw result.error;
+  if (collectionsResult.error) throw collectionsResult.error;
 
   const parsed = reportPayloadSchema.safeParse(result.data?.[0]);
   if (!parsed.success) {
@@ -154,6 +161,7 @@ export async function getReportsData(
     byCenter: payload.by_center,
     byDay: payload.by_day,
     byTreatment: payload.by_treatment,
+    collectedByDay: (collectionsResult.data ?? []).map((row) => ({ day: row.clinic_day, amount: Number(row.amount) })),
     totals: payload.totals,
     range: { from, to },
   };

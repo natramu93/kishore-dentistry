@@ -128,6 +128,10 @@ export default async function InvoicePrintPage({
           <span>{formatINR(invoice.subtotal)}</span>
         </div>
         <div className="flex justify-between">
+          <span>Discount{invoice.discount_given_by ? ` (${invoice.discount_given_by})` : ""}</span>
+          <span>−{formatINR(invoice.discount_amount ?? 0)}</span>
+        </div>
+        <div className="flex justify-between">
           <span>Tax ({invoice.tax_rate}%)</span>
           <span>{formatINR(invoice.tax_amount)}</span>
         </div>
@@ -135,7 +139,7 @@ export default async function InvoicePrintPage({
           <span>Total</span>
           <span>{formatINR(invoice.total)}</span>
         </div>
-        <div className="flex justify-between"><span>Paid</span><span>{formatINR(invoice.amount_paid)}</span></div>
+        <div className="flex justify-between"><span>Amount received</span><span>{formatINR(invoice.amount_paid)}</span></div>
         <div className="flex justify-between font-semibold"><span>Balance due</span><span>{formatINR(invoice.balance_due)}</span></div>
       </div>
 
@@ -160,6 +164,7 @@ export default async function InvoicePrintPage({
       {invoice.notes && (
         <p className="mt-6 text-neutral-600 border-t border-neutral-300 pt-3">{invoice.notes}</p>
       )}
+      {invoice.mention && <p className="mt-2 text-neutral-600">Mention: {invoice.mention}</p>}
 
       <footer className="mt-12 border-t border-gold/60 pt-3 text-center text-xs text-neutral-600">
         Thank you for choosing {TIRUPUR_CLINIC.brandName}.

@@ -21,6 +21,7 @@ export type DashboardData = {
   todaysAppointments: number;
   dueFollowUps: number;
   totalLeads: number;
+  dailyCollections: { method: "cash" | "upi" | "card" | "neft"; amount: number }[];
 };
 
 export async function getDashboardData(
@@ -33,12 +34,13 @@ export async function getDashboardData(
   );
   const { start, end } = clinicDayRange(clinicToday());
 
-  const result = await db.rpc("get_business_dashboard", {
+  const [result, collectionsResult] = await Promise.all([db.rpc("get_business_dashboard", {
     p_actor: ctx.userId,
     p_day_start: start,
     p_day_end: end,
-  });
+  }), db.rpc("get_daily_payment_collections", { p_actor: ctx.userId, p_day_start: start, p_day_end: end })]);
   if (result.error) throw result.error;
+  if (collectionsResult.error) throw collectionsResult.error;
 
   const rows = result.data ?? [];
   const statusCounts: Record<string, number> = Object.fromEntries(
@@ -82,6 +84,10 @@ export async function getDashboardData(
     todaysAppointments: summaryValue("todays_appointments"),
     dueFollowUps: summaryValue("due_follow_ups"),
     totalLeads: summaryValue("total_leads"),
+    dailyCollections: (collectionsResult.data ?? []).map((row) => ({
+      method: row.payment_method as "cash" | "upi" | "card" | "neft",
+      amount: Number(row.amount),
+    })),
   };
 }
 

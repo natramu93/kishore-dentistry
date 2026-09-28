@@ -41,6 +41,7 @@ export function buildReportCsv(data: ReportsData): string {
     ...reportRows("By center", data.byCenter),
     ...reportRows("By day", data.byDay),
     ...reportRows("By treatment", data.byTreatment),
+    ...data.collectedByDay.map((row) => ["Collections received", row.day, "", "", "", row.amount] as CsvValue[]),
     [
       "Overall",
       "Total",

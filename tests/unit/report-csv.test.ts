@@ -33,6 +33,7 @@ describe("report CSV export", () => {
       byCenter: [],
       byDay: [],
       byTreatment: [],
+      collectedByDay: [{ day: "2026-07-02", amount: 250 }],
       totals: {
         leads: 2,
         appointments: 3,

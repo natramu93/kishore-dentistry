@@ -24,7 +24,7 @@ export type LeadStatus =
   | "dropped"
   | "missed";
 export type AppointmentStatus = "scheduled" | "completed" | "cancelled" | "no_show";
-export type InvoiceStatus = "draft" | "sent" | "paid";
+export type InvoiceStatus = "draft" | "sent" | "paid" | "cancelled";
 export type FollowUpStatus = "pending" | "done" | "cancelled";
 export type CommentEntity = "lead" | "appointment" | "treatment" | "follow_up" | "invoice";
 export type ToothState = "sound" | "present" | "missing" | "unerupted" | "impacted" | "retained_root" | "implant";
@@ -384,6 +384,9 @@ export type Invoice = Timestamps & {
   tax_rate: number;
   tax_amount: number;
   total: number;
+  discount_amount: number;
+  discount_given_by: string | null;
+  mention: string | null;
   issued_at: string | null;
   paid_at: string | null;
   issuer_name: string;
@@ -911,7 +914,10 @@ export type Database = {
         | "deleted_by"
         | "delete_reason"
         | "invoice_kind"
-        | "version",
+        | "version"
+        | "discount_amount"
+        | "discount_given_by"
+        | "mention",
         [
           FK<"invoices_lead_id_fkey", "lead_id", "leads">,
           FK<"invoices_branch_id_fkey", "branch_id", "branches">,
@@ -1044,6 +1050,28 @@ export type Database = {
           p_actor: string;
         };
         Returns: Invoice;
+      };
+      create_patient_invoice: {
+        Args: {
+          p_lead_id: string;
+          p_tax_rate: number;
+          p_discount_amount: number;
+          p_discount_given_by: string | null;
+          p_mention: string | null;
+          p_notes: string | null;
+          p_items: Json;
+          p_actor: string;
+        };
+        Returns: Invoice;
+      };
+      cancel_invoice: { Args: { p_invoice_id: string; p_actor: string; p_reason: string }; Returns: Invoice };
+      get_daily_payment_collections: {
+        Args: { p_actor: string; p_day_start: string; p_day_end: string };
+        Returns: { payment_method: string; amount: number }[];
+      };
+      get_report_collections: {
+        Args: { p_actor: string; p_from: string; p_to: string; p_branch_id: string | null };
+        Returns: { clinic_day: string; amount: number }[];
       };
       create_consultation_invoice: {
         Args: {

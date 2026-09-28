@@ -117,6 +117,15 @@ export function computeInvoiceTotals(items: InvoiceItemInput[], taxRate: number)
   return { subtotal, tax_amount, total: roundCurrency(subtotal + tax_amount) };
 }
 
+export function computeInvoiceTotalWithDiscount(items: InvoiceItemInput[], taxRate: number, discountAmount: number) {
+  const base = computeInvoiceTotals(items, taxRate);
+  if (!Number.isFinite(discountAmount) || discountAmount < 0 || discountAmount > base.subtotal || !hasAtMostTwoDecimals(discountAmount)) {
+    throw new ValidationError("Discount must be between zero and the invoice subtotal");
+  }
+  const tax_amount = roundCurrency(((base.subtotal - discountAmount) * taxRate) / 100);
+  return { subtotal: base.subtotal, tax_amount, total: roundCurrency(base.subtotal - discountAmount + tax_amount) };
+}
+
 function validateInvoiceInput(items: InvoiceItemInput[], taxRate: number): void {
   if (
     !Number.isFinite(taxRate) ||
@@ -130,9 +139,6 @@ function validateInvoiceInput(items: InvoiceItemInput[], taxRate: number): void 
   }
   if (!items.length || items.length > 100) {
     throw new ValidationError("Invoice must contain between 1 and 100 line items");
-  }
-  if (!items.some((item) => item.treatment_id)) {
-    throw new ValidationError("Include at least one completed coded case-sheet treatment on the invoice");
   }
   const treatmentIds = new Set<string>();
   for (const item of items) {
@@ -275,6 +281,8 @@ export async function listInvoices(
   opts: {
     branchId?: string;
     status?: InvoiceStatus;
+    dueOnly?: boolean;
+    paymentMethod?: InvoicePaymentMethod;
     page?: number;
     pageSize?: number;
   } = {}
@@ -306,6 +314,15 @@ export async function listInvoices(
     query = query.eq("branch_id", branchId);
   }
   if (opts.status) query = query.eq("status", assertInvoiceStatus(opts.status));
+  if (opts.dueOnly) query = query.not("status", "in", "(paid,cancelled)");
+  if (opts.paymentMethod) {
+    const paymentsQuery = db.from("invoice_payments").select("invoice_id")
+      .eq("payment_method", opts.paymentMethod).limit(5_000);
+    const payments = await paymentsQuery;
+    if (payments.error) throw payments.error;
+    const ids = [...new Set((payments.data ?? []).map((row) => row.invoice_id))];
+    query = ids.length ? query.in("id", ids) : query.eq("id", EMPTY_UUID);
+  }
   if (ctx.role === "front_office") {
     query = query.or(`assignee_id.eq.${ctx.userId},assignee_id.is.null`, {
       referencedTable: "lead",
@@ -412,6 +429,9 @@ export async function createInvoice(
     lead_id: string;
     tax_rate: number;
     notes?: string | null;
+    discount_amount?: number;
+    discount_given_by?: string | null;
+    mention?: string | null;
     items: InvoiceItemInput[];
   }
 ): Promise<Invoice> {
@@ -421,6 +441,10 @@ export async function createInvoice(
   if (input.notes && input.notes.length > 4_000) {
     throw new ValidationError("Invoice notes are too long");
   }
+  const discountAmount = input.discount_amount ?? 0;
+  computeInvoiceTotalWithDiscount(input.items, input.tax_rate, discountAmount);
+  if (input.discount_given_by && input.discount_given_by.length > 200) throw new ValidationError("Discount giver name is too long");
+  if (input.mention && input.mention.length > 1_000) throw new ValidationError("Invoice mention is too long");
 
   const leadResult = await db
     .from("leads")
@@ -431,10 +455,12 @@ export async function createInvoice(
   if (!leadResult.data) throw new NotFoundError("Lead");
   assertInvoiceWriteAccess(ctx, leadResult.data);
   await validateCatalogTreatmentsForBranch(input.items, leadResult.data.branch_id);
-  const invoiceResult = await db.rpc("create_invoice", {
+  const invoiceResult = await db.rpc("create_patient_invoice", {
     p_lead_id: leadId,
-    p_treatment_id: input.items.find((item) => item.treatment_id)?.treatment_id ?? null,
     p_tax_rate: input.tax_rate,
+    p_discount_amount: discountAmount,
+    p_discount_given_by: input.discount_given_by?.trim() || null,
+    p_mention: input.mention?.trim() || null,
     p_notes: input.notes?.trim() || null,
     p_items: input.items.map((item) => ({
       ...(item.treatment_id ? { treatment_id: item.treatment_id } : { treatment_type_id: item.treatment_type_id }),
@@ -445,6 +471,14 @@ export async function createInvoice(
   });
   if (invoiceResult.error) throwMappedDatabaseError(invoiceResult.error, "Invoice");
   return invoiceResult.data;
+}
+
+export async function cancelInvoice(ctx: AuthContext, id: string, reason: string) {
+  if (ctx.role !== "admin") throw new AuthorizationError("Only an admin can cancel invoices");
+  const invoiceId = assertUuid(id, "Invoice");
+  if (!reason.trim() || reason.length > 1000) throw new ValidationError("A cancellation reason is required");
+  const result = await db.rpc("cancel_invoice", { p_invoice_id: invoiceId, p_actor: ctx.userId, p_reason: reason.trim() });
+  if (result.error) throwMappedDatabaseError(result.error, "Invoice");
 }
 
 export async function createConsultationInvoice(
@@ -485,6 +519,7 @@ const ALLOWED_INVOICE_TRANSITIONS: Record<InvoiceStatus, readonly InvoiceStatus[
   draft: ["sent", "paid"],
   sent: ["paid"],
   paid: [],
+  cancelled: [],
 };
 
 export async function updateInvoiceStatus(

@@ -56,7 +56,7 @@ export default async function InvoiceDetailPage({
             </Badge>
             <Badge variant={invoice.code_enforced || invoice.invoice_kind === "consultation" ? "outline" : "destructive"}>
               {invoice.code_enforced
-                ? "Case-sheet coded"
+                ? invoice.treatment_id ? "Case-sheet coded" : "Treatment catalog"
                 : invoice.invoice_kind === "consultation"
                   ? "Consultation"
                   : "Legacy uncoded"}
@@ -96,6 +96,7 @@ export default async function InvoiceDetailPage({
             version={invoice.version}
             codeEnforced={invoice.code_enforced}
             consultation={invoice.invoice_kind === "consultation"}
+            hasPrimaryTreatment={Boolean(invoice.treatment_id)}
           />
         </div>
       </div>
@@ -141,6 +142,11 @@ export default async function InvoiceDetailPage({
               <span>{formatINR(invoice.subtotal)}</span>
             </div>
             <div className="flex justify-between">
+              <span className="text-muted-foreground">Discount</span>
+              <span>−{formatINR(invoice.discount_amount ?? 0)}</span>
+            </div>
+            {invoice.discount_given_by && <div className="flex justify-between"><span className="text-muted-foreground">Discount given by</span><span>{invoice.discount_given_by}</span></div>}
+            <div className="flex justify-between">
               <span className="text-muted-foreground">Tax ({invoice.tax_rate}%)</span>
               <span>{formatINR(invoice.tax_amount)}</span>
             </div>
@@ -149,7 +155,7 @@ export default async function InvoiceDetailPage({
               <span>{formatINR(invoice.total)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Paid</span>
+              <span className="text-muted-foreground">Amount received</span>
               <span>{formatINR(invoice.amount_paid)}</span>
             </div>
             <div className="flex justify-between font-semibold">
@@ -182,6 +188,7 @@ export default async function InvoiceDetailPage({
           {invoice.notes && (
             <p className="mt-4 text-sm text-muted-foreground border-t pt-3">{invoice.notes}</p>
           )}
+          {invoice.mention && <p className="mt-2 text-sm text-muted-foreground">Mention: {invoice.mention}</p>}
         </CardContent>
       </Card>
     </div>

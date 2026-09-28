@@ -17,6 +17,7 @@ describe("request validation", () => {
 
   it("validates invoice states at runtime", () => {
     expect(assertInvoiceStatus("paid")).toBe("paid");
+    expect(assertInvoiceStatus("cancelled")).toBe("cancelled");
     expect(() => assertInvoiceStatus("refunded")).toThrow(
       "Invoice status is invalid"
     );

@@ -72,6 +72,28 @@ export default async function ReportsPage({
   const exportHref = `/reports/export${
     exportParams.size ? `?${exportParams.toString()}` : ""
   }`;
+  const monthlyRows = Object.values(data.byDay.reduce<Record<string, ReportRow>>((groups, row) => {
+    const key = row.key.slice(0, 7);
+    const group = groups[key] ?? {
+      key,
+      label: formatInTimeZone(`${key}-01T12:00:00Z`, CLINIC_TZ, "MMM yyyy"),
+      leads: 0, appointments: 0, followUps: 0, revenue: 0,
+    };
+    group.leads += row.leads;
+    group.appointments += row.appointments;
+    group.followUps += row.followUps;
+    group.revenue += row.revenue;
+    groups[key] = group;
+    return groups;
+  }, {}));
+  const collectionTotal = data.collectedByDay.reduce((sum, row) => sum + row.amount, 0);
+  const monthlyCollections = Object.values(data.collectedByDay.reduce<Record<string, { key: string; label: string; amount: number }>>((groups, row) => {
+    const key = row.day.slice(0, 7);
+    const group = groups[key] ?? { key, label: formatInTimeZone(`${key}-01T12:00:00Z`, CLINIC_TZ, "MMM yyyy"), amount: 0 };
+    group.amount += row.amount;
+    groups[key] = group;
+    return groups;
+  }, {}));
 
   return (
     <div className="space-y-5">
@@ -178,6 +200,7 @@ export default async function ReportsPage({
         <TotalCard label="Appointments" value={data.totals.appointments} accent="border-l-violet-400" />
         <TotalCard label="Follow-ups" value={data.totals.followUps} accent="border-l-amber-400" />
         <TotalCard label="Revenue" value={formatINR(data.totals.revenue)} accent="border-l-emerald-400" />
+        <TotalCard label="Collected (receipts)" value={formatINR(collectionTotal)} accent="border-l-emerald-400" />
       </div>
 
       <Card className="border-l-4 border-l-gold">
@@ -196,6 +219,10 @@ export default async function ReportsPage({
                 <CalendarRange className="h-4 w-4 mr-1.5" />
                 By Day
               </TabsTrigger>
+              <TabsTrigger value="month">
+                <CalendarRange className="h-4 w-4 mr-1.5" />
+                By Month
+              </TabsTrigger>
               <TabsTrigger value="treatment">
                 <ClipboardList className="h-4 w-4 mr-1.5" />
                 By Treatment
@@ -211,13 +238,40 @@ export default async function ReportsPage({
             <TabsContent value="day">
               <ReportTable rows={data.byDay} firstColumn="Day" emptyText="No activity in this range" />
             </TabsContent>
+            <TabsContent value="month">
+              <ReportTable rows={monthlyRows} firstColumn="Month" emptyText="No activity in this range" />
+            </TabsContent>
             <TabsContent value="treatment">
               <ReportTable rows={data.byTreatment} firstColumn="Treatment" emptyText="No treatments recorded in this range" />
             </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
+
+      <Card className="border-l-4 border-l-emerald-400">
+        <CardContent className="pt-5">
+          <h2 className="mb-1 text-base font-semibold">Collections received</h2>
+          <p className="mb-4 text-sm text-muted-foreground">Actual invoice receipts by date. Doctor filter does not apply to receipts.</p>
+          <Tabs defaultValue="collection-day">
+            <TabsList className="mb-4"><TabsTrigger value="collection-day">By Date</TabsTrigger><TabsTrigger value="collection-month">By Month</TabsTrigger></TabsList>
+            <TabsContent value="collection-day"><CollectionTable rows={data.collectedByDay.map((row) => ({ label: formatInTimeZone(`${row.day}T12:00:00Z`, CLINIC_TZ, "d MMM yyyy"), amount: row.amount }))} emptyText="No payments received in this date range" /></TabsContent>
+            <TabsContent value="collection-month"><CollectionTable rows={monthlyCollections} emptyText="No payments received in this date range" /></TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
+  );
+}
+
+function CollectionTable({ rows, emptyText }: { rows: { label: string; amount: number }[]; emptyText: string }) {
+  return (
+    <Table aria-label="Invoice collections by date">
+      <TableHeader><TableRow><TableHead>Date</TableHead><TableHead className="text-right">Collected</TableHead></TableRow></TableHeader>
+      <TableBody>
+        {rows.length === 0 && <TableRow><TableCell colSpan={2} className="py-8 text-center text-muted-foreground">{emptyText}</TableCell></TableRow>}
+        {rows.map((row) => <TableRow key={row.label}><TableCell>{row.label}</TableCell><TableCell className="text-right">{formatINR(row.amount)}</TableCell></TableRow>)}
+      </TableBody>
+    </Table>
   );
 }
 

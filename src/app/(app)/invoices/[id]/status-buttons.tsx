@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { updateInvoiceStatusAction, deleteInvoiceAction } from "@/actions/invoices";
+import { updateInvoiceStatusAction, deleteInvoiceAction, cancelInvoiceAction } from "@/actions/invoices";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -27,6 +27,7 @@ export function InvoiceActions({
   version,
   codeEnforced,
   consultation,
+  hasPrimaryTreatment,
 }: {
   invoiceId: string;
   status: InvoiceStatus;
@@ -34,6 +35,7 @@ export function InvoiceActions({
   version: number;
   codeEnforced: boolean;
   consultation: boolean;
+  hasPrimaryTreatment: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -60,11 +62,23 @@ export function InvoiceActions({
     });
   }
 
+  function cancelInvoice() {
+    const reason = window.prompt("Enter the reason for cancelling this invoice:");
+    if (!reason?.trim()) return;
+    startTransition(async () => {
+      const result = await cancelInvoiceAction(invoiceId, reason);
+      if (result.ok) {
+        toast.success("Invoice cancelled");
+        router.refresh();
+      } else toast.error(result.error);
+    });
+  }
+
   const canDelete = role === "admin" || role === "operations";
 
   return (
     <div className="flex flex-wrap gap-2">
-      {codeEnforced && status !== "paid" && (
+      {codeEnforced && hasPrimaryTreatment && status !== "paid" && status !== "cancelled" && (
         <Button asChild size="sm" variant="outline">
           <Link href={`/invoices/${invoiceId}/edit`}>
             <Pencil className="h-3.5 w-3.5 mr-1" />
@@ -76,6 +90,9 @@ export function InvoiceActions({
         <Button size="sm" disabled={pending} onClick={() => setStatus("sent")}>
           Mark sent
         </Button>
+      )}
+      {role === "admin" && status !== "cancelled" && status !== "paid" && (
+        <Button size="sm" variant="destructive" disabled={pending} onClick={cancelInvoice}>Cancel invoice</Button>
       )}
       {canDelete && (
         <AlertDialog>

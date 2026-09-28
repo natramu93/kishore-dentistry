@@ -177,10 +177,11 @@ export async function GET(
       y -= strong ? 20 : 16;
     };
     totalRow("Subtotal", invoice.subtotal);
+    totalRow(`Discount${invoice.discount_given_by ? ` (${invoice.discount_given_by})` : ""}`, invoice.discount_amount ?? 0);
     totalRow(`Tax (${invoice.tax_rate}%)`, invoice.tax_amount);
     page.drawLine({ start: { x: totalsX, y: y + 7 }, end: { x: page.getWidth() - margin, y: y + 7 }, thickness: 1, color: accent });
     totalRow("Total", invoice.total, true);
-    totalRow("Paid", invoice.amount_paid);
+    totalRow("Amount received", invoice.amount_paid);
     totalRow("Balance due", invoice.balance_due, true);
 
     if (invoice.payments.length > 0) {
@@ -200,6 +201,12 @@ export async function GET(
       ensureSpace(noteLines.length * 13 + 20);
       y -= 5;
       for (const line of noteLines) { draw(line, margin, y, 9, regular, muted); y -= 13; }
+    }
+    if (invoice.mention) {
+      const mentionLines = wrap(`Mention: ${invoice.mention}`, page.getWidth() - margin * 2, 9);
+      ensureSpace(mentionLines.length * 13 + 16);
+      y -= 5;
+      for (const line of mentionLines) { draw(line, margin, y, 9, regular, muted); y -= 13; }
     }
     draw(`Thank you for choosing ${TIRUPUR_CLINIC.brandName}.`, margin, margin - 5, 8, regular, muted);
 

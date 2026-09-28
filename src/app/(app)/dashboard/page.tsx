@@ -120,6 +120,18 @@ export default async function DashboardPage() {
         />
       </div>
 
+      <Card className="border-l-4 border-l-emerald-400">
+        <CardHeader className="pb-2"><CardTitle className="text-base">Today’s collections by payment mode</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {(["cash", "upi", "card", "neft"] as const).map((method) => (
+            <div key={method} className="rounded-md border p-3">
+              <p className="text-xs uppercase text-muted-foreground">{method}</p>
+              <p className="text-lg font-semibold">{formatINR(data.dailyCollections.find((row) => row.method === method)?.amount ?? 0)}</p>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
       {/* Pipeline funnel */}
       <Card className="border-l-4 border-l-blue-400">
         <CardHeader className="pb-2">

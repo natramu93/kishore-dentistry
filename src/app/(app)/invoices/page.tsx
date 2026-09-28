@@ -9,7 +9,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { fmtDate, formatINR } from "@/lib/tz";
-import type { InvoiceStatus } from "@/lib/database.types";
+import type { InvoicePaymentMethod, InvoiceStatus } from "@/lib/database.types";
 
 export const metadata = { title: "Invoices — Dr. Kishor's Dentistry CRM" };
 
@@ -17,9 +17,10 @@ const STATUS_VARIANT = {
   draft: "secondary",
   sent: "outline",
   paid: "default",
+  cancelled: "destructive",
 } as const;
 
-const STATUSES: InvoiceStatus[] = ["draft", "sent", "paid"];
+const STATUSES: InvoiceStatus[] = ["draft", "sent", "paid", "cancelled"];
 
 export default async function InvoicesPage({
   searchParams,
@@ -37,6 +38,8 @@ export default async function InvoicesPage({
   const invoiceResult = await listInvoices(ctx, {
     branchId: params.branch || undefined,
     status,
+    dueOnly: params.balance === "due",
+    paymentMethod: (["cash", "upi", "card", "neft"] as string[]).includes(params.method ?? "") ? params.method as InvoicePaymentMethod : undefined,
     page: Number(params.page),
   });
   const { invoices, total, page, pageSize } = invoiceResult;
@@ -55,7 +58,7 @@ export default async function InvoicesPage({
         </div>
       </div>
 
-      {/* Per-center + status filters */}
+      {/* Per-center + payment filters */}
       <form className="flex flex-wrap gap-2 items-end" action="/invoices" method="get">
         {(ctx.role === "admin" || branches.length > 1) && (
           <div className="space-y-1">
@@ -85,6 +88,18 @@ export default async function InvoicesPage({
             {STATUSES.map((s) => (
               <option key={s} value={s} className="capitalize">{s}</option>
             ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="invoice-balance" className="text-xs text-muted-foreground">Balance</label>
+          <select id="invoice-balance" name="balance" defaultValue={params.balance ?? ""} className="h-11 rounded-md border border-input bg-transparent px-3 text-sm">
+            <option value="">All invoices</option><option value="due">Amount due</option>
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="invoice-method" className="text-xs text-muted-foreground">Payment mode</label>
+          <select id="invoice-method" name="method" defaultValue={params.method ?? ""} className="h-11 rounded-md border border-input bg-transparent px-3 text-sm">
+            <option value="">Any method</option><option value="cash">Cash</option><option value="upi">UPI</option><option value="card">Card</option><option value="neft">NEFT</option>
           </select>
         </div>
         <Button type="submit" variant="secondary" size="sm">Filter</Button>
