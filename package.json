@@ -19,7 +19,7 @@
     "start": "next start",
     "postinstall": "node scripts/patch-minimatch-brace-expansion.mjs",
     "lint": "eslint src next.config.ts eslint.config.mjs postcss.config.mjs",
-    "typecheck": "tsc --noEmit --incremental false",
+    "typecheck": "next typegen && tsc --noEmit --incremental false",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

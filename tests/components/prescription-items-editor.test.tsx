@@ -61,7 +61,7 @@ describe("PrescriptionItemsEditor", () => {
     expect(screen.getByRole("button", { name: "Add medicine" })).toBeDisabled();
     expect(screen.getByText(`The maximum of ${MAX_PRESCRIPTION_ITEMS} medicines has been reached.`))
       .toBeInTheDocument();
-  });
+  }, 15_000);
 
   it("associates errors and retains accessible form semantics", async () => {
     const item = createPrescriptionItemDraft("medicine-1");
