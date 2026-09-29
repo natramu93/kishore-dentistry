@@ -222,11 +222,11 @@ export function InvoiceEditor({
               Patient invoice
             </p>
             <p className="mt-1 text-xs">
-              Create this invoice independently of the case sheet. Add one or more treatments from this center’s treatment list; coded case-sheet treatments can also be included when available.
+              Create this invoice independently of the case sheet. Choose one or more treatments from this center’s treatment list; a completed treatment record is not required.
             </p>
           </div>
 
-          <div className="space-y-1.5">
+          {mode === "edit" && <div className="space-y-1.5">
             <Label htmlFor={`${idPrefix}-treatment`}>Add a completed case-sheet treatment (optional)</Label>
             <select
               id={`${idPrefix}-treatment`}
@@ -244,16 +244,16 @@ export function InvoiceEditor({
                 </option>
               ))}
             </select>
-          </div>
+          </div>}
 
           <section aria-labelledby={`${idPrefix}-items-heading`} className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 id={`${idPrefix}-items-heading`} className="text-base font-semibold">Invoice line items</h2>
-              <Button type="button" variant="outline" onClick={addCatalogLine}>Add catalog item</Button>
+              <Button type="button" variant="outline" onClick={addCatalogLine}>Add treatment line</Button>
             </div>
             {items.length === 0 && (
               <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                There is no invoice line yet. Choose a treatment from the center treatment list below.
+                There are no invoice lines yet. Add a treatment line, then choose a treatment from this center’s list.
               </p>
             )}
             {items.map((item, index) => {

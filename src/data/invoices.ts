@@ -437,6 +437,9 @@ export async function createInvoice(
 ): Promise<Invoice> {
   requireAnyRole(ctx, INVOICE_ROLES, "Invoices access required");
   const leadId = assertUuid(input.lead_id, "Lead");
+  if (input.items.some((item) => !item.treatment_type_id || item.treatment_id)) {
+    throw new ValidationError("New invoices must use treatments from this center’s treatment list");
+  }
   validateInvoiceInput(input.items, input.tax_rate);
   if (input.notes && input.notes.length > 4_000) {
     throw new ValidationError("Invoice notes are too long");
