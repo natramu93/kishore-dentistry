@@ -7,6 +7,11 @@ import { canDelete } from "@/lib/auth/guards";
 import { getLeadRelated, getLeadActivity } from "@/data/leads";
 import { listComments } from "@/data/comments";
 import { listCaseSheetsForLead } from "@/data/case-sheets";
+import { getPatientTreatmentProgress } from "@/data/treatment-progress";
+import { TreatmentProgressSummary } from "@/components/clinical/treatment-progress-summary";
+import { CaseSheetEditLink } from "@/components/clinical/case-sheet-edit-link";
+import { PatientSectionNav } from "@/components/patients/patient-section-nav";
+import { treatmentProgressLabel } from "@/lib/treatment-progress";
 import { listAssignableUsers } from "@/data/users";
 import { listDoctors, listTreatmentTypes, listLeadSources } from "@/data/catalogs";
 import { LeadStatusBadge } from "@/components/lead-status-badge";
@@ -28,7 +33,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CommentThread } from "@/components/comment-thread";
-import { ConsultationInvoiceForm } from "@/components/invoices/consultation-invoice-form";
 import { PaginationNav } from "@/components/pagination-nav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +41,7 @@ import { STATUS_LABELS } from "@/lib/leads/transitions";
 import { groupByCategory } from "@/lib/dental";
 import { formatClinicalSite } from "@/lib/clinical";
 import { fmt, fmtDate, formatINR, toClinicInputValue } from "@/lib/tz";
-import { ClipboardPlus, ReceiptText } from "lucide-react";
+import { ClipboardPlus } from "lucide-react";
 import type {
   PatientMedicalHistoryVersion,
   PrescriptionItem,
@@ -82,6 +86,8 @@ export default async function LeadDetailPage({
     treatments: treatmentRows,
     followUps: followUpRows,
     invoices: invoiceRows,
+    invoiceSummary,
+    invoiceTotal,
     callLogs: callLogRows,
   } = related;
   const appointments = appointmentRows ?? [];
@@ -90,7 +96,7 @@ export default async function LeadDetailPage({
   const invoices = invoiceRows ?? [];
   const callLogs = callLogRows ?? [];
 
-  const [activity, comments, caseSheetResult, assignableUsers, doctors, treatmentTypes, sources] = await Promise.all([
+  const [activity, comments, caseSheetResult, assignableUsers, doctors, treatmentTypes, sources, treatmentProgress] = await Promise.all([
     getLeadActivity(ctx, id),
     listComments(ctx, id),
     listCaseSheetsForLead(ctx, id, { page: Number(queryParams.page) }),
@@ -98,6 +104,7 @@ export default async function LeadDetailPage({
     listDoctors(ctx, { branchId: lead.branch_id }),
     listTreatmentTypes(ctx, { branchId: lead.branch_id }),
     listLeadSources(ctx),
+    getPatientTreatmentProgress(ctx, id),
   ]);
   const {
     caseSheets,
@@ -112,7 +119,18 @@ export default async function LeadDetailPage({
   const canViewClinicalNarrative =
     canAuthorCaseSheet || ctx.role === "operations" || ctx.role === "front_office";
 
-  const activeAppointment = appointments.find((a) => a.status === "scheduled") ?? null;
+  const scheduledAppointments = appointments
+    .filter((appointment) => appointment.status === "scheduled")
+    .sort((a, b) => Date.parse(a.scheduled_at) - Date.parse(b.scheduled_at));
+  // With multiple visits, let staff choose the appointment instead of opening
+  // an unrelated future visit merely because it was first in the history list.
+  const activeAppointment = scheduledAppointments[0] ?? null;
+  // This authenticated Server Component renders per request; the DB rechecks on save.
+  // eslint-disable-next-line react-hooks/purity
+  const pageRenderedAt = Date.now();
+  const newCaseSheetHref = scheduledAppointments.length === 1 && activeAppointment
+    ? `/case-sheets/new?lead=${lead.id}&appointment=${activeAppointment.id}`
+    : "#patient-appointments";
   const interestGroups = groupByCategory(treatmentTypes).map((g) => ({
     category: g.category,
     items: g.items.map((t) => ({ id: t.id, name: t.name })),
@@ -151,9 +169,28 @@ export default async function LeadDetailPage({
           </p>
         </div>
         <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
+          <div className="flex flex-wrap gap-2" aria-label="Patient quick actions">
+            {canAuthorCaseSheet && activeAppointment && (
+              <Button asChild size="sm">
+                <Link href={newCaseSheetHref}>
+                  <ClipboardPlus aria-hidden="true" />
+                  {scheduledAppointments.length === 1 ? "Start case sheet" : "Choose visit for case sheet"}
+                </Link>
+              </Button>
+            )}
+            {ctx.role !== "doctor" && (
+              <Button asChild size="sm" variant="outline">
+                <Link href={`/invoices/new?lead=${encodeURIComponent(lead.id)}`}>Create invoice</Link>
+              </Button>
+            )}
+          </div>
           <TransitionActions
             lead={{ id: lead.id, status: lead.status }}
-            activeAppointmentId={activeAppointment?.id ?? null}
+            activeAppointmentId={scheduledAppointments.length === 1 ? activeAppointment?.id ?? null : null}
+            appointmentOptions={scheduledAppointments.map((appointment) => ({
+              id: appointment.id,
+              label: `${fmt(appointment.scheduled_at)} · ${(appointment.doctor as { full_name: string } | null)?.full_name ?? "Doctor not assigned"}`,
+            }))}
             assignableUsers={assignableUsers.map((u) => ({
               id: u.id,
               label: `${u.full_name || u.email} (${u.role})`,
@@ -241,12 +278,22 @@ export default async function LeadDetailPage({
 
       <StatusStepper status={lead.status} />
 
+      <PatientSectionNav sections={[
+        { id: "patient-overview", label: "Overview" },
+        { id: "patient-appointments", label: "Appointments" },
+        { id: "patient-clinical", label: "Clinical" },
+        { id: "patient-invoices", label: "Invoices" },
+        { id: "patient-follow-ups", label: "Follow-ups" },
+        { id: "patient-notes", label: "Notes" },
+        { id: "patient-activity", label: "Activity" },
+      ]} />
+
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-4">
           {/* Contact details */}
-          <Card className="border-l-4 border-l-gold">
+          <Card id="patient-overview" className="scroll-mt-20 border-l-4 border-l-gold">
             <CardHeader>
-              <CardTitle className="text-base">Details</CardTitle>
+                <CardTitle className="text-base">Patient details</CardTitle>
             </CardHeader>
             <CardContent>
               <dl className="grid gap-x-4 gap-y-3 text-sm sm:grid-cols-2 md:grid-cols-3">
@@ -306,7 +353,7 @@ export default async function LeadDetailPage({
           )}
 
           {/* Appointments */}
-          <Card className="border-l-4 border-l-violet-400">
+          <Card id="patient-appointments" className="scroll-mt-20 border-l-4 border-l-violet-400">
             <CardHeader>
               <CardTitle className="text-base">Appointments</CardTitle>
             </CardHeader>
@@ -333,7 +380,14 @@ export default async function LeadDetailPage({
                     {a.notes ? ` · ${a.notes}` : ""}
                   </p>
                   {a.status === "scheduled" && (
-                    <div className="mt-2">
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {canAuthorCaseSheet && (
+                        <Button asChild size="sm">
+                          <Link href={`/case-sheets/new?lead=${lead.id}&appointment=${a.id}`}>
+                            Start case sheet for this visit
+                          </Link>
+                        </Button>
+                      )}
                       <AppointmentReschedule
                         appointmentId={a.id}
                         leadId={lead.id}
@@ -358,24 +412,25 @@ export default async function LeadDetailPage({
           </Card>
 
           {/* Treatments */}
-          <Card className="border-l-4 border-l-emerald-400">
+          <Card id="patient-clinical" className="scroll-mt-20 border-l-4 border-l-emerald-400">
             <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
               <div>
                 <CardTitle className="text-base">Digital case sheets &amp; treatment history</CardTitle>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Invoice eligibility comes only from finalized, coded, completed treatments.
+                  Review findings, planned care and completed work. Invoices can be created separately in the patient’s invoice section.
                 </p>
               </div>
               {canAuthorCaseSheet && activeAppointment && (
                 <Button asChild size="sm" variant="outline">
-                  <Link href={`/case-sheets/new?lead=${lead.id}&appointment=${activeAppointment.id}`}>
+                  <Link href={newCaseSheetHref}>
                     <ClipboardPlus aria-hidden="true" />
-                    Add case sheet
+                    {scheduledAppointments.length === 1 ? "Add case sheet" : "Choose appointment"}
                   </Link>
                 </Button>
               )}
             </CardHeader>
             <CardContent className="space-y-4">
+              <TreatmentProgressSummary progress={treatmentProgress} />
               {caseSheets.length === 0 && treatments.length === 0 && (
                 <p className="text-sm text-muted-foreground">
                   No case sheet has been recorded yet.
@@ -430,10 +485,10 @@ export default async function LeadDetailPage({
                   (sheet.case_sheet_attachments ?? []) as ClinicalAttachmentView[]
                 ).filter((attachment) => attachment.status === "ready" && !attachment.treatment_id);
                 return (
-                  <section key={sheet.id} className="rounded-lg border p-3" aria-labelledby={`case-${sheet.id}`}>
+                  <section key={sheet.id} id={`case-${sheet.id}`} className="scroll-mt-20 rounded-lg border p-3" aria-labelledby={`case-heading-${sheet.id}`}>
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
-                        <h3 id={`case-${sheet.id}`} className="text-sm font-semibold">
+                        <h3 id={`case-heading-${sheet.id}`} className="text-sm font-semibold">
                           Visit {fmt(sheet.visit_at)}
                         </h3>
                         <p className="text-xs text-muted-foreground">
@@ -441,11 +496,7 @@ export default async function LeadDetailPage({
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        {canAuthorCaseSheet && (
-                          <Button asChild size="sm" variant="outline">
-                            <Link href={`/case-sheets/${sheet.id}/edit`}>Edit case sheet</Link>
-                          </Button>
-                        )}
+                        <CaseSheetEditLink caseSheetId={sheet.id} finalizedAt={sheet.finalized_at} canEdit={canAuthorCaseSheet} now={pageRenderedAt} />
                         <Badge variant="secondary">Finalized · v{sheet.version ?? 1}</Badge>
                       </div>
                     </div>
@@ -468,9 +519,9 @@ export default async function LeadDetailPage({
                       <>
                         <dl className="mt-3 grid gap-2 rounded-md bg-muted/40 p-3 text-sm sm:grid-cols-2">
                           <Field label="Chief complaint" value={sheet.chief_complaint} />
-                          <Field label="Findings" value={sheet.findings} />
-                          <Field label="Diagnosis" value={sheet.diagnosis} />
-                          <Field label="Treatment plan" value={sheet.plan} />
+                          <Field label="Clinical remarks" value={sheet.findings} />
+                          {sheet.diagnosis && <Field label="Previously recorded diagnosis" value={sheet.diagnosis} />}
+                          {sheet.plan && <Field label="Previously recorded plan" value={sheet.plan} />}
                         </dl>
                         <div className="mt-3">
                           <p className="mb-2 text-sm font-semibold">Medical history at this visit</p>
@@ -510,13 +561,11 @@ export default async function LeadDetailPage({
                     <div className="mt-3 space-y-3">
                       {lines.length === 0 && (
                         <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-                          This finalized visit has no coded treatment lines, so there is nothing to invoice yet.
+                          Examination-only visit — no treatment was recorded. You can still create an invoice in the patient’s invoice section.
                         </p>
                       )}
                       {lines.map((t) => {
                         const billed = t.invoice_items?.some((item) => item.active_billing) ?? false;
-                        const invoiceEligible =
-                          t.clinical_status === "completed" && Boolean(t.treatment_code) && !billed;
                         return (
                           <div key={t.id} className="rounded-md border bg-background p-3">
                             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -529,29 +578,16 @@ export default async function LeadDetailPage({
                                     {t.treatment_name ?? "Coded treatment"}
                                   </span>
                                   <Badge variant={t.clinical_status === "completed" ? "default" : "secondary"}>
-                                    {t.clinical_status}
+                                    {treatmentProgressLabel(t.clinical_status)}
                                   </Badge>
                                 </div>
                                 <p className="mt-1 text-xs text-muted-foreground">
                                   {formatClinicalSite(t)}
-                                  {t.notes ? ` · ${t.notes}` : ""}
                                 </p>
+                                {t.notes && <p className="mt-2 whitespace-pre-wrap text-sm">{t.notes}</p>}
                               </div>
                               <div className="flex flex-wrap items-center gap-2">
-                                {invoiceEligible && (
-                                  <Button asChild size="sm" variant="outline">
-                                    <Link href={`/invoices/new?lead=${lead.id}&treatment=${t.id}`}>
-                                      <ReceiptText aria-hidden="true" />
-                                      Raise invoice
-                                    </Link>
-                                  </Button>
-                                )}
                                 {billed && <Badge variant="secondary">Invoiced</Badge>}
-                                {t.clinical_status !== "completed" && !billed && (
-                                  <span className="text-xs text-muted-foreground">
-                                    Complete this treatment before invoicing
-                                  </span>
-                                )}
                                 </div>
                             </div>
                             <CommentThread
@@ -588,7 +624,7 @@ export default async function LeadDetailPage({
                 <section className="rounded-lg border border-dashed p-3">
                   <h3 className="text-sm font-semibold">Legacy treatment history</h3>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    These records predate digital treatment codes. They remain in history but are not invoice-eligible.
+                    These records predate digital treatment codes and remain available for reference. Create any new invoice separately in the invoice section.
                   </p>
                   <ul className="mt-3 space-y-2">
                     {treatments.filter((t) => !t.case_sheet_id).map((t) => (
@@ -603,7 +639,7 @@ export default async function LeadDetailPage({
           </Card>
 
           {/* Follow-ups */}
-          <Card className="border-l-4 border-l-amber-400">
+          <Card id="patient-follow-ups" className="scroll-mt-20 border-l-4 border-l-amber-400">
             <CardHeader>
               <CardTitle className="text-base">Follow-ups</CardTitle>
             </CardHeader>
@@ -641,29 +677,37 @@ export default async function LeadDetailPage({
           </Card>
 
           {/* Invoices */}
-          <Card className="border-l-4 border-l-blue-400">
+          <Card id="patient-invoices" className="scroll-mt-20 border-l-4 border-l-blue-400">
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <CardTitle className="text-base">Invoices</CardTitle>
                 {ctx.role !== "doctor" && (
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/invoices/new?lead=${encodeURIComponent(lead.id)}`}>
-                      Create invoice
-                    </Link>
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/invoices/new?lead=${encodeURIComponent(lead.id)}&preset=consultation`}>Consultation invoice</Link>
+                    </Button>
+                    <Button asChild size="sm">
+                      <Link href={`/invoices/new?lead=${encodeURIComponent(lead.id)}`}>Create invoice</Link>
+                    </Button>
+                  </div>
                 )}
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <ConsultationInvoiceForm leadId={lead.id} />
               <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-md bg-muted/40 px-3 py-2 text-sm" aria-label="Patient payment summary">
-                <span>Total invoiced: <strong>{formatINR(invoices.reduce((sum, invoice) => sum + Number(invoice.total), 0))}</strong></span>
-                <span>Total paid: <strong>{formatINR(invoices.reduce((sum, invoice) => sum + Number(invoice.amount_paid), 0))}</strong></span>
-                <span>Balance due: <strong>{formatINR(invoices.reduce((sum, invoice) => sum + Number(invoice.balance_due), 0))}</strong></span>
+                <span>Total invoiced: <strong>{formatINR(invoiceSummary.total_invoiced)}</strong></span>
+                <span>Total paid: <strong>{formatINR(invoiceSummary.amount_paid)}</strong></span>
+                <span>Balance due: <strong>{formatINR(invoiceSummary.balance_due)}</strong></span>
               </div>
+              <p className="text-xs text-muted-foreground">Across all active patient invoices. Cancelled and archived invoices are excluded from these totals.</p>
+              {invoiceTotal !== null && invoiceTotal > invoices.length && (
+                <p className="text-sm text-muted-foreground">
+                  Showing {invoices.length} of {invoiceTotal} invoices. <Link className="font-medium text-primary underline underline-offset-4" href={`/invoices?lead=${encodeURIComponent(lead.id)}`}>View all patient invoices</Link>
+                </p>
+              )}
               {invoices.length === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  Create an invoice from the center’s treatment list without waiting for treatment completion, or create an ad-hoc consultation invoice.
+                  Choose treatments or the consultation shortcut, add teeth and notes if needed, then create the invoice. No case sheet or completed treatment is required.
                 </p>
               )}
               {invoices.map((inv) => (
@@ -719,9 +763,9 @@ export default async function LeadDetailPage({
           )}
 
           {/* General comments — bottom of the lead page */}
-          <Card className="border-l-4 border-l-muted-foreground/30">
+          <Card id="patient-notes" className="scroll-mt-20 border-l-4 border-l-muted-foreground/30">
             <CardHeader>
-              <CardTitle className="text-base">Comments</CardTitle>
+              <CardTitle className="text-base">Patient notes &amp; comments</CardTitle>
             </CardHeader>
             <CardContent>
               <CommentThread
@@ -736,7 +780,7 @@ export default async function LeadDetailPage({
 
         {/* Activity timeline */}
         <div>
-          <Card className="border-l-4 border-l-gold">
+          <Card id="patient-activity" className="scroll-mt-20 border-l-4 border-l-gold">
             <CardHeader>
               <CardTitle className="text-base">Activity</CardTitle>
             </CardHeader>
@@ -774,7 +818,7 @@ function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="font-medium">{value || "—"}</dd>
+      <dd className="whitespace-pre-wrap break-words font-medium">{value || "—"}</dd>
     </div>
   );
 }

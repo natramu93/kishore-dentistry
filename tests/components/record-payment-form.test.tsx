@@ -2,9 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { RecordPaymentForm } from "@/components/invoices/record-payment-form";
 import { recordInvoicePaymentAction } from "@/actions/invoices";
+import { toast } from "sonner";
 
 vi.mock("@/actions/invoices", () => ({ recordInvoicePaymentAction: vi.fn().mockResolvedValue({ ok: true }) }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 afterEach(() => {
   cleanup();
@@ -36,11 +38,24 @@ describe("record payment form", () => {
     }));
   });
 
-  it("does not allow an installment above the displayed balance", () => {
+  it("keeps the payment action available and explains an amount above the displayed balance", () => {
     render(<RecordPaymentForm invoiceId="invoice-1" balanceDue={80} />);
     const amount = screen.getByRole("spinbutton", { name: "Payment amount (₹)" });
     fireEvent.change(amount, { target: { value: "81" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Payment method" }), { target: { value: "cash" } });
-    expect(screen.getByRole("button", { name: "Record payment" })).toBeDisabled();
+    const button = screen.getByRole("button", { name: "Record payment" });
+    expect(button).toBeEnabled();
+    fireEvent.submit(button.closest("form")!);
+    expect(toast.error).toHaveBeenCalledWith("Payment cannot exceed the outstanding balance");
+    expect(recordInvoicePaymentAction).not.toHaveBeenCalled();
+  });
+
+  it("keeps the payment action available and asks for a method", () => {
+    render(<RecordPaymentForm invoiceId="invoice-1" balanceDue={80} />);
+    const button = screen.getByRole("button", { name: "Record payment" });
+    expect(button).toBeEnabled();
+    fireEvent.submit(button.closest("form")!);
+    expect(toast.error).toHaveBeenCalledWith("Choose a payment method to record this payment");
+    expect(recordInvoicePaymentAction).not.toHaveBeenCalled();
   });
 });

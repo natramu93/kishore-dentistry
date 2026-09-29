@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { getAuthContext } from "@/lib/auth/context";
 import { listInvoices } from "@/data/invoices";
+import { getLead } from "@/data/leads";
 import { listMyBranches } from "@/data/branches";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +31,8 @@ export default async function InvoicesPage({
 }) {
   const params = await searchParams;
   const ctx = await getAuthContext();
+  const patient = params.lead ? await getLead(ctx, params.lead) : null;
+  if (params.lead && !patient) notFound();
 
   const [branches] = await Promise.all([listMyBranches(ctx)]);
   const status = STATUSES.includes(params.status as InvoiceStatus)
@@ -36,6 +40,7 @@ export default async function InvoicesPage({
     : undefined;
 
   const invoiceResult = await listInvoices(ctx, {
+    leadId: patient?.id,
     branchId: params.branch || undefined,
     status,
     dueOnly: params.balance === "due",
@@ -52,19 +57,21 @@ export default async function InvoicesPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Invoices</h1>
+          {patient && <p className="text-sm">For <Link className="underline underline-offset-4" href={`/leads/${patient.id}#patient-invoices`}>{patient.name}</Link></p>}
           <p className="text-sm text-muted-foreground">
             {total} invoice{total === 1 ? "" : "s"} · {formatINR(paidTotalOnPage)} collected · {formatINR(dueTotalOnPage)} due on this page
           </p>
         </div>
         {ctx.role !== "doctor" && (
           <Button asChild>
-            <Link href="/invoices/new">Create invoice</Link>
+            <Link href={patient ? `/invoices/new?lead=${patient.id}` : "/invoices/new"}>Create invoice</Link>
           </Button>
         )}
       </div>
 
       {/* Per-center + payment filters */}
       <form className="flex flex-wrap gap-2 items-end" action="/invoices" method="get">
+        {patient && <input type="hidden" name="lead" value={patient.id} />}
         {(ctx.role === "admin" || branches.length > 1) && (
           <div className="space-y-1">
             <label htmlFor="invoice-branch" className="text-xs text-muted-foreground">Center</label>
@@ -109,7 +116,7 @@ export default async function InvoicesPage({
         </div>
         <Button type="submit" variant="secondary" size="sm">Filter</Button>
         <Button asChild variant="ghost" size="sm">
-          <Link href="/invoices">Reset</Link>
+          <Link href={patient ? `/invoices?lead=${patient.id}` : "/invoices"}>Reset filters</Link>
         </Button>
       </form>
 

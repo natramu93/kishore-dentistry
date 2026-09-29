@@ -32,6 +32,7 @@ export async function finalizeCaseSheetAction(
       visit_at: new Date().toISOString(),
     });
     revalidatePath(`/leads/${result.lead_id}`);
+    revalidatePath(`/my-patients/${result.lead_id}`);
     revalidatePath("/appointments");
     revalidatePath("/my-patients");
     revalidatePath("/dashboard");

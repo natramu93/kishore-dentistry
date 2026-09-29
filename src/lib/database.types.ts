@@ -219,6 +219,7 @@ export type Appointment = Timestamps & {
 
 export type Treatment = Timestamps & {
   id: string;
+  planned_treatment_id: string | null;
   lead_id: string;
   branch_id: string;
   appointment_id: string | null;
@@ -424,6 +425,7 @@ export type InvoiceItem = Timestamps & {
   site_detail: string | null;
   surfaces: string[] | null;
   active_billing: boolean;
+  line_note: string | null;
 };
 
 export type LeadActivity = Timestamps & {
@@ -881,6 +883,7 @@ export type Database = {
           FK<"treatments_treatment_type_id_fkey", "treatment_type_id", "treatment_types">,
           FK<"treatments_doctor_id_fkey", "doctor_id", "doctors">,
           FK<"treatments_case_sheet_id_fkey", "case_sheet_id", "case_sheets">,
+          FK<"treatments_planned_treatment_id_fkey", "planned_treatment_id", "treatments">,
           {
             foreignKeyName: "treatments_treatment_code_fkey";
             columns: ["treatment_code"];
@@ -984,7 +987,18 @@ export type Database = {
         [FK<"action_rate_limits_actor_id_fkey", "actor_id", "profiles">]
       >;
     };
-    Views: Record<string, never>;
+    Views: {
+      clinical_treatment_progress: {
+        Row: Pick<Treatment, "id" | "lead_id" | "branch_id" | "case_sheet_id" | "planned_treatment_id" |
+          "treatment_code" | "treatment_name" | "clinical_status" | "site_scope" | "site_detail" |
+          "tooth_number" | "tooth_numbers" | "surfaces" | "notes" | "treated_at" | "performed_at"> & {
+          doctor_name: string | null;
+          remaining_tooth_numbers: string[];
+          is_pending: boolean;
+        };
+        Relationships: [];
+      };
+    };
     Functions: {
       case_sheet_amendment_window_open: {
         Args: { p_case_sheet_id: string };
@@ -1065,6 +1079,10 @@ export type Database = {
         Returns: Invoice;
       };
       cancel_invoice: { Args: { p_invoice_id: string; p_actor: string; p_reason: string }; Returns: Invoice };
+      get_patient_invoice_summary: {
+        Args: { p_lead_id: string; p_actor: string };
+        Returns: { invoice_count: number; total_invoiced: number; amount_paid: number; balance_due: number }[];
+      };
       get_daily_payment_collections: {
         Args: { p_actor: string; p_day_start: string; p_day_end: string };
         Returns: { payment_method: string; amount: number }[];
@@ -1090,6 +1108,9 @@ export type Database = {
           p_items: Json;
           p_actor: string;
           p_expected_version?: number | null;
+          p_discount_amount?: number | null;
+          p_discount_given_by?: string | null;
+          p_mention?: string | null;
         };
         Returns: Invoice;
       };

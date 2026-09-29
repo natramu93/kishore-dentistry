@@ -7,6 +7,9 @@ type ToothChartProps = {
   arch: "upper" | "lower";
   onSelect: (tooth: string) => void;
   documentedTeeth?: readonly string[];
+  selectableTeeth?: readonly string[];
+  columns?: number;
+  showMidline?: boolean;
 };
 
 type ToothKind = "incisor" | "canine" | "premolar" | "molar";
@@ -64,6 +67,9 @@ export function ToothChart({
   arch,
   onSelect,
   documentedTeeth = [],
+  selectableTeeth,
+  columns,
+  showMidline = true,
 }: ToothChartProps) {
   const quadrantLength = teeth.length / 2;
   const documented = new Set(documentedTeeth);
@@ -74,7 +80,7 @@ export function ToothChart({
   return (
     <div
       className="grid gap-1.5"
-      style={{ gridTemplateColumns: `repeat(${teeth.length}, minmax(2.75rem, 1fr))` }}
+      style={{ gridTemplateColumns: `repeat(${columns ?? teeth.length}, minmax(2.75rem, 1fr))` }}
     >
       {teeth.map((tooth, index) => {
         const isSelected = selectedTeeth.has(tooth);
@@ -82,13 +88,14 @@ export function ToothChart({
           <button
             key={tooth}
             type="button"
+            disabled={selectableTeeth !== undefined && !selectableTeeth.includes(tooth)}
             aria-label={`${tooth}, ${describeIndianTooth(tooth)}${documented.has(tooth) ? ", examination recorded" : ""}`}
             aria-pressed={isSelected}
             title={`Select Indian Standard tooth ${tooth}`}
             onClick={() => onSelect(tooth)}
             className={cn(
-              "group relative flex min-h-20 min-w-11 flex-col items-center justify-center gap-0.5 rounded-lg border bg-background px-1 py-1 text-slate-500 outline-none transition-colors hover:border-primary/60 hover:bg-primary/5 hover:text-primary focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:text-slate-300",
-              index === quadrantLength && "ml-2",
+              "group relative flex min-h-20 min-w-11 flex-col items-center justify-center gap-0.5 rounded-lg border bg-background px-1 py-1 text-slate-500 outline-none transition-colors hover:border-primary/60 hover:bg-primary/5 hover:text-primary focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-25 disabled:pointer-events-none dark:text-slate-300",
+              showMidline && index === quadrantLength && "ml-2",
               isSelected && "border-primary bg-primary/10 text-primary ring-2 ring-primary/25",
             )}
           >

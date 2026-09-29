@@ -19,6 +19,19 @@ export function RecordPaymentForm({ invoiceId, balanceDue }: { invoiceId: string
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const paymentAmount = Number(amount);
+    if (!method) {
+      toast.error("Choose a payment method to record this payment");
+      return;
+    }
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+      toast.error("Enter a payment amount greater than zero");
+      return;
+    }
+    if (paymentAmount > balanceDue) {
+      toast.error("Payment cannot exceed the outstanding balance");
+      return;
+    }
     startTransition(async () => {
       const result = await recordInvoicePaymentAction(invoiceId, { amount, method, reference });
       if (!result.ok) toast.error(result.error);
@@ -51,7 +64,7 @@ export function RecordPaymentForm({ invoiceId, balanceDue }: { invoiceId: string
         <Input id={`${id}-reference`} value={reference} onChange={(event) => setReference(event.target.value)} maxLength={120} placeholder="UPI transaction ID, card slip, NEFT UTR, etc." />
       </div>
       <div className="sm:col-span-2">
-        <Button type="submit" disabled={pending || !method || !Number.isFinite(Number(amount)) || Number(amount) <= 0 || Number(amount) > balanceDue}>
+        <Button type="submit" disabled={pending}>
           {pending ? "Recording…" : "Record payment"}
         </Button>
       </div>

@@ -3,16 +3,19 @@
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { createInvoiceAndRedirect, updateInvoiceAction } from "@/actions/invoices";
+import { createInvoiceAction, updateInvoiceAction } from "@/actions/invoices";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ToothSelector } from "@/components/clinical/tooth-selector";
+import { invoiceDisplayTotals } from "@/lib/invoice-lines";
 import { formatINR } from "@/lib/tz";
 import { LockKeyhole, Trash2 } from "lucide-react";
 
 export type CodedInvoiceItem = {
+  invoice_item_id?: string;
   treatment_id?: string | null;
   treatment_type_id?: string | null;
   treatment_code?: string | null;
@@ -20,6 +23,8 @@ export type CodedInvoiceItem = {
   site_label: string;
   quantity: number;
   unit_price: number;
+  tooth_numbers?: string[];
+  line_note?: string;
 };
 
 export type EligibleInvoiceTreatment = {
@@ -74,7 +79,8 @@ export function InvoiceEditor({
   const idPrefix = useId();
   const nextRowKey = useRef(initialItems.length);
   const [items, setItems] = useState<EditableItem[]>(() =>
-    initialItems.map((item, index) => ({ ...item, rowKey: `initial-${index}` }))
+    initialItems.length ? initialItems.map((item, index) => ({ ...item, rowKey: `initial-${index}` }))
+      : mode === "create" && treatmentOptions.length ? [{ rowKey: "first-line", treatment_type_id: null, description: "", site_label: "General / not tooth-specific", quantity: 1, unit_price: 0 }] : []
   );
   const [taxRate, setTaxRate] = useState(initialTaxRate);
   const [notes, setNotes] = useState(initialNotes);
@@ -91,16 +97,13 @@ export function InvoiceEditor({
     return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
   }, [dirty, pending]);
 
-  const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
-  const safeDiscount = Math.min(Math.max(0, discount), subtotal);
-  const discountedTax = Math.round((subtotal - safeDiscount) * taxRate) / 100;
-  const total = subtotal - safeDiscount + discountedTax;
+  const { subtotal, safeDiscount, tax: discountedTax, total } = invoiceDisplayTotals(items, taxRate, discount);
   const selectedIds = new Set(items.map((item) => item.treatment_id));
   const available = treatmentCatalog.filter((item) => !selectedIds.has(item.id));
 
   function updateItem(
     rowKey: string,
-    patch: Partial<Pick<CodedInvoiceItem, "quantity" | "unit_price">>
+    patch: Partial<Pick<CodedInvoiceItem, "quantity" | "unit_price" | "tooth_numbers" | "line_note">>
   ) {
     setDirty(true);
     setItems((previous) =>
@@ -128,6 +131,10 @@ export function InvoiceEditor({
   }
 
   function addCatalogLine() {
+    if (treatmentOptions.length === 0) {
+      toast.error("No active treatments are available for this center. Ask a center admin to add treatments first.");
+      return;
+    }
     const rowKey = `catalog-${nextRowKey.current++}`;
     setDirty(true);
     setItems((previous) => [...previous, {
@@ -136,7 +143,9 @@ export function InvoiceEditor({
       treatment_type_id: null,
       treatment_code: null,
       description: "",
-      site_label: "Additional invoice item",
+      site_label: "General / not tooth-specific",
+      tooth_numbers: [],
+      line_note: "",
       quantity: 1,
       unit_price: 0,
     }]);
@@ -150,7 +159,6 @@ export function InvoiceEditor({
       ...item,
       treatment_type_id: selection.id,
       description: selection.name,
-      site_label: selection.category ?? "Additional invoice item",
       unit_price: selection.default_cost ?? item.unit_price,
     } : item));
   }
@@ -174,14 +182,34 @@ export function InvoiceEditor({
       toast.error("Choose a treatment from the dropdown for every added invoice line");
       return;
     }
-    const payloadItems = items.map(({ treatment_id, treatment_type_id, quantity, unit_price }) => ({
+    if (items.some((item) => !Number.isFinite(item.quantity) || item.quantity <= 0)) {
+      toast.error("Enter a quantity greater than zero for every invoice line");
+      return;
+    }
+    if (items.some((item) => !Number.isFinite(item.unit_price) || item.unit_price < 0)) {
+      toast.error("Enter a valid unit price for every invoice line");
+      return;
+    }
+    if (subtotal <= 0) {
+      toast.error("Enter a total greater than zero before creating the invoice");
+      return;
+    }
+    if (!Number.isFinite(discount) || discount < 0 || discount > subtotal) {
+      toast.error("Discount must be between zero and the invoice subtotal");
+      return;
+    }
+    const payloadItems = items.map(({ invoice_item_id, treatment_id, treatment_type_id, quantity, unit_price, tooth_numbers, line_note }) => ({
+      ...(invoice_item_id ? { invoice_item_id } : {}),
       ...(treatment_id ? { treatment_id } : { treatment_type_id }),
       quantity,
       unit_price,
+      ...(!treatment_id && tooth_numbers?.length ? { tooth_numbers } : {}),
+      ...(line_note?.trim() ? { line_note: line_note.trim() } : {}),
     }));
     startTransition(async () => {
+      try {
       if (mode === "create") {
-        const result = await createInvoiceAndRedirect({
+        const result = await createInvoiceAction({
           lead_id: leadId,
           tax_rate: taxRate,
           discount_amount: safeDiscount,
@@ -190,7 +218,10 @@ export function InvoiceEditor({
           notes,
           items: payloadItems,
         });
-        if (result && !result.ok) toast.error(result.error);
+        if (result.ok && result.id) {
+          setDirty(false);
+          router.push(`/invoices/${result.id}`);
+        } else if (!result.ok) toast.error(result.error);
       } else {
         const result = await updateInvoiceAction(invoiceId!, {
           tax_rate: taxRate,
@@ -209,6 +240,9 @@ export function InvoiceEditor({
           toast.error(result.error);
         }
       }
+      } catch {
+        toast.error("The invoice could not be saved. Your entries are still here; please try again.");
+      }
     });
   }
 
@@ -226,7 +260,8 @@ export function InvoiceEditor({
             </p>
           </div>
 
-          {mode === "edit" && <div className="space-y-1.5">
+          {mode === "edit" && available.length > 0 && <details className="space-y-1.5">
+            <summary className="cursor-pointer text-sm font-medium">Add from a saved case sheet (optional)</summary>
             <Label htmlFor={`${idPrefix}-treatment`}>Add a completed case-sheet treatment (optional)</Label>
             <select
               id={`${idPrefix}-treatment`}
@@ -244,13 +279,18 @@ export function InvoiceEditor({
                 </option>
               ))}
             </select>
-          </div>}
+          </details>}
 
           <section aria-labelledby={`${idPrefix}-items-heading`} className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 id={`${idPrefix}-items-heading`} className="text-base font-semibold">Invoice line items</h2>
               <Button type="button" variant="outline" onClick={addCatalogLine}>Add treatment line</Button>
             </div>
+            {treatmentOptions.length === 0 && (
+              <p role="status" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-100">
+                No active treatments are configured for this center, so an invoice line cannot be selected yet. Ask a center admin to update the treatment list.
+              </p>
+            )}
             {items.length === 0 && (
               <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
                 There are no invoice lines yet. Add a treatment line, then choose a treatment from this center’s list.
@@ -260,7 +300,7 @@ export function InvoiceEditor({
               const quantityId = `${idPrefix}-${item.rowKey}-quantity`;
               const priceId = `${idPrefix}-${item.rowKey}-price`;
               const isCatalogLine = !item.treatment_id;
-              const isPrimary = mode === "edit" && item.treatment_id === primaryTreatmentId;
+              const isPrimary = mode === "edit" && Boolean(primaryTreatmentId) && item.treatment_id === primaryTreatmentId;
               return (
                 <fieldset
                   key={item.rowKey}
@@ -297,7 +337,9 @@ export function InvoiceEditor({
                       )}
                     </div>
                     )}
-                    <p className="mt-1 text-xs text-muted-foreground">{item.site_label}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {isCatalogLine && item.tooth_numbers?.length ? `Teeth ${item.tooth_numbers.join(", ")}` : item.site_label}
+                    </p>
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor={quantityId}>Quantity</Label>
@@ -331,17 +373,52 @@ export function InvoiceEditor({
                     onClick={() => removeItem(item.rowKey)}
                     aria-label={isPrimary
                       ? `Primary treatment ${item.treatment_code} cannot be removed`
-                      : `Remove ${item.treatment_code} ${item.description}`}
+                      : `Remove treatment line ${index + 1}${item.description ? `: ${item.description}` : ""}`}
                     title={isPrimary ? "The primary treatment must remain on this invoice" : undefined}
                   >
                     <Trash2 aria-hidden="true" />
                   </Button>
+                  <details className="sm:col-span-4 rounded-md bg-muted/30 p-3">
+                    <summary className="cursor-pointer text-sm font-medium">
+                      {isCatalogLine ? "Teeth & line note (optional)" : "Line note (optional)"}
+                      {item.tooth_numbers?.length ? ` · ${item.tooth_numbers.length} selected` : ""}
+                    </summary>
+                    <div className="mt-3 space-y-3">
+                      {isCatalogLine && <>
+                        <ToothSelector
+                          label={`Teeth for treatment line ${index + 1}`}
+                          value={item.tooth_numbers ?? []}
+                          onChange={(teeth) => updateItem(item.rowKey, { tooth_numbers: teeth })}
+                          disabled={pending}
+                        />
+                        <p className="text-xs text-muted-foreground">Leave unselected for a general service. Selecting teeth does not change the quantity or mark treatment completed.</p>
+                      </>}
+                      <div className="space-y-1.5">
+                        <Label htmlFor={`${idPrefix}-${item.rowKey}-note`}>Line note</Label>
+                        <Textarea
+                          id={`${idPrefix}-${item.rowKey}-note`}
+                          value={item.line_note ?? ""}
+                          onChange={(event) => updateItem(item.rowKey, { line_note: event.target.value })}
+                          maxLength={1000}
+                          rows={2}
+                          placeholder="Optional note shown on the invoice"
+                        />
+                      </div>
+                    </div>
+                  </details>
                 </fieldset>
               );
             })}
           </section>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-notes`}>Invoice remarks (optional)</Label>
+            <Textarea id={`${idPrefix}-notes`} rows={2} maxLength={4000} value={notes}
+              onChange={(event) => { setDirty(true); setNotes(event.target.value); }} />
+          </div>
+          <details className="rounded-md border p-3" open={initialDiscount > 0 || initialTaxRate > 0 || Boolean(initialMention) ? true : undefined}>
+            <summary className="cursor-pointer text-sm font-medium">Discount, tax & additional details (optional)</summary>
+            <div className="mt-3 grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor={`${idPrefix}-tax-rate`}>Tax rate (%)</Label>
               <Input
@@ -356,27 +433,19 @@ export function InvoiceEditor({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-notes`}>Invoice notes</Label>
-              <Textarea
-                id={`${idPrefix}-notes`}
-                rows={2}
-                value={notes}
-                onChange={(event) => { setDirty(true); setNotes(event.target.value); }}
-              />
-            </div>
-            {mode === "create" && <div className="space-y-2">
               <Label htmlFor={`${idPrefix}-discount`}>Discount amount (₹)</Label>
               <Input id={`${idPrefix}-discount`} type="number" inputMode="decimal" min={0} max={subtotal} step={0.01} value={discount} onChange={(event) => { setDirty(true); setDiscount(Number(event.target.value)); }} />
-            </div>}
-            {mode === "create" && <div className="space-y-2">
+            </div>
+            <div className="space-y-2">
               <Label htmlFor={`${idPrefix}-discount-by`}>Discount given by</Label>
               <Input id={`${idPrefix}-discount-by`} maxLength={200} value={discountGivenBy} onChange={(event) => { setDirty(true); setDiscountGivenBy(event.target.value); }} />
-            </div>}
-            {mode === "create" && <div className="space-y-2 sm:col-span-2">
+            </div>
+            <div className="space-y-2 sm:col-span-2">
               <Label htmlFor={`${idPrefix}-mention`}>Mention / remarks</Label>
               <Textarea id={`${idPrefix}-mention`} rows={2} maxLength={1000} value={mention} onChange={(event) => { setDirty(true); setMention(event.target.value); }} />
-            </div>}
-          </div>
+            </div>
+            </div>
+          </details>
 
           <div aria-live="polite" aria-atomic="true" className="space-y-1 border-t pt-4 text-sm">
             <div className="flex justify-between gap-4">
@@ -399,7 +468,7 @@ export function InvoiceEditor({
 
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button variant="ghost" type="button" onClick={cancel}>Cancel</Button>
-            <Button type="submit" disabled={pending || items.length === 0 || subtotal <= 0 || discount > subtotal || items.some((item) => !item.treatment_id && !item.treatment_type_id)}>
+            <Button type="submit" disabled={pending}>
               {pending ? "Saving…" : mode === "create" ? "Create invoice" : "Save changes"}
             </Button>
           </div>

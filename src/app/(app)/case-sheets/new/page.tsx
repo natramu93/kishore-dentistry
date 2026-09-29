@@ -7,6 +7,7 @@ import {
 } from "@/data/case-sheets";
 import { listDoctors, listMedicationSuggestions } from "@/data/catalogs";
 import { CaseSheetEditor } from "@/components/clinical/case-sheet-editor";
+import { getPatientTreatmentProgress } from "@/data/treatment-progress";
 
 export const metadata: Metadata = {
   title: "New Digital Case Sheet — Dr. Kishor's Dentistry CRM",
@@ -25,12 +26,13 @@ export default async function NewCaseSheetPage({
     leadId: params.lead,
     appointmentId: params.appointment,
   });
-  const [treatmentCodes, branchDoctors, medicationSuggestions] = await Promise.all([
+  const [treatmentCodes, branchDoctors, medicationSuggestions, progress] = await Promise.all([
     listTreatmentCodes(ctx),
     ctx.role === "doctor"
       ? Promise.resolve([])
       : listDoctors(ctx, { branchId: scope.lead.branch_id }),
     listMedicationSuggestions(ctx, scope.lead.branch_id),
+    getPatientTreatmentProgress(ctx, scope.lead.id),
   ]);
   const doctors =
     ctx.role === "doctor" && ctx.doctorId
@@ -61,6 +63,7 @@ export default async function NewCaseSheetPage({
         doctors={doctors}
         doctorLocked={Boolean(scope.appointment?.doctor_id)}
         treatmentCodes={treatmentCodes}
+        pendingPlans={progress.planned}
         canPrescribe={ctx.role === "doctor"}
         medicationSuggestions={medicationSuggestions}
         initialMedicalHistory={scope.medicalHistory}

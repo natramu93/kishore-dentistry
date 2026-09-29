@@ -4,9 +4,14 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getAuthContext } from "@/lib/auth/context";
 import { getMyPatientHistory } from "@/data/doctor-portal";
+import { getPatientTreatmentProgress } from "@/data/treatment-progress";
+import { TreatmentProgressSummary } from "@/components/clinical/treatment-progress-summary";
+import { CaseSheetEditLink } from "@/components/clinical/case-sheet-edit-link";
+import { PatientSectionNav } from "@/components/patients/patient-section-nav";
+import { treatmentProgressLabel } from "@/lib/treatment-progress";
 import { NotFoundError } from "@/lib/errors";
 import { formatClinicalSite } from "@/lib/clinical";
-import { fmt, fmtDate, formatINR } from "@/lib/tz";
+import { fmt, fmtDate } from "@/lib/tz";
 import type {
   PatientMedicalHistoryVersion,
   PrescriptionItem,
@@ -58,6 +63,10 @@ export default async function MyPatientHistoryPage({
     caseSheetPageSize,
   } = history;
   const branch = lead.branch as { name: string } | null;
+  const treatmentProgress = await getPatientTreatmentProgress(ctx, id);
+  // This authenticated Server Component renders per request; the DB rechecks on save.
+  // eslint-disable-next-line react-hooks/purity
+  const pageRenderedAt = Date.now();
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
@@ -77,9 +86,20 @@ export default async function MyPatientHistoryPage({
             Access is limited to clinicians with a current appointment or treatment relationship to this patient.
           </p>
         </div>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/appointments">Open my schedule</Link>
+        </Button>
       </div>
 
-      <Card>
+      <PatientSectionNav sections={[
+        { id: "patient-overview", label: "Overview" },
+        { id: "patient-medical-history", label: "Medical history" },
+        { id: "patient-clinical", label: "Treatment progress" },
+        ...(currentToothAssessments.length > 0 ? [{ id: "patient-teeth", label: "Tooth chart" }] : []),
+        { id: "patient-visit-history", label: "Visits & files" },
+      ]} />
+
+      <Card id="patient-overview" className="scroll-mt-20">
         <CardHeader>
           <CardTitle className="text-base">Patient details</CardTitle>
         </CardHeader>
@@ -92,7 +112,7 @@ export default async function MyPatientHistoryPage({
         </CardContent>
       </Card>
 
-      <Card className="border-l-4 border-l-rose-400">
+      <Card id="patient-medical-history" className="scroll-mt-20 border-l-4 border-l-rose-400">
         <CardHeader>
           <CardTitle className="text-base">Medical history</CardTitle>
         </CardHeader>
@@ -111,8 +131,12 @@ export default async function MyPatientHistoryPage({
         </CardContent>
       </Card>
 
+      <div id="patient-clinical" className="scroll-mt-20">
+        <TreatmentProgressSummary progress={treatmentProgress} />
+      </div>
+
       {currentToothAssessments.length > 0 && (
-        <section aria-labelledby="current-tooth-summary" className="space-y-3">
+        <section id="patient-teeth" aria-labelledby="current-tooth-summary" className="scroll-mt-20 space-y-3">
           <div>
             <h2 id="current-tooth-summary" className="text-lg font-semibold">Latest recorded whole-mouth tooth summary</h2>
             <p className="text-sm text-muted-foreground">Most recent signed assessment for each recorded tooth, with its examination date and clinician.</p>
@@ -121,11 +145,11 @@ export default async function MyPatientHistoryPage({
         </section>
       )}
 
-      <section aria-labelledby="digital-history-heading" className="space-y-3">
+      <section id="patient-visit-history" aria-labelledby="digital-history-heading" className="scroll-mt-20 space-y-3">
         <div>
-          <h2 id="digital-history-heading" className="text-lg font-semibold">Finalized digital case sheets</h2>
+          <h2 id="digital-history-heading" className="text-lg font-semibold">Visits, case sheets &amp; files</h2>
           <p className="text-sm text-muted-foreground">
-            Signed clinical history is read-only. Planned care is shown separately from completed treatment.
+            Amend your signed case sheet within 24 hours. Older visits stay read-only; record further care in a new appointment. Treatment progress is independent of billing.
           </p>
         </div>
         {caseSheets.length === 0 && (
@@ -160,7 +184,7 @@ export default async function MyPatientHistoryPage({
           ).filter((attachment) => attachment.status === "ready" && !attachment.treatment_id);
           const canManageClinicalFiles = sheet.doctor_id === ctx.doctorId;
           return (
-            <Card key={sheet.id}>
+            <Card key={sheet.id} id={`case-${sheet.id}`} className="scroll-mt-20">
               <CardHeader className="gap-1">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
@@ -170,11 +194,7 @@ export default async function MyPatientHistoryPage({
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    {canManageClinicalFiles && (
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`/case-sheets/${sheet.id}/edit`}>Edit case sheet</Link>
-                      </Button>
-                    )}
+                    <CaseSheetEditLink caseSheetId={sheet.id} finalizedAt={sheet.finalized_at} canEdit={canManageClinicalFiles} now={pageRenderedAt} />
                     <Badge variant="secondary">Finalized · v{sheet.version ?? 1}</Badge>
                   </div>
                 </div>
@@ -197,9 +217,9 @@ export default async function MyPatientHistoryPage({
                 )}
                 <dl className="grid gap-3 rounded-md bg-muted/40 p-3 text-sm sm:grid-cols-2">
                   <Field label="Chief complaint" value={sheet.chief_complaint} />
-                  <Field label="Clinical findings" value={sheet.findings} />
-                  <Field label="Diagnosis" value={sheet.diagnosis} />
-                  <Field label="Treatment plan" value={sheet.plan} />
+                  <Field label="Clinical remarks" value={sheet.findings} />
+                  {sheet.diagnosis && <Field label="Previously recorded diagnosis" value={sheet.diagnosis} />}
+                  {sheet.plan && <Field label="Previously recorded plan" value={sheet.plan} />}
                 </dl>
                 <div>
                   <p className="mb-2 text-sm font-semibold">Medical history at this visit</p>
@@ -245,20 +265,14 @@ export default async function MyPatientHistoryPage({
                             <Badge variant="outline" className="font-mono">{treatment.treatment_code}</Badge>
                             <span className="text-sm font-medium">{treatment.treatment_name}</span>
                             <Badge variant={treatment.clinical_status === "completed" ? "default" : "secondary"}>
-                              {treatment.clinical_status}
+                              {treatmentProgressLabel(treatment.clinical_status)}
                             </Badge>
                           </div>
                           <p className="mt-1 text-xs text-muted-foreground">
                             {formatClinicalSite(treatment)}
-                            {(treatment.quantity ?? 1) !== 1 ? ` · Qty ${treatment.quantity}` : ""}
                           </p>
                           {treatment.notes && <p className="mt-1 text-sm">{treatment.notes}</p>}
                         </div>
-                        {treatment.cost != null && (
-                          <span className="text-sm font-semibold">
-                            {formatINR(treatment.cost * (treatment.quantity ?? 1))}
-                          </span>
-                        )}
                       </div>
                       <div className="mt-3">
                         <ClinicalAttachmentPanel
@@ -304,7 +318,6 @@ export default async function MyPatientHistoryPage({
                         {fmt(treatment.treated_at)} · {doctor?.full_name ?? "Doctor not recorded"}
                       </p>
                     </div>
-                    {treatment.cost != null && <span className="font-semibold">{formatINR(treatment.cost)}</span>}
                   </div>
                 );
               })}
@@ -320,7 +333,7 @@ function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="font-medium">{value || "—"}</dd>
+      <dd className="whitespace-pre-wrap break-words font-medium">{value || "—"}</dd>
     </div>
   );
 }

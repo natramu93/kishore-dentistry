@@ -2,6 +2,7 @@ import "server-only";
 
 import { db } from "./db";
 import { throwMappedDatabaseError } from "./helpers";
+import { invoiceLineDetailsSchema } from "@/lib/invoice-lines";
 import type { AuthContext } from "@/lib/auth/context";
 import {
   assertBranchAccess,
@@ -63,10 +64,13 @@ type InvoiceScopeRow = Invoice & {
 };
 
 export type InvoiceItemInput = {
+  invoice_item_id?: string;
   treatment_id?: string | null;
   treatment_type_id?: string | null;
   quantity: number;
   unit_price: number;
+  tooth_numbers?: string[];
+  line_note?: string;
 };
 
 function paidAmount(invoice: Pick<Invoice, "total" | "status">, payments: Pick<InvoicePayment, "amount">[]): number {
@@ -77,7 +81,7 @@ function paidAmount(invoice: Pick<Invoice, "total" | "status">, payments: Pick<I
 
 function paymentTotals(invoice: Pick<Invoice, "total" | "status">, payments: Pick<InvoicePayment, "amount">[]) {
   const amount_paid = paidAmount(invoice, payments);
-  return { amount_paid, balance_due: Math.max(0, Math.round((invoice.total - amount_paid) * 100) / 100) };
+  return { amount_paid, balance_due: invoice.status === "cancelled" ? 0 : Math.max(0, Math.round((invoice.total - amount_paid) * 100) / 100) };
 }
 
 export type InvoiceCatalogTreatment = Pick<TreatmentType, "id" | "name" | "category" | "default_cost" | "is_general_consultation">;
@@ -142,6 +146,9 @@ function validateInvoiceInput(items: InvoiceItemInput[], taxRate: number): void 
   }
   const treatmentIds = new Set<string>();
   for (const item of items) {
+    if (item.invoice_item_id) assertUuid(item.invoice_item_id, "Invoice line");
+    const details = invoiceLineDetailsSchema.safeParse(item);
+    if (!details.success) throw new ValidationError(details.error.issues[0]?.message ?? "Invoice line details are invalid");
     if (item.treatment_id && item.treatment_type_id) {
       throw new ValidationError("An invoice line must be either a case-sheet treatment or a catalog treatment");
     }
@@ -279,6 +286,7 @@ function toInvoiceDto(row: InvoiceScopeRow): Omit<InvoiceWithRefs, "amount_paid"
 export async function listInvoices(
   ctx: AuthContext,
   opts: {
+    leadId?: string;
     branchId?: string;
     status?: InvoiceStatus;
     dueOnly?: boolean;
@@ -314,6 +322,7 @@ export async function listInvoices(
     query = query.eq("branch_id", branchId);
   }
   if (opts.status) query = query.eq("status", assertInvoiceStatus(opts.status));
+  if (opts.leadId) query = query.eq("lead_id", assertUuid(opts.leadId, "Patient"));
   if (opts.dueOnly) query = query.not("status", "in", "(paid,cancelled)");
   if (opts.paymentMethod) {
     const paymentsQuery = db.from("invoice_payments").select("invoice_id")
@@ -405,6 +414,7 @@ export async function recordInvoicePayment(
   if (!invoice) throw new NotFoundError("Invoice");
   assertInvoiceWriteAccess(ctx, { branch_id: invoice.branch_id, assignee_id: invoice.lead?.assignee_id ?? null });
   if (invoice.status === "paid") throw new ConflictError("This invoice is already paid");
+  if (invoice.status === "cancelled") throw new ConflictError("Cancelled invoices cannot accept payments");
   if (!invoice.code_enforced && invoice.invoice_kind !== "consultation") {
     throw new ConflictError("Legacy uncoded invoices cannot accept payments");
   }
@@ -466,9 +476,12 @@ export async function createInvoice(
     p_mention: input.mention?.trim() || null,
     p_notes: input.notes?.trim() || null,
     p_items: input.items.map((item) => ({
+      ...(item.invoice_item_id ? { invoice_item_id: item.invoice_item_id } : {}),
       ...(item.treatment_id ? { treatment_id: item.treatment_id } : { treatment_type_id: item.treatment_type_id }),
       quantity: item.quantity,
       unit_price: item.unit_price,
+      tooth_numbers: item.tooth_numbers ?? [],
+      line_note: item.line_note?.trim() || null,
     })) as Json,
     p_actor: ctx.userId,
   });
@@ -569,6 +582,9 @@ export async function updateInvoice(
   input: {
     tax_rate: number;
     notes?: string | null;
+    discount_amount?: number;
+    discount_given_by?: string | null;
+    mention?: string | null;
     items: InvoiceItemInput[];
     expected_version: number;
   }
@@ -580,9 +596,12 @@ export async function updateInvoice(
     branch_id: invoice.branch_id,
     assignee_id: invoice.lead?.assignee_id ?? null,
   });
-  if (invoice.status === "paid") {
-    throw new ConflictError("A paid invoice cannot be edited");
+  if (invoice.status === "paid" || invoice.status === "cancelled") {
+    throw new ConflictError("A paid or cancelled invoice cannot be edited");
   }
+  const receipts = await db.from("invoice_payments").select("id").eq("invoice_id", invoice.id).limit(1);
+  if (receipts.error) throw receipts.error;
+  if (receipts.data?.length) throw new ConflictError("An invoice with recorded payments cannot be edited. Its original charges are preserved.");
   if (!invoice.code_enforced && invoice.invoice_kind !== "consultation") {
     throw new ConflictError(
       "Legacy invoices cannot be edited. Create a new invoice from finalized coded treatments."
@@ -594,6 +613,10 @@ export async function updateInvoice(
     );
   }
   validateInvoiceInput(input.items, input.tax_rate);
+  const discountAmount = input.discount_amount ?? invoice.discount_amount;
+  computeInvoiceTotalWithDiscount(input.items, input.tax_rate, discountAmount);
+  if (input.discount_given_by && input.discount_given_by.length > 200) throw new ValidationError("Discount giver name is too long");
+  if (input.mention && input.mention.length > 1000) throw new ValidationError("Invoice mention is too long");
   await validateCatalogTreatmentsForBranch(input.items, invoice.branch_id);
   if (input.notes && input.notes.length > 4_000) {
     throw new ValidationError("Invoice notes are too long");
@@ -603,10 +626,16 @@ export async function updateInvoice(
     p_invoice_id: invoice.id,
     p_tax_rate: input.tax_rate,
     p_notes: input.notes?.trim() || null,
+    p_discount_amount: discountAmount,
+    p_discount_given_by: input.discount_given_by?.trim() || null,
+    p_mention: input.mention?.trim() || null,
     p_items: input.items.map((item) => ({
+      ...(item.invoice_item_id ? { invoice_item_id: item.invoice_item_id } : {}),
       ...(item.treatment_id ? { treatment_id: item.treatment_id } : { treatment_type_id: item.treatment_type_id }),
       quantity: item.quantity,
       unit_price: item.unit_price,
+      tooth_numbers: item.tooth_numbers ?? [],
+      line_note: item.line_note?.trim() || null,
     })) as Json,
     p_actor: ctx.userId,
     p_expected_version: expectedVersion,

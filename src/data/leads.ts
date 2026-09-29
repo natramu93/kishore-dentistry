@@ -390,7 +390,7 @@ export async function getLeadRelated(ctx: AuthContext, leadIdValue: string) {
       .limit(limit),
     db
       .from("invoices")
-      .select("*, payments:invoice_payments(amount, payment_method)")
+      .select("*, payments:invoice_payments(amount, payment_method)", { count: "exact" })
       .eq("lead_id", leadId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
@@ -403,6 +403,7 @@ export async function getLeadRelated(ctx: AuthContext, leadIdValue: string) {
           .order("started_at", { ascending: false, nullsFirst: false })
           .limit(limit)
       : Promise.resolve({ data: [], error: null }),
+    db.rpc("get_patient_invoice_summary", { p_lead_id: leadId, p_actor: ctx.userId }).single(),
   ]);
   for (const result of results) {
     if (result.error) throw result.error;
@@ -418,8 +419,10 @@ export async function getLeadRelated(ctx: AuthContext, leadIdValue: string) {
       const amount_paid = invoice.status === "paid" && payments.length === 0
         ? Number(invoice.total)
         : payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
-      return { ...invoice, payments, amount_paid, balance_due: Math.max(0, Number(invoice.total) - amount_paid) };
+      return { ...invoice, payments, amount_paid, balance_due: invoice.status === "cancelled" ? 0 : Math.max(0, Math.round((Number(invoice.total) - amount_paid) * 100) / 100) };
     }),
     callLogs: results[4].data,
+    invoiceTotal: results[3].count,
+    invoiceSummary: results[5].data!,
   };
 }

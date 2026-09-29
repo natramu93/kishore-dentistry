@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAuthContext } from "@/lib/auth/context";
-import { getLeadRelated, listLeads } from "@/data/leads";
+import { getLead, listLeads } from "@/data/leads";
 import { listInvoiceTreatmentCatalog } from "@/data/invoices";
 import { InvoiceEditor } from "@/components/invoices/invoice-editor";
-import { ConsultationInvoiceForm } from "@/components/invoices/consultation-invoice-form";
+import { consultationInvoicePreset } from "@/lib/invoice-lines";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +15,7 @@ export const metadata = { title: "New Invoice — Dr. Kishor's Dentistry CRM" };
 export default async function NewInvoicePage({
   searchParams,
 }: {
-  searchParams: Promise<{ lead?: string; q?: string }>;
+  searchParams: Promise<{ lead?: string; q?: string; preset?: string }>;
 }) {
   const params = await searchParams;
   const ctx = await getAuthContext();
@@ -74,10 +74,11 @@ export default async function NewInvoicePage({
     );
   }
 
-  const related = await getLeadRelated(ctx, params.lead);
-  if (!related) notFound();
-  const { lead } = related;
+  const lead = await getLead(ctx, params.lead);
+  if (!lead) notFound();
   const treatmentOptions = await listInvoiceTreatmentCatalog(ctx, lead.branch_id);
+  const preset = params.preset === "consultation" ? consultationInvoicePreset(treatmentOptions) : null;
+  const needsAssignment = ctx.role === "front_office" && lead.assignee_id !== ctx.userId;
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -87,14 +88,22 @@ export default async function NewInvoicePage({
           For {lead.name} · {lead.branch?.name}
         </p>
       </div>
-      <ConsultationInvoiceForm leadId={lead.id} />
-      <InvoiceEditor
+      <Button asChild variant="outline" size="sm"><Link href={`/leads/${lead.id}#patient-invoices`}>Back to patient invoices</Link></Button>
+      {needsAssignment && <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:bg-amber-950/20 dark:text-amber-100" role="status">
+        This patient is not assigned to you yet. <Link href={`/leads/${lead.id}`} className="font-medium underline underline-offset-4">Return to the patient and claim the lead</Link> before creating an invoice.
+      </p>}
+      {params.preset === "consultation" && <p className="rounded-lg border bg-muted/40 p-3 text-sm" role="status">
+        {preset ? "Consultation has been selected at this center’s default rate. Change the amount or add other treatments below."
+          : "No active general consultation is configured for this center. Choose a treatment below, or ask the center admin to configure it."}
+      </p>}
+      {!needsAssignment && <InvoiceEditor
+        key={`${lead.id}:${params.preset === "consultation" ? "consultation" : "standard"}`}
         mode="create"
         leadId={lead.id}
         treatmentCatalog={[]}
         treatmentOptions={treatmentOptions}
-        initialItems={[]}
-      />
+        initialItems={preset ? [preset] : []}
+      />}
     </div>
   );
 }

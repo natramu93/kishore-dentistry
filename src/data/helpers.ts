@@ -10,6 +10,16 @@ import {
 import { assertUuid } from "@/lib/validation";
 import type { CommentEntity, Json } from "@/lib/database.types";
 
+// Expose only known, actionable clinical validation messages, never raw SQL details.
+const treatmentPlanErrors = new Map([
+  ["A signed treatment cannot be linked to a different plan", "The original treatment-plan link cannot be changed after saving. Keep the original plan and correct only this visit’s details."],
+  ["A plan with recorded later care cannot change its code, site or status", "This plan already has treatment recorded at a later visit. Keep its original code and teeth; corrections belong to the later visit within its 24-hour edit window."],
+  ["Select an earlier pending plan for this patient with the same code and surfaces", "This treatment no longer matches the selected earlier plan. Refresh the patient and choose the pending work again."],
+  ["Complete only teeth from the selected plan", "Choose only the remaining teeth from the selected treatment plan."],
+  ["These planned teeth already have a recorded completion. Refresh the patient.", "These teeth have already been marked treated for this plan. Refresh the patient and select only the remaining teeth."],
+  ["This planned site is different or already completed", "This planned site has changed or is already treated. Refresh the patient and choose the remaining planned work."],
+]);
+
 export function throwIfError(error: unknown): void {
   if (error) throw error;
 }
@@ -48,6 +58,8 @@ export function throwMappedDatabaseError(
       throw new ValidationError(databaseMessage || "Payment details are invalid");
     }
     if (resource === "Case sheet") {
+      const planMessage = treatmentPlanErrors.get(databaseMessage);
+      if (planMessage) throw new ConflictError(planMessage);
       if (/case-sheet amendment window has expired/i.test(databaseMessage)) {
         throw new ConflictError("Case sheets can only be amended within 24 hours of finalization.");
       }
@@ -242,12 +254,12 @@ export async function requireCommentEntityForLead(
   if (!entityId) throw new ValidationError("A comment target is required");
   assertUuid(entityId, "Comment target");
 
-  const table = {
+  const table = ({
     appointment: "appointments",
     treatment: "treatments",
     follow_up: "follow_ups",
     invoice: "invoices",
-  }[entityType];
+  } as const)[entityType];
   const { data, error } = await db
     .from(table)
     .select("id")

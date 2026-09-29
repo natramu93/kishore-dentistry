@@ -94,6 +94,7 @@ export type FinalizeCaseSheetInput = {
   }>;
   treatments: Array<{
     treatment_id?: string | null;
+    planned_treatment_id?: string | null;
     treatment_code: string;
     status: "planned" | "completed";
     site_scope: "not_applicable" | "full_mouth" | "arch" | "quadrant" | "tooth" | "multi_tooth";
@@ -117,6 +118,9 @@ export type EditableCaseSheet = {
     treatment_name: string;
     locked: boolean;
     hasAttachments: boolean;
+    sourcePlanNotes?: string | null;
+    availablePlanTeeth?: string[];
+    hasLaterCare?: boolean;
   }>;
 };
 
@@ -334,6 +338,7 @@ export async function getCaseSheetForEdit(
     treatments: Array<{
       id: string;
       treatment_code: string | null;
+      planned_treatment_id: string | null;
       treatment_name: string | null;
       clinical_status: "planned" | "completed" | null;
       site_scope: CaseSheetTreatmentInput["site_scope"] | null;
@@ -382,6 +387,13 @@ export async function getCaseSheetForEdit(
     ? row.medical_history[0]
     : row.medical_history;
   const visitHistory = medicalHistoryLink?.history ?? await loadCurrentMedicalHistory(row.lead.id);
+  const sourceIds = [...new Set(row.treatments.flatMap((item) => item.planned_treatment_id ? [item.id, item.planned_treatment_id] : [item.id]))];
+  const { data: sources, error: sourceError } = sourceIds.length
+    ? await db.from("clinical_treatment_progress").select("id, notes, remaining_tooth_numbers, is_pending")
+      .eq("lead_id", row.lead.id).eq("branch_id", row.lead.branch_id).in("id", sourceIds)
+    : { data: [], error: null };
+  if (sourceError) throw sourceError;
+  const sourceMap = new Map((sources ?? []).map((item) => [item.id, item]));
 
   return {
     caseSheet: data as unknown as CaseSheet,
@@ -424,6 +436,7 @@ export async function getCaseSheetForEdit(
     })),
     treatments: row.treatments.flatMap((item) => item.treatment_code ? [{
       treatment_id: item.id,
+      planned_treatment_id: item.planned_treatment_id,
       treatment_code: item.treatment_code,
       treatment_name: item.treatment_name ?? item.treatment_code,
       status: item.clinical_status ?? "planned",
@@ -435,6 +448,13 @@ export async function getCaseSheetForEdit(
       notes: item.notes ?? "",
       locked: item.invoice_items.length > 0,
       hasAttachments: item.treatment_attachments.length > 0,
+      hasLaterCare: item.clinical_status === "planned" && sourceMap.has(item.id) && (
+        sourceMap.get(item.id)!.is_pending === false || sourceMap.get(item.id)!.remaining_tooth_numbers.length < (item.tooth_numbers ?? []).length
+      ),
+      sourcePlanNotes: item.planned_treatment_id ? sourceMap.get(item.planned_treatment_id)?.notes ?? null : null,
+      availablePlanTeeth: item.planned_treatment_id ? [...new Set([
+        ...(sourceMap.get(item.planned_treatment_id)?.remaining_tooth_numbers ?? []), ...(item.tooth_numbers ?? []),
+      ])] : undefined,
     }] : []),
   };
 }

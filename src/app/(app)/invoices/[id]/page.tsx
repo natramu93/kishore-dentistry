@@ -15,6 +15,7 @@ import { RecordPaymentForm } from "@/components/invoices/record-payment-form";
 import { InvoiceActions } from "./status-buttons";
 import { WhatsAppInvoiceShare } from "@/components/invoices/whatsapp-invoice-share";
 import { Printer } from "lucide-react";
+import { invoiceLineToothLabel } from "@/lib/invoice-lines";
 
 const getInvoicePageData = cache(async (id: string) => {
   const ctx = await getAuthContext();
@@ -97,6 +98,7 @@ export default async function InvoiceDetailPage({
             codeEnforced={invoice.code_enforced}
             consultation={invoice.invoice_kind === "consultation"}
             hasPrimaryTreatment={Boolean(invoice.treatment_id)}
+            hasPayments={invoice.amount_paid > 0}
           />
         </div>
       </div>
@@ -123,6 +125,8 @@ export default async function InvoiceDetailPage({
                 <TableRow key={item.id}>
                   <TableCell>
                     {item.description}
+                    {invoiceLineToothLabel(item) && <span className="mt-1 block text-xs text-muted-foreground">{invoiceLineToothLabel(item)}</span>}
+                    {item.line_note && <span className="mt-1 block whitespace-pre-wrap text-xs text-muted-foreground">{item.line_note}</span>}
                     {item.surfaces?.length ? (
                       <span className="mt-1 block text-xs text-muted-foreground">
                         Surfaces: {item.surfaces.join(", ")}
@@ -179,7 +183,8 @@ export default async function InvoiceDetailPage({
               </Table>
             </div>
           )}
-          {invoice.balance_due > 0 && (invoice.code_enforced || invoice.invoice_kind === "consultation") && (
+          {invoice.amount_paid > 0 && <p className="text-sm text-muted-foreground">Original invoice charges are locked after a payment is recorded.</p>}
+          {invoice.status !== "cancelled" && invoice.balance_due > 0 && (invoice.code_enforced || invoice.invoice_kind === "consultation") && (
             <div className="mt-6 border-t pt-4">
               <h2 className="mb-3 font-semibold">Record a payment</h2>
               <RecordPaymentForm invoiceId={invoice.id} balanceDue={invoice.balance_due} />

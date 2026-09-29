@@ -143,8 +143,9 @@ export function ToothAssessmentHistory({
                 values={assessment.surfaces}
                 labels={SURFACE_LABELS}
               />
-              <TextDetail label="Clinical findings / analysis" value={assessment.clinical_findings} />
-              <TextDetail label="Tooth-level diagnosis" value={assessment.diagnosis} />
+              <TextDetail label="Remark" value={assessment.notes} />
+              <TextDetail label="Previously recorded findings" value={assessment.clinical_findings} />
+              <TextDetail label="Previously recorded diagnosis" value={assessment.diagnosis} />
               <TextDetail
                 label="Prognosis"
                 value={assessment.prognosis}
@@ -156,7 +157,6 @@ export function ToothAssessmentHistory({
                 labels={ACTION_LABELS}
               />
               <TextDetail label="Future treatment / follow-up plan" value={assessment.future_plan} />
-              <TextDetail label="Additional tooth notes" value={assessment.notes} />
             </dl>
           </article>
         </li>
@@ -174,6 +174,7 @@ function TagDetail({
   values: readonly string[] | null;
   labels: Record<string, string>;
 }) {
+  if (!values?.length) return null;
   return (
     <div className="min-w-0 rounded-md bg-muted/40 p-3">
       <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
@@ -206,6 +207,7 @@ function TextDetail({
   labels?: Record<string, string>;
 }) {
   const text = recordedText(value);
+  if (!text) return null;
 
   return (
     <div className="min-w-0 rounded-md bg-muted/40 p-3">

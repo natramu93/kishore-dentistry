@@ -14,7 +14,7 @@ export default async function EditInvoicePage({
   const ctx = await getAuthContext();
   const invoice = await getInvoice(ctx, id);
   if (!invoice) notFound();
-  if (!invoice.code_enforced) redirect(`/invoices/${invoice.id}`);
+  if (!invoice.code_enforced || invoice.status === "paid" || invoice.status === "cancelled" || invoice.amount_paid > 0) redirect(`/invoices/${invoice.id}`);
   const [eligible, treatmentOptions] = await Promise.all([
     listInvoiceEligibleTreatments(ctx, invoice.lead_id),
     listInvoiceTreatmentCatalog(ctx, invoice.branch_id),
@@ -60,6 +60,7 @@ export default async function EditInvoicePage({
         treatmentCatalog={catalog}
         treatmentOptions={treatmentOptions}
         initialItems={invoice.items.map((item) => ({
+          invoice_item_id: item.id,
           treatment_id: item.treatment_id,
           treatment_type_id: item.treatment_type_id,
           treatment_code: item.treatment_code,
@@ -67,9 +68,14 @@ export default async function EditInvoicePage({
           site_label: item.treatment_id ? formatTreatmentSite(item) : item.treatment_category ?? "Additional invoice item",
           quantity: item.quantity,
           unit_price: item.unit_price,
+          tooth_numbers: item.tooth_numbers ?? (item.tooth_number ? [item.tooth_number] : []),
+          line_note: item.line_note ?? "",
         }))}
         initialTaxRate={invoice.tax_rate}
         initialNotes={invoice.notes ?? ""}
+        initialDiscount={invoice.discount_amount}
+        initialDiscountGivenBy={invoice.discount_given_by ?? ""}
+        initialMention={invoice.mention ?? ""}
       />
     </div>
   );

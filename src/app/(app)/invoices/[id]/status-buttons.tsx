@@ -27,7 +27,7 @@ export function InvoiceActions({
   version,
   codeEnforced,
   consultation,
-  hasPrimaryTreatment,
+  hasPayments = false,
 }: {
   invoiceId: string;
   status: InvoiceStatus;
@@ -35,6 +35,7 @@ export function InvoiceActions({
   version: number;
   codeEnforced: boolean;
   consultation: boolean;
+  hasPayments?: boolean;
   hasPrimaryTreatment: boolean;
 }) {
   const router = useRouter();
@@ -44,6 +45,7 @@ export function InvoiceActions({
       const result = await updateInvoiceStatusAction(invoiceId, next, version);
       if (result.ok) {
         toast.success("Invoice marked sent");
+        router.refresh();
       } else {
         toast.error(result.error);
       }
@@ -78,7 +80,7 @@ export function InvoiceActions({
 
   return (
     <div className="flex flex-wrap gap-2">
-      {codeEnforced && hasPrimaryTreatment && status !== "paid" && status !== "cancelled" && (
+      {codeEnforced && !hasPayments && status !== "paid" && status !== "cancelled" && (
         <Button asChild size="sm" variant="outline">
           <Link href={`/invoices/${invoiceId}/edit`}>
             <Pencil className="h-3.5 w-3.5 mr-1" />
@@ -91,10 +93,10 @@ export function InvoiceActions({
           Mark sent
         </Button>
       )}
-      {role === "admin" && status !== "cancelled" && status !== "paid" && (
+      {role === "admin" && !hasPayments && status !== "cancelled" && status !== "paid" && (
         <Button size="sm" variant="destructive" disabled={pending} onClick={cancelInvoice}>Cancel invoice</Button>
       )}
-      {canDelete && (
+      {canDelete && status !== "paid" && !hasPayments && (
         <AlertDialog>
           <AlertDialogTrigger
             render={

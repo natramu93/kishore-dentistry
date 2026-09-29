@@ -11,6 +11,7 @@ import {
   uuidSchema,
 } from "@/lib/validation";
 import type { InvoicePaymentMethod } from "@/lib/database.types";
+import { invoiceLineDetailsSchema } from "@/lib/invoice-lines";
 import {
   runAction,
   runActionWithValue,
@@ -31,7 +32,8 @@ const money = z.coerce
   .min(0)
   .max(MAX_UNIT_PRICE)
   .refine(hasAtMostTwoDecimals, "Amounts support at most two decimals");
-const invoiceItemSchema = z.object({
+const invoiceItemSchema = invoiceLineDetailsSchema.extend({
+  invoice_item_id: uuidSchema.optional(),
   treatment_id: uuidSchema.nullable().optional(),
   treatment_type_id: uuidSchema.nullable().optional(),
   quantity: z.coerce
@@ -240,6 +242,9 @@ export async function updateInvoiceAction(
       tax_rate: parsed.data.tax_rate,
       notes: parsed.data.notes || null,
       items: parsed.data.items,
+      discount_amount: parsed.data.discount_amount,
+      discount_given_by: parsed.data.discount_given_by || null,
+      mention: parsed.data.mention || null,
       expected_version: parsed.data.expected_version,
     });
     revalidatePath(`/invoices/${invoiceId.data}`);

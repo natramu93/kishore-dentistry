@@ -5,6 +5,7 @@ import { assertActionRateLimit } from "@/lib/rate-limit";
 import { fmtDate, formatINR } from "@/lib/tz";
 import { TIRUPUR_CLINIC } from "@/lib/clinic";
 import { NotFoundError, PublicError } from "@/lib/errors";
+import { invoiceLineToothLabel } from "@/lib/invoice-lines";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -150,7 +151,9 @@ export async function GET(
       const surfaceLines = item.surfaces?.length
         ? wrap(`Surfaces: ${item.surfaces.join(", ")}`, 300, 8)
         : [];
-      const lines = [...descLines, ...surfaceLines];
+      const toothLabel = invoiceLineToothLabel(item);
+      const lines = [...descLines, ...(toothLabel ? wrap(toothLabel, 300, 8) : []), ...surfaceLines,
+        ...(item.line_note ? wrap(item.line_note, 300, 8) : [])];
       const rowHeight = Math.max(22, lines.length * 12 + 10);
       ensureSpace(rowHeight + 10);
       if (y === page.getHeight() - margin) drawTableHeader();

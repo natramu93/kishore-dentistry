@@ -9,6 +9,7 @@ import {
 import { fmtDate, formatINR } from "@/lib/tz";
 import { PrintButton } from "./print-button";
 import { BrandWordmark } from "@/components/brand";
+import { invoiceLineToothLabel } from "@/lib/invoice-lines";
 
 export const metadata = { title: "Invoice" };
 
@@ -108,6 +109,8 @@ export default async function InvoicePrintPage({
               <td className="py-2">{i + 1}</td>
               <td className="py-2">
                 {item.description}
+                {invoiceLineToothLabel(item) && <span className="block text-xs text-neutral-600">{invoiceLineToothLabel(item)}</span>}
+                {item.line_note && <span className="block whitespace-pre-wrap text-xs text-neutral-600">{item.line_note}</span>}
                 {item.surfaces?.length ? (
                   <span className="block text-xs text-neutral-600">
                     Surfaces: {item.surfaces.join(", ")}

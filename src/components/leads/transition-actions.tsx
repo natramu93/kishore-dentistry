@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { transitionLeadAction } from "@/actions/leads";
 import { Button } from "@/components/ui/button";
@@ -39,11 +38,13 @@ type QuickConfirmation = {
   to: LeadStatus;
   extra?: Record<string, string>;
   destructive?: boolean;
+  appointmentAction?: "missed" | "cancel";
 };
 
 export function TransitionActions({
   lead,
   activeAppointmentId,
+  appointmentOptions = [],
   assignableUsers,
   doctors,
   role,
@@ -51,12 +52,15 @@ export function TransitionActions({
 }: {
   lead: { id: string; status: LeadStatus };
   activeAppointmentId: string | null;
+  appointmentOptions?: Option[];
   assignableUsers: Option[];
   doctors: Option[];
   role: UserRole;
   userId: string;
 }) {
   const [dialog, setDialog] = useState<DialogKind>(null);
+  const appointmentSelectionId = useId();
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState("");
   const [confirmation, setConfirmation] = useState<QuickConfirmation | null>(null);
   const [pending, startTransition] = useTransition();
   const [whatsappFallbackUrl, setWhatsappFallbackUrl] = useState<string | null>(null);
@@ -79,6 +83,29 @@ export function TransitionActions({
     for (const [k, v] of Object.entries(extra)) fd.set(k, v);
     run(to, fd);
   }
+
+  function confirmAppointmentChange(action: "missed" | "cancel") {
+    setSelectedAppointmentId(activeAppointmentId ?? "");
+    setConfirmation(action === "missed" ? {
+      title: "Mark an appointment as a no-show?",
+      description: "Choose the appointment that was missed. This updates that appointment and moves the lead to Missed.",
+      confirmLabel: "Mark no-show",
+      to: "missed",
+      appointmentAction: action,
+      destructive: true,
+    } : {
+      title: "Cancel an appointment?",
+      description: "Choose the appointment to cancel. The lead will return to Assigned.",
+      confirmLabel: "Cancel appointment",
+      to: "assigned",
+      appointmentAction: action,
+      destructive: true,
+    });
+  }
+
+  const selectedAppointmentIsValid = Boolean(selectedAppointmentId) && (
+    selectedAppointmentId === activeAppointmentId || appointmentOptions.some((option) => option.id === selectedAppointmentId)
+  );
 
   function bookAppointment(formData: FormData) {
     // Reserve a tab during the user's click so the browser won't block the
@@ -147,27 +174,11 @@ export function TransitionActions({
       {s === "appointment_booked" && (
         <>
           <Button size="sm" onClick={() => setDialog("book")}>Book another appointment</Button>
-          {(role === "admin" || role === "clinical_head") && activeAppointmentId && (
-            <Button size="sm" asChild>
-              <Link href={`/case-sheets/new?lead=${lead.id}&appointment=${activeAppointmentId}`}>
-                Open digital case sheet
-              </Link>
-            </Button>
-          )}
           <Button
             size="sm"
             variant="outline"
             disabled={pending}
-            onClick={() =>
-              setConfirmation({
-                title: "Mark this appointment as a no-show?",
-                description: "This moves the lead to Missed and updates the active appointment.",
-                confirmLabel: "Mark no-show",
-                to: "missed",
-                extra: activeAppointmentId ? { appointment_id: activeAppointmentId } : {},
-                destructive: true,
-              })
-            }
+            onClick={() => confirmAppointmentChange("missed")}
           >
             No-show → Missed
           </Button>
@@ -175,18 +186,7 @@ export function TransitionActions({
             size="sm"
             variant="outline"
             disabled={pending}
-            onClick={() =>
-              setConfirmation({
-                title: "Cancel the active appointment?",
-                description: "The appointment will be cancelled and the lead will return to Assigned.",
-                confirmLabel: "Cancel appointment",
-                to: "assigned",
-                extra: activeAppointmentId
-                  ? { cancelled_appointment_id: activeAppointmentId }
-                  : {},
-                destructive: true,
-              })
-            }
+            onClick={() => confirmAppointmentChange("cancel")}
           >
             Cancel appointment
           </Button>
@@ -336,14 +336,38 @@ export function TransitionActions({
             <AlertDialogTitle>{confirmation?.title}</AlertDialogTitle>
             <AlertDialogDescription>{confirmation?.description}</AlertDialogDescription>
           </AlertDialogHeader>
+          {confirmation?.appointmentAction && appointmentOptions.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor={appointmentSelectionId}>Appointment to update</Label>
+              <select
+                id={appointmentSelectionId}
+                value={selectedAppointmentId}
+                disabled={pending}
+                onChange={(event) => setSelectedAppointmentId(event.target.value)}
+                className="h-11 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">Select the date, time and doctor…</option>
+                {appointmentOptions.map((appointment) => <option key={appointment.id} value={appointment.id}>{appointment.label}</option>)}
+              </select>
+            </div>
+          )}
+          {confirmation?.appointmentAction && !activeAppointmentId && appointmentOptions.length === 0 && (
+            <p className="text-sm text-muted-foreground">No scheduled appointment is available. Refresh the patient details before trying again.</p>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={pending}>Go back</AlertDialogCancel>
             <AlertDialogAction
               type="button"
               variant={confirmation?.destructive ? "destructive" : "default"}
-              disabled={pending}
+              disabled={pending || Boolean(confirmation?.appointmentAction && !selectedAppointmentIsValid)}
               onClick={() => {
-                if (confirmation) quick(confirmation.to, confirmation.extra);
+                if (!confirmation) return;
+                if (confirmation.appointmentAction) {
+                  if (!selectedAppointmentIsValid) return;
+                  quick(confirmation.to, confirmation.appointmentAction === "missed"
+                    ? { appointment_id: selectedAppointmentId }
+                    : { cancelled_appointment_id: selectedAppointmentId });
+                } else quick(confirmation.to, confirmation.extra);
               }}
             >
               {pending ? "Updating…" : confirmation?.confirmLabel}

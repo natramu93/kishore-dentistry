@@ -288,6 +288,7 @@ export const treatmentSiteSchema = z.object({
 
 export const caseSheetTreatmentSchema = z.object({
   treatment_id: z.string().uuid("Treatment reference is invalid").nullable().optional(),
+  planned_treatment_id: z.string().uuid("Plan reference is invalid").nullable().optional(),
   treatment_code: z.string().trim().regex(dentalCodePattern, "Select a valid dental code"),
   status: z.enum(["planned", "completed"]),
   site_scope: z.enum(TREATMENT_SITE_SCOPES),
@@ -297,6 +298,9 @@ export const caseSheetTreatmentSchema = z.object({
   surfaces: z.array(z.enum(DENTAL_SURFACES)).max(DENTAL_SURFACES.length),
   notes: z.string().trim().max(2_000),
 }).superRefine((treatment, context) => {
+  if (treatment.planned_treatment_id && treatment.status !== "completed") {
+    context.addIssue({ code: "custom", path: ["status"], message: "Confirm this planned work was completed at this visit, or remove it to keep the original plan pending" });
+  }
   const result = validateTreatmentSite(treatment);
   for (const message of result.errors) {
     const path = message.toLowerCase().includes("surface")
@@ -350,13 +354,21 @@ export const caseSheetPayloadSchema = z.object({
   visit_at: z.string().regex(localDateTimePattern, "Enter a valid visit date and time"),
   chief_complaint: z.string().trim().min(1, "Chief complaint is required").max(2_000),
   findings: z.string().trim().max(5_000),
-  diagnosis: z.string().trim().min(1, "Diagnosis is required").max(2_000),
+  diagnosis: z.string().trim().max(2_000),
   plan: z.string().trim().max(5_000),
   medical_history: medicalHistoryDraftSchema,
   prescriptions: prescriptionItemsDraftSchema,
   tooth_assessments: z.array(toothAssessmentSchema).max(52),
   treatments: z.array(caseSheetTreatmentSchema).max(50),
 }).superRefine((payload, context) => {
+  // New visits use one narrative; older records keep their diagnosis and plan.
+  if (!payload.findings && !payload.diagnosis && !payload.plan) {
+    context.addIssue({
+      code: "custom",
+      path: ["findings"],
+      message: "Add a clinical remark about the examination or next steps",
+    });
+  }
   if (payload.medical_history.reviewStatus === "not_reviewed") {
     context.addIssue({
       code: "custom",
