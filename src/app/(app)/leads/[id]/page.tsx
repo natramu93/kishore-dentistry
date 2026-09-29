@@ -643,7 +643,16 @@ export default async function LeadDetailPage({
           {/* Invoices */}
           <Card className="border-l-4 border-l-blue-400">
             <CardHeader>
-              <CardTitle className="text-base">Invoices</CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CardTitle className="text-base">Invoices</CardTitle>
+                {ctx.role !== "doctor" && (
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/invoices/new?lead=${encodeURIComponent(lead.id)}`}>
+                      Create invoice
+                    </Link>
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <ConsultationInvoiceForm leadId={lead.id} />
@@ -654,7 +663,7 @@ export default async function LeadDetailPage({
               </div>
               {invoices.length === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  Raise one from a treatment record above, or create an ad-hoc consultation invoice.
+                  Create an invoice from the center’s treatment list without waiting for treatment completion, or create an ad-hoc consultation invoice.
                 </p>
               )}
               {invoices.map((inv) => (

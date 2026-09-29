@@ -56,6 +56,11 @@ export default async function InvoicesPage({
             {total} invoice{total === 1 ? "" : "s"} · {formatINR(paidTotalOnPage)} collected · {formatINR(dueTotalOnPage)} due on this page
           </p>
         </div>
+        {ctx.role !== "doctor" && (
+          <Button asChild>
+            <Link href="/invoices/new">Create invoice</Link>
+          </Button>
+        )}
       </div>
 
       {/* Per-center + payment filters */}
