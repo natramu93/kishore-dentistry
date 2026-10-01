@@ -11,3 +11,5 @@ export async function createInvoiceAction(input: unknown) {
 }
 export const updateInvoiceAction = (_id: unknown, input: unknown) => capture(input);
 export const recordInvoicePaymentAction = capture;
+export const recordInvoicePaymentsAction = (_id: unknown, input: unknown) => capture(input);
+export const updateInvoicePaymentAction = (_id: unknown, _paymentId: unknown, input: unknown) => capture(input);

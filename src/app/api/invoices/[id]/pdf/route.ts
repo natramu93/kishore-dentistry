@@ -6,6 +6,7 @@ import { fmtDate, formatINR } from "@/lib/tz";
 import { TIRUPUR_CLINIC } from "@/lib/clinic";
 import { NotFoundError, PublicError } from "@/lib/errors";
 import { invoiceLineToothLabel } from "@/lib/invoice-lines";
+import { receivedAmountInWords } from "@/lib/invoice-receipts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -115,7 +116,7 @@ export async function GET(
     page.drawText(safeText(invoice.invoice_number), {
       x: 385, y: page.getHeight() - margin - 25, size: 10, font: regular, color: muted,
     });
-    page.drawText(`Date: ${fmtDate(invoice.issued_at ?? invoice.created_at)}`, {
+    page.drawText(`Date: ${fmtDate(invoice.invoice_date ?? invoice.issued_at ?? invoice.created_at)}`, {
       x: 385, y: page.getHeight() - margin - 41, size: 9, font: regular, color: muted,
     });
     page.drawText(`Status: ${invoice.status}`, {
@@ -131,6 +132,11 @@ export async function GET(
     y -= 16;
     if (invoice.lead?.mobile) { draw(invoice.lead.mobile, margin, y, 9, regular, muted); y -= 13; }
     if (invoice.lead?.email) { draw(invoice.lead.email, margin, y, 9, regular, muted); y -= 13; }
+    if (invoice.consulting_doctor_name) {
+      for (const line of wrap(`Consulting doctor: ${invoice.consulting_doctor_name}`, page.getWidth() - margin * 2, 9)) {
+        ensureSpace(16); draw(line, margin, y, 9); y -= 13;
+      }
+    }
     y -= 16;
 
     const columns = { number: margin, description: margin + 32, qty: 390, unit: 430, amount: 490 };
@@ -167,7 +173,7 @@ export async function GET(
       y -= 8;
     }
 
-    ensureSpace(90);
+    ensureSpace(115);
     const totalsX = 370;
     const totalRow = (label: string, amount: number, strong = false) => {
       const font = strong ? bold : regular;
@@ -187,15 +193,21 @@ export async function GET(
     totalRow("Amount received", invoice.amount_paid);
     totalRow("Balance due", invoice.balance_due, true);
 
+    for (const line of wrap(`Received amount in words: ${receivedAmountInWords(invoice.amount_paid)}`, page.getWidth() - margin * 2, 9)) {
+      ensureSpace(16); draw(line, margin, y, 9, regular, muted); y -= 13;
+    }
+
     if (invoice.payments.length > 0) {
-      ensureSpace(24 + invoice.payments.length * 14);
+      ensureSpace(40);
       y -= 4;
       draw("PAYMENTS RECEIVED", margin, y, 8, bold, muted);
       y -= 15;
       for (const payment of invoice.payments) {
-        draw(`${fmtDate(payment.received_at)} | ${payment.payment_method.toUpperCase()} | ${payment.reference ?? "No reference"}`, margin, y, 8, regular, muted);
-        draw(pdfAmount(payment.amount), 480, y, 8, regular, ink);
-        y -= 13;
+        const receiptLines = wrap(`${fmtDate(payment.received_at)} | ${payment.payment_method.toUpperCase()} | ${payment.reference ?? "No reference"}`, 350, 8);
+        ensureSpace(receiptLines.length * 13 + 5);
+        const receiptAmount = pdfAmount(payment.amount);
+        draw(receiptAmount, page.getWidth() - margin - regular.widthOfTextAtSize(receiptAmount, 8), y, 8, regular, ink);
+        for (const line of receiptLines) { draw(line, margin, y, 8, regular, muted); y -= 13; }
       }
     }
 

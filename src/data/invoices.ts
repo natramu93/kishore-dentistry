@@ -3,6 +3,8 @@ import "server-only";
 import { db } from "./db";
 import { throwMappedDatabaseError } from "./helpers";
 import { invoiceLineDetailsSchema } from "@/lib/invoice-lines";
+import { paymentReceiptSchema } from "@/lib/invoice-receipts";
+import { clinicToday } from "@/lib/tz";
 import type { AuthContext } from "@/lib/auth/context";
 import {
   assertBranchAccess,
@@ -19,6 +21,7 @@ import {
 } from "@/lib/errors";
 import {
   EMPTY_UUID,
+  assertDateOnly,
   assertInvoiceStatus,
   assertUuid,
   normalizePagination,
@@ -433,10 +436,56 @@ export async function recordInvoicePayment(
   return result.data;
 }
 
+async function writablePaymentInvoice(ctx: AuthContext, id: string) {
+  requireAnyRole(ctx, INVOICE_ROLES, "Invoices access required");
+  const invoice = await loadInvoiceScope(id);
+  if (!invoice) throw new NotFoundError("Invoice");
+  assertInvoiceWriteAccess(ctx, { branch_id: invoice.branch_id, assignee_id: invoice.lead?.assignee_id ?? null });
+  if (invoice.status === "cancelled") throw new ConflictError("Cancelled invoices cannot accept receipt changes");
+  if (!invoice.code_enforced && invoice.invoice_kind !== "consultation") throw new ConflictError("Legacy uncoded invoices cannot accept receipt changes");
+  return invoice;
+}
+
+export async function recordInvoicePayments(ctx: AuthContext, id: string,
+  receipts: { amount: number; method: InvoicePaymentMethod; reference?: string; notes?: string }[], requestKey: string) {
+  const invoice = await writablePaymentInvoice(ctx, id);
+  assertUuid(requestKey, "Payment request");
+  if (!receipts.length || receipts.length > 10) throw new ValidationError("Record between one and ten payments");
+  const clean = receipts.map((receipt) => {
+    const parsed = paymentReceiptSchema.safeParse(receipt);
+    if (!parsed.success) throw new ValidationError(parsed.error.issues[0]?.message ?? "Invalid payment");
+    return parsed.data;
+  });
+  // The RPC locks the invoice, validates the combined amount, and handles retries.
+  const result = await db.rpc("record_invoice_payment_batch", {
+    p_invoice_id: invoice.id, p_receipts: clean as Json, p_request_key: requestKey, p_actor: ctx.userId,
+  });
+  if (result.error) throwMappedDatabaseError(result.error, "Payment");
+  return result.data;
+}
+
+export async function updateInvoicePayment(ctx: AuthContext, id: string, paymentId: string,
+  input: { amount: number; method: InvoicePaymentMethod; reference?: string; expected_version: number; reason: string }) {
+  const invoice = await writablePaymentInvoice(ctx, id);
+  const receipt = paymentReceiptSchema.safeParse(input);
+  if (!receipt.success) throw new ValidationError(receipt.error.issues[0]?.message ?? "Invalid payment");
+  const reason = input.reason.trim();
+  if (!reason || reason.length > 1000) throw new ValidationError("Enter a correction reason of up to 1,000 characters");
+  const result = await db.rpc("update_invoice_payment", {
+    p_invoice_id: invoice.id, p_payment_id: assertUuid(paymentId, "Receipt"),
+    p_amount: receipt.data.amount, p_method: receipt.data.method, p_reference: receipt.data.reference || null,
+    p_expected_version: validateExpectedVersion(input.expected_version), p_reason: reason, p_actor: ctx.userId,
+  });
+  if (result.error) throwMappedDatabaseError(result.error, "Receipt");
+  return result.data;
+}
+
 export async function createInvoice(
   ctx: AuthContext,
   input: {
     lead_id: string;
+    invoice_date?: string;
+    consulting_doctor_name?: string | null;
     tax_rate: number;
     notes?: string | null;
     discount_amount?: number;
@@ -447,6 +496,9 @@ export async function createInvoice(
 ): Promise<Invoice> {
   requireAnyRole(ctx, INVOICE_ROLES, "Invoices access required");
   const leadId = assertUuid(input.lead_id, "Lead");
+  const invoiceDate = assertDateOnly(input.invoice_date ?? clinicToday(), "Invoice date");
+  const consultingDoctorName = input.consulting_doctor_name?.trim() || null;
+  if (consultingDoctorName && consultingDoctorName.length > 200) throw new ValidationError("Consulting doctor name is too long");
   if (input.items.some((item) => !item.treatment_type_id || item.treatment_id)) {
     throw new ValidationError("New invoices must use treatments from this center’s treatment list");
   }
@@ -470,6 +522,8 @@ export async function createInvoice(
   await validateCatalogTreatmentsForBranch(input.items, leadResult.data.branch_id);
   const invoiceResult = await db.rpc("create_patient_invoice", {
     p_lead_id: leadId,
+    p_invoice_date: invoiceDate,
+    p_consulting_doctor_name: consultingDoctorName,
     p_tax_rate: input.tax_rate,
     p_discount_amount: discountAmount,
     p_discount_given_by: input.discount_given_by?.trim() || null,

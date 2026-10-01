@@ -12,6 +12,7 @@ import {
 } from "@/lib/validation";
 import type { InvoicePaymentMethod } from "@/lib/database.types";
 import { invoiceLineDetailsSchema } from "@/lib/invoice-lines";
+import { paymentReceiptSchema } from "@/lib/invoice-receipts";
 import {
   runAction,
   runActionWithValue,
@@ -91,6 +92,8 @@ function validateInvoiceTotal(
 const invoiceSchema = invoiceDetailsSchema
   .extend({
     lead_id: uuidSchema,
+    invoice_date: z.iso.date("Enter a valid invoice date").optional(),
+    consulting_doctor_name: z.string().trim().max(200).optional(),
   })
   .superRefine(validateInvoiceTotal);
 const invoiceUpdateSchema = invoiceDetailsSchema
@@ -135,6 +138,8 @@ export async function createInvoiceAction(
     await invoiceMutationLimit(ctx.userId);
     const invoice = await invoices.createInvoice(ctx, {
       lead_id: parsed.data.lead_id,
+      invoice_date: parsed.data.invoice_date,
+      consulting_doctor_name: parsed.data.consulting_doctor_name || null,
       tax_rate: parsed.data.tax_rate,
       notes: parsed.data.notes || null,
       discount_amount: parsed.data.discount_amount,
@@ -222,6 +227,39 @@ export async function recordInvoicePaymentAction(id: string, input: unknown): Pr
     revalidatePath(`/invoices/${invoiceId.data}`);
     revalidatePath("/invoices");
     revalidatePath("/leads", "layout");
+  });
+}
+
+export async function recordInvoicePaymentsAction(id: string, input: unknown): Promise<ActionResult> {
+  const ctx = await getAuthContext();
+  const parsed = z.object({ invoice_id: uuidSchema, request_key: uuidSchema, receipts: z.array(paymentReceiptSchema).min(1).max(10) })
+    .safeParse({ ...(typeof input === "object" && input !== null ? input : {}), invoice_id: id });
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid payment" };
+  return runAction(async () => {
+    await invoiceMutationLimit(ctx.userId);
+    await invoices.recordInvoicePayments(ctx, parsed.data.invoice_id, parsed.data.receipts, parsed.data.request_key);
+    revalidatePath(`/invoices/${id}`);
+    revalidatePath("/invoices");
+    revalidatePath("/leads", "layout");
+    revalidatePath("/dashboard");
+    revalidatePath("/reports");
+  });
+}
+
+export async function updateInvoicePaymentAction(id: string, paymentId: string, input: unknown): Promise<ActionResult> {
+  const ctx = await getAuthContext();
+  const parsed = paymentReceiptSchema.extend({ invoice_id: uuidSchema, payment_id: uuidSchema,
+    expected_version: z.number().int().positive(), reason: z.string().trim().min(1, "Enter a reason for the correction").max(1000) })
+    .safeParse({ ...(typeof input === "object" && input !== null ? input : {}), invoice_id: id, payment_id: paymentId });
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid receipt correction" };
+  return runAction(async () => {
+    await invoiceMutationLimit(ctx.userId);
+    await invoices.updateInvoicePayment(ctx, parsed.data.invoice_id, parsed.data.payment_id, parsed.data);
+    revalidatePath(`/invoices/${id}`);
+    revalidatePath("/invoices");
+    revalidatePath("/leads", "layout");
+    revalidatePath("/dashboard");
+    revalidatePath("/reports");
   });
 }
 

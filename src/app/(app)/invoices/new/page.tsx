@@ -3,12 +3,13 @@ import { notFound } from "next/navigation";
 import { getAuthContext } from "@/lib/auth/context";
 import { getLead, listLeads } from "@/data/leads";
 import { listInvoiceTreatmentCatalog } from "@/data/invoices";
+import { listDoctors } from "@/data/catalogs";
 import { InvoiceEditor } from "@/components/invoices/invoice-editor";
 import { consultationInvoicePreset } from "@/lib/invoice-lines";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { fmtDate } from "@/lib/tz";
+import { clinicToday, fmtDate } from "@/lib/tz";
 
 export const metadata = { title: "New Invoice — Dr. Kishor's Dentistry CRM" };
 
@@ -76,7 +77,10 @@ export default async function NewInvoicePage({
 
   const lead = await getLead(ctx, params.lead);
   if (!lead) notFound();
-  const treatmentOptions = await listInvoiceTreatmentCatalog(ctx, lead.branch_id);
+  const [treatmentOptions, doctors] = await Promise.all([
+    listInvoiceTreatmentCatalog(ctx, lead.branch_id),
+    listDoctors(ctx, { branchId: lead.branch_id }),
+  ]);
   const preset = params.preset === "consultation" ? consultationInvoicePreset(treatmentOptions) : null;
   const needsAssignment = ctx.role === "front_office" && lead.assignee_id !== ctx.userId;
 
@@ -103,6 +107,8 @@ export default async function NewInvoicePage({
         treatmentCatalog={[]}
         treatmentOptions={treatmentOptions}
         initialItems={preset ? [preset] : []}
+        doctorNames={[...new Set(doctors.map((doctor) => doctor.full_name))]}
+        initialInvoiceDate={clinicToday()}
       />}
     </div>
   );

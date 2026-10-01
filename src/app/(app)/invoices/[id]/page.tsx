@@ -16,6 +16,8 @@ import { InvoiceActions } from "./status-buttons";
 import { WhatsAppInvoiceShare } from "@/components/invoices/whatsapp-invoice-share";
 import { Printer } from "lucide-react";
 import { invoiceLineToothLabel } from "@/lib/invoice-lines";
+import { receivedAmountInWords } from "@/lib/invoice-receipts";
+import { EditPaymentReceipt } from "@/components/invoices/edit-payment-receipt";
 
 const getInvoicePageData = cache(async (id: string) => {
   const ctx = await getAuthContext();
@@ -69,7 +71,7 @@ export default async function InvoiceDetailPage({
                 {invoice.lead.name}
               </Link>
             ) : "—"}{" "}
-            · {invoice.branch?.name} · {fmtDate(invoice.created_at)}
+            · {invoice.branch?.name} · {fmtDate(invoice.invoice_date ?? invoice.issued_at ?? invoice.created_at)}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -105,6 +107,7 @@ export default async function InvoiceDetailPage({
 
       <Card>
         <CardContent className="pt-6">
+          {invoice.consulting_doctor_name && <p className="mb-4 text-sm">Consulting doctor: {invoice.consulting_doctor_name}</p>}
           {!invoice.code_enforced && invoice.invoice_kind !== "consultation" && (
             <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:bg-amber-950/20 dark:text-amber-100">
               This historical invoice predates coded digital case sheets. It remains readable,
@@ -167,6 +170,7 @@ export default async function InvoiceDetailPage({
               <span>{formatINR(invoice.balance_due)}</span>
             </div>
           </div>
+          <p className="mt-3 text-sm">Received amount in words: {receivedAmountInWords(invoice.amount_paid)}</p>
           {invoice.payments.length > 0 && (
             <div className="mt-6 space-y-2 border-t pt-4">
               <h2 className="font-semibold">Payment history</h2>
@@ -183,11 +187,19 @@ export default async function InvoiceDetailPage({
               </Table>
             </div>
           )}
+          {invoice.status !== "cancelled" && (invoice.code_enforced || invoice.invoice_kind === "consultation") && invoice.payments.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {invoice.payments.map((payment) => <div key={`${payment.id}:${payment.version}`}>
+                <p className="mb-1 text-xs text-muted-foreground">{fmtDate(payment.received_at)} · {payment.payment_method.toUpperCase()} · {formatINR(payment.amount)}</p>
+                <EditPaymentReceipt payment={payment} maximumAmount={Math.max(0, invoice.total - invoice.amount_paid + Number(payment.amount))} />
+              </div>)}
+            </div>
+          )}
           {invoice.amount_paid > 0 && <p className="text-sm text-muted-foreground">Original invoice charges are locked after a payment is recorded.</p>}
           {invoice.status !== "cancelled" && invoice.balance_due > 0 && (invoice.code_enforced || invoice.invoice_kind === "consultation") && (
             <div className="mt-6 border-t pt-4">
               <h2 className="mb-3 font-semibold">Record a payment</h2>
-              <RecordPaymentForm invoiceId={invoice.id} balanceDue={invoice.balance_due} />
+              <RecordPaymentForm key={invoice.version} invoiceId={invoice.id} balanceDue={invoice.balance_due} />
             </div>
           )}
           {invoice.notes && (

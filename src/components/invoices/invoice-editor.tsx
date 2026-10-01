@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ToothSelector } from "@/components/clinical/tooth-selector";
 import { invoiceDisplayTotals } from "@/lib/invoice-lines";
-import { formatINR } from "@/lib/tz";
+import { clinicToday, formatINR } from "@/lib/tz";
 import { LockKeyhole, Trash2 } from "lucide-react";
 
 export type CodedInvoiceItem = {
@@ -60,6 +60,8 @@ export function InvoiceEditor({
   initialDiscount = 0,
   initialDiscountGivenBy = "",
   initialMention = "",
+  doctorNames = [],
+  initialInvoiceDate,
 }: {
   mode: "create" | "edit";
   invoiceId?: string;
@@ -74,6 +76,8 @@ export function InvoiceEditor({
   initialDiscount?: number;
   initialDiscountGivenBy?: string;
   initialMention?: string;
+  doctorNames?: string[];
+  initialInvoiceDate?: string;
 }) {
   const router = useRouter();
   const idPrefix = useId();
@@ -87,6 +91,8 @@ export function InvoiceEditor({
   const [discount, setDiscount] = useState(initialDiscount);
   const [discountGivenBy, setDiscountGivenBy] = useState(initialDiscountGivenBy);
   const [mention, setMention] = useState(initialMention);
+  const [invoiceDate, setInvoiceDate] = useState(() => initialInvoiceDate ?? clinicToday());
+  const [consultingDoctor, setConsultingDoctor] = useState("");
   const [dirty, setDirty] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -211,6 +217,8 @@ export function InvoiceEditor({
       if (mode === "create") {
         const result = await createInvoiceAction({
           lead_id: leadId,
+          invoice_date: invoiceDate,
+          consulting_doctor_name: consultingDoctor,
           tax_rate: taxRate,
           discount_amount: safeDiscount,
           discount_given_by: discountGivenBy,
@@ -260,6 +268,21 @@ export function InvoiceEditor({
             </p>
           </div>
 
+          {mode === "create" && <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor={`${idPrefix}-invoice-date`}>Invoice date</Label>
+              <Input id={`${idPrefix}-invoice-date`} type="date" value={invoiceDate} required
+                onChange={(event) => { setDirty(true); setInvoiceDate(event.target.value); }} />
+            </div>
+            <div className="min-w-0 space-y-1.5">
+              <Label htmlFor={`${idPrefix}-consulting-doctor`}>Consulting doctor (optional)</Label>
+              <Input id={`${idPrefix}-consulting-doctor`} list={`${idPrefix}-doctors`} value={consultingDoctor}
+                maxLength={200} placeholder="Choose or enter doctor name"
+                onChange={(event) => { setDirty(true); setConsultingDoctor(event.target.value); }} />
+              <datalist id={`${idPrefix}-doctors`}>{doctorNames.map((name) => <option key={name} value={name} />)}</datalist>
+            </div>
+          </div>}
+
           {mode === "edit" && available.length > 0 && <details className="space-y-1.5">
             <summary className="cursor-pointer text-sm font-medium">Add from a saved case sheet (optional)</summary>
             <Label htmlFor={`${idPrefix}-treatment`}>Add a completed case-sheet treatment (optional)</Label>
@@ -304,10 +327,10 @@ export function InvoiceEditor({
               return (
                 <fieldset
                   key={item.rowKey}
-                  className="grid grid-cols-1 items-end gap-3 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_90px_130px_40px]"
+                  className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_44px] items-end gap-3 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_90px_130px_44px]"
                 >
                   <legend className="sr-only">Treatment line {index + 1}</legend>
-                  <div className="space-y-2">
+                  <div className="col-span-full min-w-0 sm:col-span-1">
                     {isCatalogLine ? (
                       <div className="space-y-1.5">
                         <Label htmlFor={`${idPrefix}-${item.rowKey}-catalog`}>Treatment</Label>
@@ -315,7 +338,7 @@ export function InvoiceEditor({
                           id={`${idPrefix}-${item.rowKey}-catalog`}
                           value={item.treatment_type_id ?? ""}
                           onChange={(event) => selectCatalogTreatment(item.rowKey, event.target.value)}
-                          className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                          className="h-11 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-sm"
                           required
                         >
                           <option value="">Choose a treatment…</option>
@@ -337,11 +360,8 @@ export function InvoiceEditor({
                       )}
                     </div>
                     )}
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {isCatalogLine && item.tooth_numbers?.length ? `Teeth ${item.tooth_numbers.join(", ")}` : item.site_label}
-                    </p>
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="min-w-0 space-y-1.5">
                     <Label htmlFor={quantityId}>Quantity</Label>
                     <Input
                       id={quantityId}
@@ -353,7 +373,7 @@ export function InvoiceEditor({
                       onChange={(event) => updateItem(item.rowKey, { quantity: Number(event.target.value) })}
                     />
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="min-w-0 space-y-1.5">
                     <Label htmlFor={priceId}>Unit price (₹)</Label>
                     <Input
                       id={priceId}
@@ -368,7 +388,7 @@ export function InvoiceEditor({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon-lg"
                     disabled={isPrimary}
                     onClick={() => removeItem(item.rowKey)}
                     aria-label={isPrimary
@@ -378,7 +398,10 @@ export function InvoiceEditor({
                   >
                     <Trash2 aria-hidden="true" />
                   </Button>
-                  <details className="sm:col-span-4 rounded-md bg-muted/30 p-3">
+                  <p className="col-span-full min-w-0 break-words text-xs text-muted-foreground">
+                    {isCatalogLine && item.tooth_numbers?.length ? `Teeth ${item.tooth_numbers.join(", ")}` : item.site_label}
+                  </p>
+                  <details className="col-span-full min-w-0 rounded-md bg-muted/30 p-3">
                     <summary className="cursor-pointer text-sm font-medium">
                       {isCatalogLine ? "Teeth & line note (optional)" : "Line note (optional)"}
                       {item.tooth_numbers?.length ? ` · ${item.tooth_numbers.length} selected` : ""}

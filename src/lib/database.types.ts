@@ -377,6 +377,8 @@ export type FollowUp = Timestamps & {
 export type Invoice = Timestamps & {
   id: string;
   invoice_number: string;
+  invoice_date: string | null;
+  consulting_doctor_name: string | null;
   lead_id: string;
   branch_id: string;
   treatment_id: string | null;
@@ -494,6 +496,9 @@ export type InvoicePayment = Timestamps & {
   notes: string | null;
   received_at: string;
   created_by: string | null;
+  version: number;
+  batch_key: string | null;
+  batch_line: number | null;
 };
 
 export type WebhookEndpoint = Timestamps & {
@@ -1075,6 +1080,8 @@ export type Database = {
           p_notes: string | null;
           p_items: Json;
           p_actor: string;
+          p_invoice_date?: string;
+          p_consulting_doctor_name?: string | null;
         };
         Returns: Invoice;
       };
@@ -1132,6 +1139,14 @@ export type Database = {
           p_notes: string | null;
           p_actor: string;
         };
+        Returns: InvoicePayment;
+      };
+      record_invoice_payment_batch: {
+        Args: { p_invoice_id: string; p_receipts: Json; p_request_key: string; p_actor: string };
+        Returns: InvoicePayment[];
+      };
+      update_invoice_payment: {
+        Args: { p_invoice_id: string; p_payment_id: string; p_amount: number; p_method: InvoicePaymentMethod; p_reference: string | null; p_reason: string; p_expected_version: number; p_actor: string };
         Returns: InvoicePayment;
       };
       delete_invoice: {

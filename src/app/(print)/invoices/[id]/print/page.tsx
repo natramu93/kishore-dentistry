@@ -10,6 +10,7 @@ import { fmtDate, formatINR } from "@/lib/tz";
 import { PrintButton } from "./print-button";
 import { BrandWordmark } from "@/components/brand";
 import { invoiceLineToothLabel } from "@/lib/invoice-lines";
+import { receivedAmountInWords } from "@/lib/invoice-receipts";
 
 export const metadata = { title: "Invoice" };
 
@@ -80,7 +81,7 @@ export default async function InvoicePrintPage({
         <div className="shrink-0 text-left sm:text-right">
           <h2 className="text-xl font-bold uppercase tracking-wide text-brand-blue">Invoice</h2>
           <p className="mt-1 font-mono">{invoice.invoice_number}</p>
-          <p>Date: {fmtDate(invoice.issued_at ?? invoice.created_at)}</p>
+          <p>Date: {fmtDate(invoice.invoice_date ?? invoice.issued_at ?? invoice.created_at)}</p>
           <p className="capitalize">Status: {invoice.status}</p>
         </div>
       </header>
@@ -90,6 +91,7 @@ export default async function InvoicePrintPage({
         <p className="font-medium mt-1">{invoice.lead?.name}</p>
         {invoice.lead?.mobile && <p>{invoice.lead.mobile}</p>}
         {invoice.lead?.email && <p>{invoice.lead.email}</p>}
+        {invoice.consulting_doctor_name && <p className="mt-2">Consulting doctor: {invoice.consulting_doctor_name}</p>}
       </section>
 
       <table className="w-full mt-6 border-collapse">
@@ -145,6 +147,8 @@ export default async function InvoicePrintPage({
         <div className="flex justify-between"><span>Amount received</span><span>{formatINR(invoice.amount_paid)}</span></div>
         <div className="flex justify-between font-semibold"><span>Balance due</span><span>{formatINR(invoice.balance_due)}</span></div>
       </div>
+
+      <p className="mt-3">Received amount in words: {receivedAmountInWords(invoice.amount_paid)}</p>
 
       {invoice.payments.length > 0 && (
         <section className="mt-6">

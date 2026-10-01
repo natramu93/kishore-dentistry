@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { InvoiceEditor } from "@/components/invoices/invoice-editor";
 import { createInvoiceAction, updateInvoiceAction } from "@/actions/invoices";
 import { toast } from "sonner";
@@ -39,6 +39,23 @@ afterEach(() => {
 });
 
 describe("independent invoice editor", () => {
+  it("keeps site summaries in their own full-width row, outside treatment controls", () => {
+    renderInvoiceEditor();
+    fireEvent.click(screen.getByRole("button", { name: "Add treatment line" }));
+
+    for (const line of screen.getAllByRole("group", { name: /^Treatment line \d+$/ })) {
+      const fields = within(line);
+      const summary = fields.getByText("General / not tooth-specific");
+      const treatment = fields.getByRole("combobox", { name: "Treatment" });
+      expect(summary.parentElement).toBe(line);
+      expect(summary).toHaveClass("col-span-full");
+      expect(treatment.parentElement).not.toContainElement(summary);
+      expect(fields.getByRole("spinbutton", { name: "Quantity" })).toBeEnabled();
+      expect(fields.getByRole("spinbutton", { name: "Unit price (₹)" })).toBeEnabled();
+      expect(fields.getByRole("button", { name: /^Remove treatment line/ })).toBeEnabled();
+    }
+  });
+
   it("starts with a treatment selector and marks it invalid when treatment is missing", () => {
     renderInvoiceEditor();
     const createButton = screen.getByRole("button", { name: "Create invoice" });
@@ -66,6 +83,8 @@ describe("independent invoice editor", () => {
 
   it("creates an invoice from the treatment catalog without a completed case-sheet treatment", async () => {
     renderInvoiceEditor();
+    fireEvent.change(screen.getByLabelText("Invoice date"), { target: { value: "2026-09-25" } });
+    fireEvent.change(screen.getByLabelText("Consulting doctor (optional)"), { target: { value: "Dr. Test Doctor" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Treatment" }), {
       target: { value: TREATMENT_TYPE_ID },
     });
@@ -74,6 +93,8 @@ describe("independent invoice editor", () => {
     await waitFor(() => {
       expect(createInvoiceAction).toHaveBeenCalledWith(expect.objectContaining({
         lead_id: "lead-1",
+        invoice_date: "2026-09-25",
+        consulting_doctor_name: "Dr. Test Doctor",
         items: [{ treatment_type_id: TREATMENT_TYPE_ID, quantity: 1, unit_price: 200 }],
       }));
     });
