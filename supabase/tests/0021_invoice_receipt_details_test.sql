@@ -38,6 +38,26 @@ begin
   if v_count <> 4 or (select sum(amount) from crm.invoice_payments where invoice_id=v_invoice.id) <> 1000
     or (select status from crm.invoices where id=v_invoice.id) <> 'paid' then
     raise exception 'split receipt or replay incorrectly calculated / duplicated payment'; end if;
+  execute 'set local role service_role';
+  v_receipts := crm.get_report_payment_collections(v_admin, now() - interval '1 day', now() + interval '1 day', v_branch);
+  if jsonb_array_length(v_receipts) <> 4
+    or (select sum((r->>'amount')::numeric) from jsonb_array_elements(v_receipts) r) <> 1000
+    or exists(select 1 from jsonb_array_elements(v_receipts) r
+      where (r->>'day')::date <> (now() at time zone 'Asia/Kolkata')::date) then
+    raise exception 'payment-method report lost split receipts or clinic-local date';
+  end if;
+  if crm.get_report_payment_collections(v_other, now() - interval '1 day', now() + interval '1 day', null) <> '[]'::jsonb then
+    raise exception 'payment report exposed another center';
+  end if;
+  v_rejected := false;
+  begin perform crm.get_report_payment_collections(v_other, now() - interval '1 day', now() + interval '1 day', v_branch);
+  exception when insufficient_privilege then v_rejected := true; end;
+  if not v_rejected then raise exception 'payment report accepted cross-center filter'; end if;
+  v_rejected := false;
+  begin perform crm.get_report_payment_collections(gen_random_uuid(), now() - interval '1 day', now() + interval '1 day', null);
+  exception when insufficient_privilege then v_rejected := true; end;
+  if not v_rejected then raise exception 'payment report accepted unknown actor'; end if;
+  execute 'reset role';
   select * into v_payment from crm.invoice_payments where invoice_id=v_invoice.id and payment_method='neft';
   execute 'set local role service_role';
   v_rejected := false;

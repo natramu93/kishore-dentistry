@@ -13,6 +13,7 @@ import {
 } from "@/lib/validation";
 import { clinicDayRange, clinicToday } from "@/lib/tz";
 import { z } from "zod";
+import { summarizeCollections } from "@/lib/reports/collections";
 
 export const DEFAULT_REPORT_DAYS = 30;
 
@@ -38,6 +39,7 @@ export type ReportsData = {
   byDay: ReportRow[];
   byTreatment: ReportRow[];
   collectedByDay: { day: string; amount: number }[];
+  collections: ReturnType<typeof summarizeCollections>;
   totals: {
     leads: number;
     appointments: number;
@@ -91,13 +93,13 @@ export function defaultReportRange(
 }
 
 /**
- * Revenue is the sum of treatment cost recorded at the point of care. The
+ * Legacy aggregate `revenue` fields represent treatment value, not receipts. The
  * database RPC performs all aggregation and independently derives the actor's
  * branch scope, so the application receives only grouped, patient-safe DTOs.
  *
- * All breakdowns and totals use the same half-open UTC interval and optional
- * branch/doctor filters. Day grouping is pinned to the clinic's
- * Asia/Kolkata calendar in the RPC.
+ * Treatment breakdowns use branch/doctor filters; receipts use branch filters
+ * and payment timestamps, independently of the doctor filter. Both use the
+ * same half-open UTC interval and Asia/Kolkata calendar days.
  */
 export async function getReportsData(
   ctx: AuthContext,
@@ -141,7 +143,7 @@ export async function getReportsData(
     p_to: to,
     p_branch_id: branchId ?? null,
     p_doctor_id: doctorId ?? null,
-  }), db.rpc("get_report_collections", {
+  }), db.rpc("get_report_payment_collections", {
     p_actor: ctx.userId,
     p_from: from,
     p_to: to,
@@ -155,13 +157,15 @@ export async function getReportsData(
     throw new Error("Report aggregate response was invalid");
   }
   const payload = parsed.data;
+  const collections = summarizeCollections(collectionsResult.data);
 
   return {
     byDoctor: payload.by_doctor,
     byCenter: payload.by_center,
     byDay: payload.by_day,
     byTreatment: payload.by_treatment,
-    collectedByDay: (collectionsResult.data ?? []).map((row) => ({ day: row.clinic_day, amount: Number(row.amount) })),
+    collectedByDay: collections.byDay.map((row) => ({ day: row.key, amount: row.amount })),
+    collections,
     totals: payload.totals,
     range: { from, to },
   };

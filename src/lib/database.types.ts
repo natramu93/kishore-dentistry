@@ -1098,6 +1098,10 @@ export type Database = {
         Args: { p_actor: string; p_from: string; p_to: string; p_branch_id: string | null };
         Returns: { clinic_day: string; amount: number }[];
       };
+      get_report_payment_collections: {
+        Args: { p_actor: string; p_from: string; p_to: string; p_branch_id: string | null };
+        Returns: Json;
+      };
       create_consultation_invoice: {
         Args: {
           p_lead_id: string;

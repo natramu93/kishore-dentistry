@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildReportCsv, csvCell } from "@/lib/reports/csv";
 import type { ReportsData } from "@/data/reports";
+import { summarizeCollections } from "@/lib/reports/collections";
 
 describe("report CSV export", () => {
   it.each([
@@ -34,6 +35,7 @@ describe("report CSV export", () => {
       byDay: [],
       byTreatment: [],
       collectedByDay: [{ day: "2026-07-02", amount: 250 }],
+      collections: summarizeCollections([{ day: "2026-07-02", method: "upi", amount: 250 }]),
       totals: {
         leads: 2,
         appointments: 3,
@@ -53,6 +55,8 @@ describe("report CSV export", () => {
       "\"By doctor\",\"'=HYPERLINK(\"\"https://example.test\"\")\",\"2\",\"3\",\"1\",\"500\""
     );
     expect(csv).toContain("\"Overall\",\"Total\",\"2\",\"3\",\"1\",\"500\"");
+    expect(csv).toContain('"Receipts by date","2026-07-02","","","","","250","0","0","0","250"');
+    expect(csv).toContain('"Receipts by month","2026-07","","","","","250","0","0","0","250"');
     expect(csv).not.toContain("doctor-id");
     expect(csv.endsWith("\r\n")).toBe(true);
     expect(csv.replaceAll("\r\n", "")).not.toContain("\n");

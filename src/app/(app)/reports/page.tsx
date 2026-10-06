@@ -14,6 +14,7 @@ import {
 import { clinicDayRange, clinicToday, formatINR } from "@/lib/tz";
 import { formatInTimeZone } from "date-fns-tz";
 import { CLINIC_TZ } from "@/lib/tz";
+import { PAYMENT_METHODS, PAYMENT_LABELS, type CollectionRow } from "@/lib/reports/collections";
 import {
   Stethoscope,
   Building2,
@@ -86,22 +87,14 @@ export default async function ReportsPage({
     groups[key] = group;
     return groups;
   }, {}));
-  const collectionTotal = data.collectedByDay.reduce((sum, row) => sum + row.amount, 0);
-  const monthlyCollections = Object.values(data.collectedByDay.reduce<Record<string, { key: string; label: string; amount: number }>>((groups, row) => {
-    const key = row.day.slice(0, 7);
-    const group = groups[key] ?? { key, label: formatInTimeZone(`${key}-01T12:00:00Z`, CLINIC_TZ, "MMM yyyy"), amount: 0 };
-    group.amount += row.amount;
-    groups[key] = group;
-    return groups;
-  }, {}));
 
   return (
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Reports</h1>
         <p className="text-sm text-muted-foreground">
-          {ctx.role === "admin" ? "All branches" : "Your branches"} · revenue is measured by
-          treatment cost recorded at time of care
+          {ctx.role === "admin" ? "All branches" : "Your branches"} · Revenue received is actual invoice payments.
+          Treatment value is recorded separately at the time of care, not cash received.
         </p>
       </div>
 
@@ -199,8 +192,8 @@ export default async function ReportsPage({
         <TotalCard label="Total leads" value={data.totals.leads} accent="border-l-blue-400" />
         <TotalCard label="Appointments" value={data.totals.appointments} accent="border-l-violet-400" />
         <TotalCard label="Follow-ups" value={data.totals.followUps} accent="border-l-amber-400" />
-        <TotalCard label="Revenue" value={formatINR(data.totals.revenue)} accent="border-l-emerald-400" />
-        <TotalCard label="Collected (receipts)" value={formatINR(collectionTotal)} accent="border-l-emerald-400" />
+        <TotalCard label="Revenue received" value={formatINR(data.collections.total.amount)} accent="border-l-emerald-400" />
+        <TotalCard label="Treatment value" value={formatINR(data.totals.revenue)} accent="border-l-blue-400" />
       </div>
 
       <Card className="border-l-4 border-l-gold">
@@ -250,12 +243,15 @@ export default async function ReportsPage({
 
       <Card className="border-l-4 border-l-emerald-400">
         <CardContent className="pt-5">
-          <h2 className="mb-1 text-base font-semibold">Collections received</h2>
-          <p className="mb-4 text-sm text-muted-foreground">Actual invoice receipts by date. Doctor filter does not apply to receipts.</p>
+          <h2 className="mb-1 text-base font-semibold">Revenue received by payment method</h2>
+          <p className="mb-4 text-sm text-muted-foreground">Actual invoice receipts by payment date, including split payments. Center and date filters apply; doctor filter does not apply to receipts. These are collections, not expense costs or profit.</p>
+          <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {PAYMENT_METHODS.map((method) => <TotalCard key={method} label={PAYMENT_LABELS[method]} value={formatINR(data.collections.total[method])} accent="border-l-emerald-400" />)}
+          </div>
           <Tabs defaultValue="collection-day">
             <TabsList className="mb-4"><TabsTrigger value="collection-day">By Date</TabsTrigger><TabsTrigger value="collection-month">By Month</TabsTrigger></TabsList>
-            <TabsContent value="collection-day"><CollectionTable rows={data.collectedByDay.map((row) => ({ label: formatInTimeZone(`${row.day}T12:00:00Z`, CLINIC_TZ, "d MMM yyyy"), amount: row.amount }))} emptyText="No payments received in this date range" /></TabsContent>
-            <TabsContent value="collection-month"><CollectionTable rows={monthlyCollections} emptyText="No payments received in this date range" /></TabsContent>
+            <TabsContent value="collection-day"><CollectionTable rows={data.collections.byDay} total={data.collections.total} monthly={false} /></TabsContent>
+            <TabsContent value="collection-month"><CollectionTable rows={data.collections.byMonth} total={data.collections.total} monthly /></TabsContent>
           </Tabs>
         </CardContent>
       </Card>
@@ -263,13 +259,15 @@ export default async function ReportsPage({
   );
 }
 
-function CollectionTable({ rows, emptyText }: { rows: { label: string; amount: number }[]; emptyText: string }) {
+function CollectionTable({ rows, total, monthly }: { rows: CollectionRow[]; total: CollectionRow; monthly: boolean }) {
+  const cells = (row: CollectionRow) => <>{PAYMENT_METHODS.map((method) => <TableCell key={method} className="text-right whitespace-nowrap">{formatINR(row[method])}</TableCell>)}<TableCell className="text-right whitespace-nowrap font-semibold">{formatINR(row.amount)}</TableCell></>;
   return (
-    <Table aria-label="Invoice collections by date">
-      <TableHeader><TableRow><TableHead>Date</TableHead><TableHead className="text-right">Collected</TableHead></TableRow></TableHeader>
+    <Table aria-label={`Revenue received by ${monthly ? "month" : "date"} and payment method`}>
+      <TableHeader><TableRow><TableHead>{monthly ? "Month" : "Date"}</TableHead>{PAYMENT_METHODS.map((method) => <TableHead key={method} className="text-right">{PAYMENT_LABELS[method]}</TableHead>)}<TableHead className="text-right">Total received</TableHead></TableRow></TableHeader>
       <TableBody>
-        {rows.length === 0 && <TableRow><TableCell colSpan={2} className="py-8 text-center text-muted-foreground">{emptyText}</TableCell></TableRow>}
-        {rows.map((row) => <TableRow key={row.label}><TableCell>{row.label}</TableCell><TableCell className="text-right">{formatINR(row.amount)}</TableCell></TableRow>)}
+        {rows.length === 0 && <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground">No payments received in this date range</TableCell></TableRow>}
+        {rows.map((row) => <TableRow key={row.key}><TableCell className="whitespace-nowrap">{formatInTimeZone(`${row.key}${monthly ? "-01" : ""}T12:00:00Z`, CLINIC_TZ, monthly ? "MMM yyyy" : "d MMM yyyy")}</TableCell>{cells(row)}</TableRow>)}
+        <TableRow className="bg-muted/40 font-semibold"><TableCell>Total</TableCell>{cells(total)}</TableRow>
       </TableBody>
     </Table>
   );
@@ -304,7 +302,7 @@ function ReportTable({
           <TableHead className="text-right">Leads</TableHead>
           <TableHead className="text-right">Appointments</TableHead>
           <TableHead className="text-right">Follow-ups</TableHead>
-          <TableHead className="text-right">Revenue</TableHead>
+          <TableHead className="text-right">Treatment value</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>

@@ -1,4 +1,5 @@
 import type { ReportsData, ReportRow } from "@/data/reports";
+import { PAYMENT_METHODS, PAYMENT_LABELS } from "./collections";
 
 type CsvValue = string | number;
 
@@ -23,6 +24,7 @@ function reportRows(section: string, rows: ReportRow[]): CsvValue[][] {
     row.appointments,
     row.followUps,
     row.revenue,
+    "", "", "", "", "",
   ]);
 }
 
@@ -35,13 +37,16 @@ export function buildReportCsv(data: ReportsData): string {
       "Leads",
       "Appointments",
       "Follow-ups",
-      "Revenue (INR)",
+      "Treatment value (INR)",
+      "UPI (INR)", "Cash (INR)", "Card (INR)", "NEFT / Net banking (INR)", "Revenue received (INR)",
     ],
     ...reportRows("By doctor", data.byDoctor),
     ...reportRows("By center", data.byCenter),
     ...reportRows("By day", data.byDay),
     ...reportRows("By treatment", data.byTreatment),
-    ...data.collectedByDay.map((row) => ["Collections received", row.day, "", "", "", row.amount] as CsvValue[]),
+    ...data.collections.byDay.map((row) => ["Receipts by date", row.key, "", "", "", "", row.upi, row.cash, row.card, row.neft, row.amount] as CsvValue[]),
+    ...data.collections.byMonth.map((row) => ["Receipts by month", row.key, "", "", "", "", row.upi, row.cash, row.card, row.neft, row.amount] as CsvValue[]),
+    ...PAYMENT_METHODS.map((method) => ["Receipts by method", PAYMENT_LABELS[method], "", "", "", "", ...PAYMENT_METHODS.map((column) => column === method ? data.collections.total[method] : 0), data.collections.total[method]] as CsvValue[]),
     [
       "Overall",
       "Total",
@@ -49,6 +54,8 @@ export function buildReportCsv(data: ReportsData): string {
       data.totals.appointments,
       data.totals.followUps,
       data.totals.revenue,
+      data.collections.total.upi, data.collections.total.cash, data.collections.total.card,
+      data.collections.total.neft, data.collections.total.amount,
     ],
   ];
 
