@@ -298,13 +298,13 @@ const treatmentTypeSchema = z.object({
 });
 
 const dentalCodeCreateSchema = z.object({
-  code: z.string().trim().toUpperCase().regex(dentalCodePattern, "Use a valid ICD-10 dental code"),
+  code: z.string().trim().toUpperCase().regex(dentalCodePattern, "Use a valid ICD-10 diagnosis or ICD-9-CM dental procedure code"),
   name: z.string().trim().min(1, "Description is required").max(300),
   category: text(120),
-  code_level: z.enum(["category", "detail"]),
+  code_level: z.enum(["category", "detail", "procedure"]),
   billable: booleanInputSchema,
 }).superRefine((value, issueContext) => {
-  const expectedLevel = value.code.includes(".") ? "detail" : "category";
+  const expectedLevel = !value.code.startsWith("K") ? "procedure" : value.code.includes(".") ? "detail" : "category";
   if (value.code_level !== expectedLevel) {
     issueContext.addIssue({ code: "custom", path: ["code_level"], message: `Use ${expectedLevel} for this code` });
   }

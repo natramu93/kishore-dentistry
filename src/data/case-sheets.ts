@@ -46,7 +46,7 @@ export type TreatmentCodeOption = {
   code: string;
   name: string;
   category: string | null;
-  code_system: "KISHORE_TREATMENT" | "ICD10_IN";
+  code_system: "KISHORE_TREATMENT" | "ICD10_IN" | "ICD9_CM_PROCEDURE";
   code_level: "procedure" | "category" | "detail";
   billable: boolean;
   default_price: null;
@@ -162,7 +162,7 @@ export async function listTreatmentCodes(
     .from("treatment_codes")
     .select("code, name, category, code_system, code_level, billable")
     .eq("status", "active")
-    .eq("code_system", "ICD10_IN")
+    .in("code_system", ["ICD10_IN", "ICD9_CM_PROCEDURE"])
     .order("code")
     .limit(2_000);
   if (error) throw error;

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ToothSelector } from "@/components/clinical/tooth-selector";
+import { INDIAN_PERMANENT_TEETH, INDIAN_PRIMARY_TEETH } from "@/lib/clinical";
 
 afterEach(cleanup);
 
@@ -11,6 +12,45 @@ function Harness({ multiple = true }: { multiple?: boolean }) {
 }
 
 describe("ToothSelector", () => {
+  it("selects all displayed teeth and allows individual deselection and clearing", () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+    for (const tooth of INDIAN_PERMANENT_TEETH) {
+      expect(screen.getByRole("button", { name: new RegExp(`^${tooth},`) })).toHaveAttribute("aria-pressed", "true");
+    }
+    expect(screen.getByRole("button", { name: "Select all" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /^11,/ }));
+    expect(screen.getByRole("button", { name: "Select all" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Primary (milk) teeth" }));
+    fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+    for (const tooth of INDIAN_PRIMARY_TEETH) {
+      expect(screen.getByRole("button", { name: new RegExp(`^${tooth},`) })).toHaveAttribute("aria-pressed", "true");
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Permanent teeth" }));
+    expect(screen.getByRole("button", { name: /^12,/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /^11,/ })).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+    expect(screen.getByRole("status")).toHaveTextContent("No teeth selected");
+  });
+
+  it("selects only eligible plan teeth and preserves selections in the other dentition", () => {
+    const onChange = vi.fn();
+    render(<ToothSelector value={["51", "26"]} selectableTeeth={["26", "36"]} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+    expect(onChange).toHaveBeenCalledWith(["26", "36", "51"]);
+    fireEvent.click(screen.getByRole("button", { name: "Primary (milk) teeth" }));
+    expect(screen.getByRole("button", { name: "Select all" })).toBeDisabled();
+  });
+
+  it("does not select all in a disabled selector or single-only review", () => {
+    const onChange = vi.fn();
+    const view = render(<ToothSelector value={[]} onChange={onChange} disabled />);
+    fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+    expect(onChange).not.toHaveBeenCalled();
+    view.rerender(<ToothSelector value={[]} onChange={onChange} multiple={false} />);
+    expect(screen.queryByRole("button", { name: "Select all" })).not.toBeInTheDocument();
+  });
+
   it("supports multiple teeth and retains selections across dentitions", () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: /^11,/ }));

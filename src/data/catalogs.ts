@@ -169,7 +169,7 @@ export async function listTreatmentCodeCatalog(
     .select("*")
     .order("code")
     .limit(2_000);
-  q = q.eq("code_system", "ICD10_IN");
+  q = q.in("code_system", ["ICD10_IN", "ICD9_CM_PROCEDURE"]);
   if (!opts.includeInactive) q = q.eq("status", "active");
   const { data, error } = await q;
   if (error) throw error;
@@ -184,10 +184,10 @@ export async function createTreatmentCode(
   requireAdmin(ctx);
   const { error } = await db.from("treatment_codes").insert({
     ...input,
-    code_system: "ICD10_IN",
+    code_system: input.code.startsWith("K") ? "ICD10_IN" : "ICD9_CM_PROCEDURE",
     status: "active",
     raw_metadata: null,
-    source: "Admin managed / India-aligned ICD-10",
+    source: input.code.startsWith("K") ? "Admin managed / India-aligned ICD-10" : "Admin managed / ICD-9-CM dental procedures",
     source_version: "admin",
   });
   if (error) throw error;

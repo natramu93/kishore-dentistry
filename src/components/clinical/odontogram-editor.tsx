@@ -189,7 +189,7 @@ export function OdontogramEditor({ value, errors, onChange, onAddTreatment }: Od
         </p>
       </div>
 
-      <ToothSelector value={selectedTeeth} onChange={setSelectedTeeth} multiple={multiple} documentedTeeth={documentedTeeth} />
+      <ToothSelector value={selectedTeeth} onChange={setSelectedTeeth} onSelectAll={(teeth) => { setMultiple(true); setSelectedTeeth(teeth); }} multiple={multiple} documentedTeeth={documentedTeeth} />
 
       {teethWithErrors.length > 0 && (
         <div role="alert" className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm">

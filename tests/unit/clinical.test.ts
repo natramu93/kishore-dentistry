@@ -214,6 +214,12 @@ describe("dental treatment site validation", () => {
       ...baseTreatment,
       treatment_code: "K02.9",
     }).success).toBe(true);
+    for (const code of ["96.54", "23.2", "23.71", "24.0", "87.11", "25.92", "26.21", "27.0", "76.96", "87.13", "87.16"]) {
+      expect(caseSheetTreatmentSchema.safeParse({ ...baseTreatment, treatment_code: code }).success).toBe(true);
+    }
+    for (const code of ["96.55", "87.14", "28.0", "75.01", "250.00", "23", "232"]) {
+      expect(caseSheetTreatmentSchema.safeParse({ ...baseTreatment, treatment_code: code }).success).toBe(false);
+    }
     expect(caseSheetTreatmentSchema.safeParse({
       ...baseTreatment,
       treatment_code: "Root canal",

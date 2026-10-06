@@ -49,6 +49,42 @@ function fillVisit() {
 }
 
 describe("simplified CaseSheetEditor", () => {
+  it.each([['96.54', 'Dental scaling, polishing, and debridement', 'scaling'], ['23.2', 'Restoration of tooth by filling', 'GIC filling'], ['25.92', 'Lingual frenectomy', 'tongue tie'], ['76.96', 'Injection of therapeutic substance into temporomandibular joint', 'TMJ']])("selects and saves ICD-9-CM procedure %s", async (code, name, search) => {
+    render(<CaseSheetEditor {...props} treatmentCodes={[...props.treatmentCodes, {
+      code, name, code_system: 'ICD9_CM_PROCEDURE', code_level: 'procedure', billable: true,
+    }]} />);
+    fillVisit();
+    fireEvent.click(screen.getByRole('button', { name: 'Plan for selected teeth' }));
+    const treatment = screen.getByRole('group', { name: 'Treatment 1' });
+    fireEvent.change(within(treatment).getByRole('combobox', { name: 'Approved dental code' }), { target: { value: search } });
+    fireEvent.click(within(treatment).getByRole('option', { name: new RegExp(`${code}.*ICD-9-CM procedure`) }));
+    expect(within(treatment).getByText(`Code attached: ${code} (ICD-9-CM procedure)`)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Save case sheet' }));
+    await waitFor(() => expect(mocks.finalize).toHaveBeenCalledWith(expect.objectContaining({
+      treatments: [expect.objectContaining({ treatment_code: code, tooth_numbers: ['16', '26'] })],
+    })));
+  });
+  it("finds scaling and filling diagnoses and persists the chosen code and procedure notes", async () => {
+    render(<CaseSheetEditor {...props} treatmentCodes={[...props.treatmentCodes, {
+      code: 'K03.6', name: 'Deposits [accretions] on teeth', code_system: 'ICD10_IN', code_level: 'detail', billable: true,
+    }]} />);
+    fillVisit();
+    fireEvent.click(screen.getByRole('button', { name: 'Plan for selected teeth' }));
+    const treatment = screen.getByRole('group', { name: 'Treatment 1' });
+    const codeInput = within(treatment).getByRole('combobox', { name: 'Approved dental code' });
+    fireEvent.change(codeInput, { target: { value: 'scaling' } });
+    expect(codeInput).toHaveValue('scaling');
+    fireEvent.click(within(treatment).getByRole('option', { name: /K03.6/ }));
+    expect(codeInput).toHaveValue('K03.6 — Deposits [accretions] on teeth');
+    fireEvent.change(codeInput, { target: { value: 'filling' } });
+    expect(within(treatment).queryByRole('option', { name: /K03.6/ })).not.toBeInTheDocument();
+    fireEvent.click(within(treatment).getByRole('option', { name: /K02.9/ }));
+    fireEvent.change(within(treatment).getByLabelText('Treatment notes'), { target: { value: 'Composite filling planned' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save case sheet' }));
+    await waitFor(() => expect(mocks.finalize).toHaveBeenCalledWith(expect.objectContaining({
+      treatments: [expect.objectContaining({ treatment_code: 'K02.9', notes: 'Composite filling planned' })],
+    })));
+  });
   it("requires explicit completion of a carried plan and preserves only selected remaining teeth", async () => {
     const planId = "00000000-0000-4000-8000-000000000019";
     render(<CaseSheetEditor {...props} pendingPlans={{ records: [{

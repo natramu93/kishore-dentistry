@@ -34,6 +34,7 @@ export default async function DentalCodesPage() {
     (a, b) => a.code_system.localeCompare(b.code_system) || a.code.localeCompare(b.code, undefined, { numeric: true }),
   );
   const icdCount = codes.filter((code) => code.code_system === "ICD10_IN").length;
+  const procedureCount = codes.filter((code) => code.code_system === "ICD9_CM_PROCEDURE").length;
 
   return (
     <div className="space-y-4">
@@ -41,16 +42,16 @@ export default async function DentalCodesPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Dental code catalogue</h1>
           <p className="max-w-3xl text-sm text-muted-foreground">
-            {icdCount} WHO ICD-10 K00–K14 diagnosis codes. Active codes appear in every new case sheet.
+            {icdCount} WHO ICD-10 K00–K14 diagnosis codes and {procedureCount} ICD-9-CM dental procedure codes. Active codes appear in every new case sheet.
           </p>
           <p className="mt-1 max-w-3xl text-xs text-muted-foreground">
-            ICD-10 records diagnoses and are the only codes available for new clinical entries.
+            ICD-10 records diagnoses; ICD-9-CM records procedures. ICD-9-CM is a legacy clinical modification, not an Indian-specific standard.
           </p>
         </div>
         <FormDialog triggerLabel="New dental code" title="Add dental code" action={createTreatmentCodeAction}>
           <div className="space-y-2">
             <Label htmlFor="code">Code</Label>
-            <Input id="code" name="code" required placeholder="e.g. K02.9" className="font-mono uppercase" />
+            <Input id="code" name="code" required placeholder="e.g. K02.9, 23.2 or 96.54" className="font-mono uppercase" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="name">Description</Label>
@@ -66,6 +67,7 @@ export default async function DentalCodesPage() {
               <select id="code_level" name="code_level" className={selectClass} defaultValue="detail">
                 <option value="detail">Detail</option>
                 <option value="category">Category</option>
+                <option value="procedure">ICD-9-CM procedure</option>
               </select>
             </div>
           </div>
@@ -93,7 +95,7 @@ export default async function DentalCodesPage() {
               <TableCell className="whitespace-nowrap font-mono text-xs font-semibold">{code.code}</TableCell>
               <TableCell>
                 <div className="font-medium">{code.name}</div>
-                <div className="text-xs text-muted-foreground lg:hidden">ICD-10 (India-aligned)</div>
+                <div className="text-xs text-muted-foreground">{code.code_system === "ICD9_CM_PROCEDURE" ? "ICD-9-CM procedure" : "ICD-10 diagnosis (India-aligned)"}</div>
               </TableCell>
               <TableCell className="hidden capitalize text-muted-foreground md:table-cell">{code.code_level}</TableCell>
               <TableCell>{code.billable ? "Yes" : "No"}</TableCell>
@@ -118,6 +120,7 @@ export default async function DentalCodesPage() {
                       <select id={`level-${code.code}`} name="code_level" className={selectClass} defaultValue={code.code_level}>
                         <option value="detail">Detail</option>
                         <option value="category">Category</option>
+                        <option value="procedure">ICD-9-CM procedure</option>
                       </select>
                     </div>
                     <label className="flex min-h-11 items-center gap-3 text-sm">

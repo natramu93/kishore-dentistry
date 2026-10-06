@@ -175,7 +175,7 @@ export type TreatmentCode = Timestamps & {
   status: string;
   raw_metadata: string | null;
   source: string | null;
-  code_system: "KISHORE_TREATMENT" | "ICD10_IN";
+  code_system: "KISHORE_TREATMENT" | "ICD10_IN" | "ICD9_CM_PROCEDURE";
   code_level: "procedure" | "category" | "detail";
   billable: boolean;
   source_version: string;

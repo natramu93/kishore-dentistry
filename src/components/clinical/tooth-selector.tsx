@@ -8,6 +8,7 @@ import { INDIAN_PERMANENT_TEETH, INDIAN_PRIMARY_TEETH } from "@/lib/clinical";
 type ToothSelectorProps = {
   value: readonly string[];
   onChange: (teeth: string[]) => void;
+  onSelectAll?: (teeth: string[]) => void;
   documentedTeeth?: readonly string[];
   selectableTeeth?: readonly string[];
   label?: string;
@@ -19,6 +20,7 @@ type ToothSelectorProps = {
 export function ToothSelector({
   value,
   onChange,
+  onSelectAll,
   documentedTeeth = [],
   selectableTeeth,
   label = "Select teeth",
@@ -30,6 +32,8 @@ export function ToothSelector({
     value.length > 0 && value.every((tooth) => Number(tooth[0]) >= 5) ? "primary" : "permanent",
   );
   const teeth = dentition === "permanent" ? INDIAN_PERMANENT_TEETH : INDIAN_PRIMARY_TEETH;
+  const eligibleTeeth = teeth.filter((tooth) => selectableTeeth === undefined || selectableTeeth.includes(tooth));
+  const allSelected = eligibleTeeth.length > 0 && eligibleTeeth.every((tooth) => value.includes(tooth));
   const quarter = teeth.length / 4;
   const quadrants = [
     { label: "Upper right", arch: "upper" as const, teeth: teeth.slice(0, quarter) },
@@ -49,6 +53,12 @@ export function ToothSelector({
       : [...value, tooth].sort());
   }
 
+  function selectAll() {
+    if (disabled || eligibleTeeth.length === 0) return;
+    const selection = [...new Set([...value, ...eligibleTeeth])].sort();
+    (onSelectAll ?? onChange)(selection);
+  }
+
   return (
     <fieldset disabled={disabled} aria-describedby={`${id}-selection`} className="min-w-0 space-y-3">
       <legend className="mb-2 text-sm font-medium">{label}</legend>
@@ -59,6 +69,11 @@ export function ToothSelector({
         <Button type="button" size="sm" variant={dentition === "primary" ? "default" : "outline"} aria-pressed={dentition === "primary"} onClick={() => setDentition("primary")}>
           Primary (milk) teeth
         </Button>
+        {(multiple || onSelectAll) && (
+          <Button type="button" size="sm" variant="outline" disabled={disabled || eligibleTeeth.length === 0 || allSelected} onClick={selectAll}>
+            Select all
+          </Button>
+        )}
       </div>
       <div className="min-w-0 rounded-xl border bg-muted/20 p-2 sm:p-3">
         <p className="mb-3 text-xs text-muted-foreground">Right and left refer to the patient&apos;s side.</p>
@@ -70,7 +85,7 @@ export function ToothSelector({
             </div>
           ))}
         </div>
-        <p className="mt-3 text-xs text-muted-foreground">{multiple ? "Tap all relevant teeth. Tap again to deselect." : "Tap a tooth to review or update its record."}</p>
+        <p className="mt-3 text-xs text-muted-foreground">{multiple || onSelectAll ? "Select all applies to the displayed eligible teeth. Tap individual teeth to adjust the selection." : "Tap a tooth to review or update its record."}</p>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p id={`${id}-selection`} role="status" className="text-sm">

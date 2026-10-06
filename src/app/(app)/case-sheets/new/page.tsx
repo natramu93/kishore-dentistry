@@ -52,7 +52,7 @@ export default async function NewCaseSheetPage({
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
           Use the Indian Standard tooth chart for general findings and future planning. Any
-          treatment added must use an approved ICD-10 dental code. Multiple teeth can be selected
+          treatment added must use an approved ICD-10 diagnosis or ICD-9-CM dental procedure code. Multiple teeth can be selected
           for one treatment, and pricing is entered only when the invoice is generated.
         </p>
       </div>

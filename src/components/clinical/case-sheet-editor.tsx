@@ -41,6 +41,7 @@ import {
   type TreatmentSiteScope,
 } from "@/lib/clinical";
 import { toClinicInputValue } from "@/lib/tz";
+import { dentalCodeSearchTerms, matchesDentalCodeSearch } from "@/lib/dental-code-search";
 
 export type ClinicalDoctorOption = { id: string; label: string };
 
@@ -48,7 +49,7 @@ export type TreatmentCodeOption = {
   code: string;
   name: string;
   category?: string | null;
-  code_system: "KISHORE_TREATMENT" | "ICD10_IN";
+  code_system: "KISHORE_TREATMENT" | "ICD10_IN" | "ICD9_CM_PROCEDURE";
   code_level: "procedure" | "category" | "detail";
   billable: boolean;
   default_price?: number | null;
@@ -205,7 +206,7 @@ export function CaseSheetEditor({
   const searchableTreatmentCodes = useMemo(
     () => treatmentCodes.map((treatment) => ({
       ...treatment,
-      searchText: `${treatment.code} ${treatment.name} ${treatment.category ?? ""} ${treatment.code_system}`.toLocaleLowerCase(),
+      searchText: `${treatment.code} ${treatment.name} ${treatment.category ?? ""} ${treatment.code_system} ${dentalCodeSearchTerms(treatment.code)}`,
     })),
     [treatmentCodes],
   );
@@ -646,7 +647,7 @@ function TreatmentRow({
   const selectedCode = treatmentCodes.find((item) => item.code === treatment.treatment_code);
   const query = treatment.codeSearch.trim().toLocaleLowerCase();
   const matches = treatment.codePickerOpen
-    ? treatmentCodes.filter((item) => !query || item.searchText.includes(query)).slice(0, 20)
+    ? treatmentCodes.filter((item) => matchesDentalCodeSearch(item.searchText, query)).slice(0, 20)
     : [];
   const activeCode = activeCodeIndex >= 0 ? matches[activeCodeIndex] : undefined;
   const siteOptions = treatment.site_scope === "arch" ? ARCH_SITES : QUADRANT_SITES;
@@ -709,7 +710,8 @@ function TreatmentRow({
                 className="pl-9"
                 disabled={treatment.hasAttachments || treatment.hasLaterCare || Boolean(treatment.planned_treatment_id)}
                 value={treatment.codeSearch}
-                placeholder="Search ICD-10 diagnosis or clinic treatment code"
+                placeholder="Search code, diagnosis, scaling, filling or root canal"
+                aria-describedby={`${idPrefix}-code-help`}
                 onFocus={() => {
                   setActiveCodeIndex(0);
                   onChange({ codePickerOpen: true });
@@ -776,7 +778,7 @@ function TreatmentRow({
                       <span className="min-w-0">
                         <span className="block">{option.name}</span>
                         <span className="block text-xs font-medium text-muted-foreground">
-                          ICD-10 diagnosis
+                          {option.code_system === "ICD9_CM_PROCEDURE" ? "ICD-9-CM procedure" : "ICD-10 diagnosis"}
                           {option.code_level === "category" ? " · category" : ""}
                         </span>
                         {option.category && <span className="block text-xs text-muted-foreground">{option.category}</span>}
@@ -791,9 +793,12 @@ function TreatmentRow({
                 </div>
               )}
             </div>
+            <p id={`${idPrefix}-code-help`} className="text-xs text-muted-foreground">
+              ICD-10 identifies diagnoses; ICD-9-CM identifies procedures such as scaling or filling. Choose the appropriate code and add any procedure details in Treatment notes.
+            </p>
             {selectedCode && (
               <p className="flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400">
-                <Check aria-hidden="true" className="size-3.5" /> Code attached: {selectedCode.code} (ICD-10 diagnosis)
+                <Check aria-hidden="true" className="size-3.5" /> Code attached: {selectedCode.code} ({selectedCode.code_system === "ICD9_CM_PROCEDURE" ? "ICD-9-CM procedure" : "ICD-10 diagnosis"})
               </p>
             )}
           </Field>
@@ -870,7 +875,7 @@ function TreatmentRow({
             value={treatment.notes}
             aria-invalid={Boolean(error("notes"))}
             onChange={(event) => onChange({ notes: event.target.value })}
-            placeholder="Materials, technique, outcome or follow-up instructions"
+            placeholder="Procedure (e.g. scaling or composite filling), materials, outcome or follow-up"
           />
         </Field>
       </div>

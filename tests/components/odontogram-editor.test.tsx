@@ -26,6 +26,20 @@ function assessment(tooth: string, patch: Partial<ToothAssessmentInput> = {}): T
 }
 
 describe("OdontogramEditor", () => {
+  it("selects all directly from single review without creating records until entry", () => {
+    const onChange = vi.fn();
+    const onAddTreatment = vi.fn();
+    render(<Harness onChange={onChange} onAddTreatment={onAddTreatment} />);
+    fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+    expect(screen.getByRole("button", { name: "Add to multiple teeth" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Remark for selected teeth")).toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onAddTreatment).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Remark for selected teeth"), { target: { value: "General review" } });
+    const recorded = onChange.mock.lastCall?.[0] as ToothAssessmentInput[];
+    expect(recorded).toHaveLength(32);
+    expect(recorded.every((item) => item.notes === "General review")).toBe(true);
+  });
   it("records a general Indian Standard tooth assessment without a treatment", () => {
     render(<Harness />);
 
