@@ -29,6 +29,20 @@ begin
     or v_second.invoice_date <> (now() at time zone 'Asia/Kolkata')::date
     or not exists(select 1 from crm.invoice_items where invoice_id=v_invoice.id and tooth_numbers=array['18','17','16']) then
     raise exception 'invoice business date, doctor or teeth not preserved'; end if;
+  execute 'set local role service_role';
+  v_receipts := crm.get_report_invoice_values(v_admin,'2026-07-31 18:30:00+00','2026-08-01 18:30:00+00',v_branch,null);
+  if (v_receipts->>'subtotal')::numeric<>1000 or (v_receipts->>'net')::numeric<>1000
+    or (v_receipts->>'invoices')::integer<>1 then
+    raise exception 'direct invoice excluded or invoice date ignored'; end if;
+  if exists(select 1 from jsonb_array_elements(v_receipts->'rows') r where (r->>'value')::numeric<>1000)
+    or not exists(select 1 from jsonb_array_elements(v_receipts->'rows') r where r->>'dimension'='doctor' and r->>'label' like 'Dr. Receipt Doctor%')
+    or not exists(select 1 from jsonb_array_elements(v_receipts->'rows') r where r->>'dimension'='category') then
+    raise exception 'direct invoice doctor/category totals did not reconcile'; end if;
+  v_rejected := false;
+  begin perform crm.get_report_invoice_values(v_other,'2026-07-31 18:30:00+00','2026-08-01 18:30:00+00',v_branch,null);
+  exception when insufficient_privilege then v_rejected := true; end;
+  if not v_rejected then raise exception 'invoice report exposed another center'; end if;
+  execute 'reset role';
   v_receipts := '[{"amount":100,"method":"cash"},{"amount":200,"method":"upi","reference":"UTR"},{"amount":300,"method":"card"},{"amount":400,"method":"neft"}]';
   execute 'set local role service_role';
   perform crm.record_invoice_payment_batch(v_invoice.id,v_receipts,v_request,v_admin);

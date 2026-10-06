@@ -23,7 +23,7 @@ function reportRows(section: string, rows: ReportRow[]): CsvValue[][] {
     row.leads,
     row.appointments,
     row.followUps,
-    row.revenue,
+    "",
     "", "", "", "", "",
   ]);
 }
@@ -43,7 +43,7 @@ export function buildReportCsv(data: ReportsData): string {
     ...reportRows("By doctor", data.byDoctor),
     ...reportRows("By center", data.byCenter),
     ...reportRows("By day", data.byDay),
-    ...reportRows("By treatment", data.byTreatment),
+    ...data.invoiceValues.rows.map((row) => [`Invoice value by ${row.dimension}`, row.label, "", "", "", row.value, "", "", "", "", ""] as CsvValue[]),
     ...data.collections.byDay.map((row) => ["Receipts by date", row.key, "", "", "", "", row.upi, row.cash, row.card, row.neft, row.amount] as CsvValue[]),
     ...data.collections.byMonth.map((row) => ["Receipts by month", row.key, "", "", "", "", row.upi, row.cash, row.card, row.neft, row.amount] as CsvValue[]),
     ...PAYMENT_METHODS.map((method) => ["Receipts by method", PAYMENT_LABELS[method], "", "", "", "", ...PAYMENT_METHODS.map((column) => column === method ? data.collections.total[method] : 0), data.collections.total[method]] as CsvValue[]),
@@ -58,6 +58,11 @@ export function buildReportCsv(data: ReportsData): string {
       data.collections.total.neft, data.collections.total.amount,
     ],
   ];
+
+  // Separate columns for invoice adjustments; do not mislabel them as treatment value.
+  rows[0].push("Invoice discounts (INR)", "Invoice tax (INR)", "Net billed (INR)");
+  for (const row of rows.slice(1)) row.push("", "", "");
+  rows[rows.length - 1].splice(11, 3, data.invoiceValues.discounts, data.invoiceValues.tax, data.invoiceValues.net);
 
   return `\uFEFF${rows
     .map((row) => row.map((value) => csvCell(value)).join(","))

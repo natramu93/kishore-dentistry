@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { BrandMark, BrandWordmark } from "@/components/brand";
 import { DesktopNav, MobileNav } from "@/components/app-nav";
 import { PRIMARY_NAV, ADMIN_NAV, navForRole, ROLE_LABELS } from "@/components/nav-items";
-import { IdleTimeoutWatcher } from "@/components/auth/idle-timeout-watcher";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getAuthContext();
@@ -15,7 +14,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-svh w-full overflow-hidden bg-background">
-      <IdleTimeoutWatcher />
       <a
         href="#main-content"
         className="sr-only fixed left-3 top-3 z-50 rounded-md bg-background px-4 py-2 font-medium text-foreground shadow-lg focus:not-sr-only focus:outline-none focus:ring-2 focus:ring-ring"

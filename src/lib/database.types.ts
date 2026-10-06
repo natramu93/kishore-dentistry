@@ -1102,6 +1102,10 @@ export type Database = {
         Args: { p_actor: string; p_from: string; p_to: string; p_branch_id: string | null };
         Returns: Json;
       };
+      get_report_invoice_values: {
+        Args: { p_actor: string; p_from: string; p_to: string; p_branch_id: string | null; p_doctor_id: string | null };
+        Returns: Json;
+      };
       create_consultation_invoice: {
         Args: {
           p_lead_id: string;

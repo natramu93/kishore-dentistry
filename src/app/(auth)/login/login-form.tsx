@@ -12,12 +12,10 @@ import Link from "next/link";
 export function LoginForm({
   inactiveError,
   recoveryError,
-  idleError,
   passwordUpdated,
 }: {
   inactiveError?: boolean;
   recoveryError?: boolean;
-  idleError?: boolean;
   passwordUpdated?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(login, null);
@@ -29,10 +27,8 @@ export function LoginForm({
       ? "Your account has been deactivated. Contact your administrator."
       : recoveryError
         ? "That invitation or recovery link is invalid or expired. Request a new one."
-        : idleError
-          ? "You were signed out after 10 minutes without activity. Please sign in again."
         : null);
-  const formHasError = state?.field === "form" || inactiveError || recoveryError || idleError;
+  const formHasError = state?.field === "form" || inactiveError || recoveryError;
   const emailHasError = state?.field === "email" || formHasError;
   const passwordHasError = state?.field === "password" || formHasError;
 

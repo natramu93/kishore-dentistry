@@ -15,11 +15,11 @@ import { clinicDayRange, clinicToday, formatINR } from "@/lib/tz";
 import { formatInTimeZone } from "date-fns-tz";
 import { CLINIC_TZ } from "@/lib/tz";
 import { PAYMENT_METHODS, PAYMENT_LABELS, type CollectionRow } from "@/lib/reports/collections";
+import type { InvoiceValues } from "@/lib/reports/invoice-values";
 import {
   Stethoscope,
   Building2,
   CalendarRange,
-  ClipboardList,
   Download,
 } from "lucide-react";
 
@@ -94,7 +94,7 @@ export default async function ReportsPage({
         <h1 className="text-2xl font-bold tracking-tight">Reports</h1>
         <p className="text-sm text-muted-foreground">
           {ctx.role === "admin" ? "All branches" : "Your branches"} · Revenue received is actual invoice payments.
-          Treatment value is recorded separately at the time of care, not cash received.
+          Treatment value is invoice line value before discounts and tax, including direct invoices.
         </p>
       </div>
 
@@ -194,10 +194,27 @@ export default async function ReportsPage({
         <TotalCard label="Follow-ups" value={data.totals.followUps} accent="border-l-amber-400" />
         <TotalCard label="Revenue received" value={formatINR(data.collections.total.amount)} accent="border-l-emerald-400" />
         <TotalCard label="Treatment value" value={formatINR(data.totals.revenue)} accent="border-l-blue-400" />
+        <TotalCard label="Invoice discounts" value={formatINR(data.invoiceValues.discounts)} accent="border-l-amber-400" />
+        <TotalCard label="Invoice tax" value={formatINR(data.invoiceValues.tax)} accent="border-l-amber-400" />
+        <TotalCard label="Net billed" value={formatINR(data.invoiceValues.net)} accent="border-l-blue-400" />
       </div>
+
+      <Card className="border-l-4 border-l-blue-400">
+        <CardContent className="pt-5">
+          <h2 className="mb-1 text-base font-semibold">Invoice-based treatment value</h2>
+          <p className="mb-4 text-sm text-muted-foreground">Includes direct and case-sheet invoices, including drafts; excludes cancelled and archived invoices. Grouped by the invoice’s consulting doctor and line-item treatment/category. Uses invoice date, or issue/creation date for older invoices. Doctor and center filters apply. Missing details remain visible in unspecified groups.</p>
+          <Tabs defaultValue="invoice-doctor">
+            <TabsList className="mb-4 h-auto flex-wrap">
+              {(["doctor", "category", "treatment", "center", "day", "month"] as const).map((dimension) => <TabsTrigger key={dimension} value={`invoice-${dimension}`}>By {dimension === "day" ? "date" : dimension}</TabsTrigger>)}
+            </TabsList>
+            {(["doctor", "category", "treatment", "center", "day", "month"] as const).map((dimension) => <TabsContent key={dimension} value={`invoice-${dimension}`}><InvoiceValueTable rows={data.invoiceValues.rows.filter((row) => row.dimension === dimension)} dimension={dimension} /></TabsContent>)}
+          </Tabs>
+        </CardContent>
+      </Card>
 
       <Card className="border-l-4 border-l-gold">
         <CardContent className="pt-5">
+          <h2 className="mb-4 text-base font-semibold">Clinical and lead activity</h2>
           <Tabs defaultValue="doctor">
             <TabsList className="mb-4 flex-wrap h-auto">
               <TabsTrigger value="doctor">
@@ -216,10 +233,6 @@ export default async function ReportsPage({
                 <CalendarRange className="h-4 w-4 mr-1.5" />
                 By Month
               </TabsTrigger>
-              <TabsTrigger value="treatment">
-                <ClipboardList className="h-4 w-4 mr-1.5" />
-                By Treatment
-              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="doctor">
@@ -233,9 +246,6 @@ export default async function ReportsPage({
             </TabsContent>
             <TabsContent value="month">
               <ReportTable rows={monthlyRows} firstColumn="Month" emptyText="No activity in this range" />
-            </TabsContent>
-            <TabsContent value="treatment">
-              <ReportTable rows={data.byTreatment} firstColumn="Treatment" emptyText="No treatments recorded in this range" />
             </TabsContent>
           </Tabs>
         </CardContent>
@@ -273,6 +283,17 @@ function CollectionTable({ rows, total, monthly }: { rows: CollectionRow[]; tota
   );
 }
 
+function InvoiceValueTable({ rows, dimension }: { rows: InvoiceValues["rows"]; dimension: string }) {
+  return <Table aria-label={`Invoice treatment value by ${dimension}`}>
+    <TableHeader><TableRow><TableHead className="capitalize">{dimension === "day" ? "Date" : dimension}</TableHead><TableHead className="text-right">Invoices</TableHead><TableHead className="text-right">Treatment value</TableHead></TableRow></TableHeader>
+    <TableBody>
+      {rows.length === 0 && <TableRow><TableCell colSpan={3} className="py-8 text-center text-muted-foreground">No invoices in this range</TableCell></TableRow>}
+      {rows.map((row) => <TableRow key={row.key}><TableCell>{row.label}</TableCell><TableCell className="text-right">{row.invoices}</TableCell><TableCell className="text-right">{formatINR(row.value)}</TableCell></TableRow>)}
+      <TableRow className="bg-muted/40 font-semibold"><TableCell>Total value</TableCell><TableCell /><TableCell className="text-right">{formatINR(rows.reduce((sum, row) => sum + row.value, 0))}</TableCell></TableRow>
+    </TableBody>
+  </Table>;
+}
+
 function TotalCard({ label, value, accent }: { label: string; value: number | string; accent: string }) {
   return (
     <Card className={`border-l-4 ${accent}`}>
@@ -293,7 +314,6 @@ function ReportTable({
   firstColumn: string;
   emptyText: string;
 }) {
-  const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0);
   return (
     <Table aria-label={`${firstColumn} report`}>
       <TableHeader>
@@ -302,13 +322,12 @@ function ReportTable({
           <TableHead className="text-right">Leads</TableHead>
           <TableHead className="text-right">Appointments</TableHead>
           <TableHead className="text-right">Follow-ups</TableHead>
-          <TableHead className="text-right">Treatment value</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {rows.length === 0 && (
           <TableRow>
-            <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+            <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
               {emptyText}
             </TableCell>
           </TableRow>
@@ -319,9 +338,6 @@ function ReportTable({
             <TableCell className="text-right">{r.leads || "—"}</TableCell>
             <TableCell className="text-right">{r.appointments || "—"}</TableCell>
             <TableCell className="text-right">{r.followUps || "—"}</TableCell>
-            <TableCell className="text-right font-semibold">
-              {r.revenue ? formatINR(r.revenue) : "—"}
-            </TableCell>
           </TableRow>
         ))}
         {rows.length > 0 && (
@@ -336,7 +352,6 @@ function ReportTable({
             <TableCell className="text-right font-semibold">
               {rows.reduce((s, r) => s + r.followUps, 0)}
             </TableCell>
-            <TableCell className="text-right font-semibold">{formatINR(totalRevenue)}</TableCell>
           </TableRow>
         )}
       </TableBody>

@@ -165,7 +165,7 @@ describe("auth session middleware", () => {
     ).toBe(TEST_CSP.policy);
   });
 
-  it("refreshes the idle cookie for an active protected request", async () => {
+  it("does not create an inactivity cookie for an authenticated request", async () => {
     mocks.getClaims.mockResolvedValue({
       data: { claims: { sub: "authenticated-user" } },
       error: null,
@@ -176,15 +176,12 @@ describe("auth session middleware", () => {
       TEST_CSP,
     );
 
-    expect(response.cookies.get("crm-idle-session")?.value).toBeTruthy();
-    expect(response.cookies.get("crm-idle-session")?.httpOnly).toBe(true);
+    expect(response.cookies.get("crm-idle-session")).toBeUndefined();
     expect(mocks.signOut).not.toHaveBeenCalled();
   });
 
-  it("signs out and redirects after ten minutes without activity", async () => {
-    const now = Math.floor(Date.now() / 1000);
-    const { createIdleCookieValue, IDLE_TIMEOUT_SECONDS } = await import("@/lib/auth/idle-timeout");
-    const staleCookie = await createIdleCookieValue(now - IDLE_TIMEOUT_SECONDS);
+  it("keeps valid sessions signed in despite an obsolete inactivity cookie", async () => {
+    const staleCookie = "1.obsolete-idle-cookie";
     mocks.getClaims.mockResolvedValue({
       data: { claims: { sub: "authenticated-user" } },
       error: null,
@@ -197,11 +194,9 @@ describe("auth session middleware", () => {
       TEST_CSP,
     );
 
-    expect(mocks.signOut).toHaveBeenCalledWith({ scope: "local" });
-    expect(response.headers.get("location")).toBe(
-      "https://crm.example.test/login?error=idle",
-    );
-    expect(response.cookies.get("crm-idle-session")?.maxAge).toBe(0);
+    expect(mocks.signOut).not.toHaveBeenCalled();
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.cookies.get("crm-idle-session")).toBeUndefined();
   });
 
   it("applies CSP to the public health response without calling auth", async () => {

@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-/** Refreshes the signed idle-session cookie after recent browser activity. */
+/** Compatibility endpoint for older tabs; checks auth without an idle policy. */
 export async function POST() {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();

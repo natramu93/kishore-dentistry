@@ -14,6 +14,7 @@ import {
 import { clinicDayRange, clinicToday } from "@/lib/tz";
 import { z } from "zod";
 import { summarizeCollections } from "@/lib/reports/collections";
+import { validateInvoiceValues, type InvoiceValues } from "@/lib/reports/invoice-values";
 
 export const DEFAULT_REPORT_DAYS = 30;
 
@@ -40,6 +41,7 @@ export type ReportsData = {
   byTreatment: ReportRow[];
   collectedByDay: { day: string; amount: number }[];
   collections: ReturnType<typeof summarizeCollections>;
+  invoiceValues: InvoiceValues;
   totals: {
     leads: number;
     appointments: number;
@@ -93,11 +95,11 @@ export function defaultReportRange(
 }
 
 /**
- * Legacy aggregate `revenue` fields represent treatment value, not receipts. The
+ * Invoice values, clinical activity and receipts are independent sources. The
  * database RPC performs all aggregation and independently derives the actor's
  * branch scope, so the application receives only grouped, patient-safe DTOs.
  *
- * Treatment breakdowns use branch/doctor filters; receipts use branch filters
+ * Invoice and clinical breakdowns use branch/doctor filters; receipts use branch filters
  * and payment timestamps, independently of the doctor filter. Both use the
  * same half-open UTC interval and Asia/Kolkata calendar days.
  */
@@ -137,7 +139,7 @@ export async function getReportsData(
     }
   }
 
-  const [result, collectionsResult] = await Promise.all([db.rpc("get_report_aggregates", {
+  const [result, collectionsResult, invoiceResult] = await Promise.all([db.rpc("get_report_aggregates", {
     p_actor: ctx.userId,
     p_from: from,
     p_to: to,
@@ -148,9 +150,13 @@ export async function getReportsData(
     p_from: from,
     p_to: to,
     p_branch_id: branchId ?? null,
+  }), db.rpc("get_report_invoice_values", {
+    p_actor: ctx.userId, p_from: from, p_to: to,
+    p_branch_id: branchId ?? null, p_doctor_id: doctorId ?? null,
   })]);
   if (result.error) throw result.error;
   if (collectionsResult.error) throw collectionsResult.error;
+  if (invoiceResult.error) throw invoiceResult.error;
 
   const parsed = reportPayloadSchema.safeParse(result.data?.[0]);
   if (!parsed.success) {
@@ -158,6 +164,7 @@ export async function getReportsData(
   }
   const payload = parsed.data;
   const collections = summarizeCollections(collectionsResult.data);
+  const invoiceValues = validateInvoiceValues(invoiceResult.data);
 
   return {
     byDoctor: payload.by_doctor,
@@ -166,7 +173,8 @@ export async function getReportsData(
     byTreatment: payload.by_treatment,
     collectedByDay: collections.byDay.map((row) => ({ day: row.key, amount: row.amount })),
     collections,
-    totals: payload.totals,
+    invoiceValues,
+    totals: { ...payload.totals, revenue: invoiceValues.subtotal },
     range: { from, to },
   };
 }

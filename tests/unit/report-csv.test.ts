@@ -36,6 +36,7 @@ describe("report CSV export", () => {
       byTreatment: [],
       collectedByDay: [{ day: "2026-07-02", amount: 250 }],
       collections: summarizeCollections([{ day: "2026-07-02", method: "upi", amount: 250 }]),
+      invoiceValues: { rows: [{ dimension: "doctor", key: "doctor-id", label: "Doctor A", invoices: 1, value: 500 }], subtotal: 500, discounts: 50, tax: 0, net: 450, invoices: 1 },
       totals: {
         leads: 2,
         appointments: 3,
@@ -52,11 +53,13 @@ describe("report CSV export", () => {
 
     expect(csv.startsWith("\uFEFF")).toBe(true);
     expect(csv).toContain(
-      "\"By doctor\",\"'=HYPERLINK(\"\"https://example.test\"\")\",\"2\",\"3\",\"1\",\"500\""
+      "\"By doctor\",\"'=HYPERLINK(\"\"https://example.test\"\")\",\"2\",\"3\",\"1\",\"\""
     );
     expect(csv).toContain("\"Overall\",\"Total\",\"2\",\"3\",\"1\",\"500\"");
     expect(csv).toContain('"Receipts by date","2026-07-02","","","","","250","0","0","0","250"');
     expect(csv).toContain('"Receipts by month","2026-07","","","","","250","0","0","0","250"');
+    expect(csv).toContain('"Invoice value by doctor","Doctor A","","","","500"');
+    expect(csv).toContain('"Overall","Total","2","3","1","500","250","0","0","0","250","50","0","450"');
     expect(csv).not.toContain("doctor-id");
     expect(csv.endsWith("\r\n")).toBe(true);
     expect(csv.replaceAll("\r\n", "")).not.toContain("\n");
