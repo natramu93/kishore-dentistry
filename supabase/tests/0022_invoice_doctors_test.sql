@@ -26,6 +26,11 @@ begin
     perform crm.create_consultation_invoice(v_lead,200,null,v_admin,null,'Dr. Referring');
   exception when invalid_parameter_value then v_rejected := true; end;
   if not v_rejected then raise exception 'missing consulting doctor accepted'; end if;
+  v_rejected := false;
+  begin
+    perform crm.create_invoice(v_lead,null,0,null,v_items,v_admin,'Dr. Consulting',null);
+  exception when invalid_parameter_value then v_rejected := true; end;
+  if not v_rejected then raise exception 'case-sheet invoice accepted missing referring doctor'; end if;
   select * into v_invoice from crm.create_patient_invoice(
     v_lead,0,0,null,null,null,v_items,v_admin,current_date,' Dr. Consulting ',' Dr. Referring ');
   if v_invoice.consulting_doctor_name <> 'Dr. Consulting' or v_invoice.referring_doctor_name <> 'Dr. Referring' then
@@ -41,8 +46,15 @@ begin
        and new_data->>'referring_doctor_name'='No referring doctor') then
     raise exception 'consultation doctor details missing from invoice or audit'; end if;
   if has_function_privilege('authenticated','crm.create_consultation_invoice(uuid,numeric,text,uuid,text,text)','execute')
+     or has_function_privilege('authenticated','crm.create_invoice(uuid,uuid,numeric,text,jsonb,uuid,text,text)','execute')
      or has_function_privilege('anon','crm.create_patient_invoice(uuid,numeric,numeric,text,text,text,jsonb,uuid,date,text,text)','execute') then
     raise exception 'invoice creation exposed to public roles'; end if;
+  execute 'reset role';
+  perform set_config('crm.allow_legacy_test_records','on',true);
+  select * into v_invoice from crm.create_invoice(v_lead,null,0,null,
+    '[{"description":"Legacy path regression","quantity":1,"unit_price":200}]',v_admin,'Dr. Consulting','Dr. Referring');
+  if v_invoice.consulting_doctor_name <> 'Dr. Consulting' or v_invoice.referring_doctor_name <> 'Dr. Referring' then
+    raise exception 'case-sheet creation path omitted doctor snapshots'; end if;
 end
 $test$;
 select 'ok 1 - invoices require and retain both doctor details across consultation, payment and audit';

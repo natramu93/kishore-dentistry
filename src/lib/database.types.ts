@@ -1062,6 +1062,8 @@ export type Database = {
       };
       create_invoice: {
         Args: {
+          p_consulting_doctor_name: string;
+          p_referring_doctor_name: string;
           p_lead_id: string;
           p_treatment_id: string | null;
           p_tax_rate: number;

@@ -2,9 +2,6 @@
 -- Run after all migrations with ON_ERROR_STOP enabled.
 
 begin;
--- These legacy-RPC fixtures model invoices issued before doctor snapshots were required.
--- The current creation requirement is exercised separately in 0022_invoice_doctors_test.sql.
-alter table crm.invoices disable trigger invoice_doctors_guard;
 
 select '1..1';
 
@@ -411,7 +408,7 @@ begin
       {"description":"Consultation","quantity":1,"unit_price":500}
     ]'::jsonb,
     v_admin
-  );
+  ,'Dr. Test Consulting','No referring doctor');
 
   if v_invoice_one.subtotal <> 2500
      or v_invoice_one.tax_amount <> 125
@@ -429,7 +426,7 @@ begin
       null,
       '[{"description":"Invalid relation","quantity":1,"unit_price":100}]'::jsonb,
       v_admin
-    );
+    ,'Dr. Test Consulting','No referring doctor');
     raise exception 'cross-lead treatment invoice unexpectedly succeeded';
   exception
     when check_violation then null;
@@ -443,7 +440,7 @@ begin
     null,
     '[{"description":"Second invoice","quantity":1,"unit_price":100}]'::jsonb,
     v_admin
-  );
+  ,'Dr. Test Consulting','No referring doctor');
 
   if right(v_invoice_two.invoice_number, 4)::int
      <> right(v_invoice_one.invoice_number, 4)::int + 1 then

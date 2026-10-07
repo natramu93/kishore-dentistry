@@ -1,8 +1,5 @@
 -- Dependency-free TAP-compatible regression test for coded case sheets.
 begin;
--- These legacy-RPC fixtures model invoices issued before doctor snapshots were required.
--- The current creation requirement is exercised separately in 0022_invoice_doctors_test.sql.
-alter table crm.invoices disable trigger invoice_doctors_guard;
 
 select '1..1';
 
@@ -64,7 +61,7 @@ begin
     jsonb_build_array(jsonb_build_object(
       'description','Pre-release application line','quantity',1,'unit_price',100
     )),v_admin
-  );
+  ,'Dr. Test Consulting','No referring doctor');
   execute 'reset role';
   if v_compat_invoice.code_enforced then
     raise exception 'compatibility window did not preserve the deployed invoice contract';
@@ -94,7 +91,7 @@ begin
       jsonb_build_array(jsonb_build_object(
         'description','Uncoded line','quantity',1,'unit_price',100
       )),v_admin
-    );
+    ,'Dr. Test Consulting','No referring doctor');
   exception when others then
     v_uncoded_rejected := true;
   end;
@@ -217,13 +214,13 @@ begin
 
   begin
     perform crm.create_invoice(v_lead,v_planned,0,null,
-      jsonb_build_array(jsonb_build_object('treatment_id',v_planned,'quantity',1,'unit_price',2000)),v_admin);
+      jsonb_build_array(jsonb_build_object('treatment_id',v_planned,'quantity',1,'unit_price',2000)),v_admin,'Dr. Test Consulting','No referring doctor');
     raise exception 'planned treatment unexpectedly became invoiceable';
   exception when check_violation then null;
   end;
 
   select * into v_invoice from crm.create_invoice(v_lead,v_completed,18,'Coded invoice',
-    jsonb_build_array(jsonb_build_object('treatment_id',v_completed,'quantity',2,'unit_price',1000)),v_admin);
+    jsonb_build_array(jsonb_build_object('treatment_id',v_completed,'quantity',2,'unit_price',1000)),v_admin,'Dr. Test Consulting','No referring doctor');
 
   if not v_invoice.code_enforced or v_invoice.treatment_id is distinct from v_completed
      or not exists (
@@ -239,7 +236,7 @@ begin
 
   begin
     perform crm.create_invoice(v_lead,v_completed,0,null,
-      jsonb_build_array(jsonb_build_object('treatment_id',v_completed,'quantity',2,'unit_price',1000)),v_admin);
+      jsonb_build_array(jsonb_build_object('treatment_id',v_completed,'quantity',2,'unit_price',1000)),v_admin,'Dr. Test Consulting','No referring doctor');
     raise exception 'treatment was billed twice';
   exception when unique_violation then null;
   end;
@@ -267,7 +264,7 @@ begin
     jsonb_build_array(jsonb_build_object(
       'treatment_id',v_completed,'quantity',2,'unit_price',1000
     )),v_admin
-  );
+  ,'Dr. Test Consulting','No referring doctor');
   if not exists (
     select 1 from crm.invoice_items
     where invoice_id=v_reissued_invoice.id and treatment_id=v_completed and active_billing

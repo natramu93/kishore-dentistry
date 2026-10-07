@@ -259,7 +259,7 @@ begin
       jsonb_build_array(jsonb_build_object(
         'description','Assessment is not billable','quantity',1,'unit_price',100
       )),v_admin
-    );
+    ,'Dr. Test Consulting','No referring doctor');
   exception when check_violation or invalid_parameter_value then
     v_rejected := true;
   end;
