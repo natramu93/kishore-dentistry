@@ -16,7 +16,7 @@ import { z } from "zod";
 import { summarizeCollections } from "@/lib/reports/collections";
 import { validateInvoiceValues, type InvoiceValues } from "@/lib/reports/invoice-values";
 
-export const DEFAULT_REPORT_DAYS = 30;
+export const DEFAULT_REPORT_DAYS = 1;
 
 export type ReportRow = {
   key: string;

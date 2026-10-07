@@ -4,6 +4,7 @@ import { db } from "./db";
 import { throwMappedDatabaseError } from "./helpers";
 import { invoiceLineDetailsSchema } from "@/lib/invoice-lines";
 import { paymentReceiptSchema } from "@/lib/invoice-receipts";
+import { invoiceEditWindowOpen } from "@/lib/invoice-policy";
 import { clinicToday } from "@/lib/tz";
 import type { AuthContext } from "@/lib/auth/context";
 import {
@@ -294,6 +295,8 @@ export async function listInvoices(
     status?: InvoiceStatus;
     dueOnly?: boolean;
     paymentMethod?: InvoicePaymentMethod;
+    fromDate?: string;
+    toDate?: string;
     page?: number;
     pageSize?: number;
   } = {}
@@ -324,6 +327,11 @@ export async function listInvoices(
     assertBranchAccess(ctx, branchId);
     query = query.eq("branch_id", branchId);
   }
+  const fromDate = opts.fromDate ? assertDateOnly(opts.fromDate, "From date") : undefined;
+  const toDate = opts.toDate ? assertDateOnly(opts.toDate, "To date") : undefined;
+  if (fromDate && toDate && fromDate > toDate) throw new ValidationError("From date must be on or before To date");
+  if (fromDate) query = query.gte("billing_date", fromDate);
+  if (toDate) query = query.lte("billing_date", toDate);
   if (opts.status) query = query.eq("status", assertInvoiceStatus(opts.status));
   if (opts.leadId) query = query.eq("lead_id", assertUuid(opts.leadId, "Patient"));
   if (opts.dueOnly) query = query.not("status", "in", "(paid,cancelled)");
@@ -551,11 +559,11 @@ export async function createInvoice(
   return invoiceResult.data;
 }
 
-export async function cancelInvoice(ctx: AuthContext, id: string, reason: string) {
+export async function cancelInvoice(ctx: AuthContext, id: string, reason: string, expectedVersion: number) {
   if (ctx.role !== "admin") throw new AuthorizationError("Only an admin can cancel invoices");
   const invoiceId = assertUuid(id, "Invoice");
   if (!reason.trim() || reason.length > 1000) throw new ValidationError("A cancellation reason is required");
-  const result = await db.rpc("cancel_invoice", { p_invoice_id: invoiceId, p_actor: ctx.userId, p_reason: reason.trim() });
+  const result = await db.rpc("cancel_invoice", { p_invoice_id: invoiceId, p_actor: ctx.userId, p_reason: reason.trim(), p_expected_version: validateExpectedVersion(expectedVersion) });
   if (result.error) throwMappedDatabaseError(result.error, "Invoice");
 }
 
@@ -662,8 +670,9 @@ export async function updateInvoice(
     branch_id: invoice.branch_id,
     assignee_id: invoice.lead?.assignee_id ?? null,
   });
+  if (!invoiceEditWindowOpen(invoice.created_at)) throw new ConflictError("Invoices can only be edited within 24 hours of creation");
   if (invoice.status === "paid" || invoice.status === "cancelled") {
-    throw new ConflictError("A paid or cancelled invoice cannot be edited");
+    throw new ConflictError("A paid or voided invoice cannot be edited");
   }
   const receipts = await db.from("invoice_payments").select("id").eq("invoice_id", invoice.id).limit(1);
   if (receipts.error) throw receipts.error;
@@ -707,6 +716,20 @@ export async function updateInvoice(
     p_expected_version: expectedVersion,
   });
   if (updateResult.error) throwMappedDatabaseError(updateResult.error, "Invoice");
+}
+
+export async function updateConsultationInvoice(ctx: AuthContext, id: string, input: { amount: number; notes?: string; expected_version: number }) {
+  const invoice = await loadInvoiceScope(id);
+  if (!invoice) throw new NotFoundError("Invoice");
+  assertInvoiceWriteAccess(ctx, { branch_id: invoice.branch_id, assignee_id: invoice.lead?.assignee_id ?? null });
+  if (invoice.invoice_kind !== "consultation" || invoice.status === "paid" || invoice.status === "cancelled") throw new ConflictError("This invoice cannot be edited");
+  if (!invoiceEditWindowOpen(invoice.created_at)) throw new ConflictError("Invoices can only be edited within 24 hours of creation");
+  if (!Number.isFinite(input.amount) || input.amount <= invoice.discount_amount || input.amount > MAX_UNIT_PRICE || !hasAtMostTwoDecimals(input.amount)) throw new ValidationError("Enter a valid amount greater than the discount");
+  if (input.notes && input.notes.length > 4000) throw new ValidationError("Invoice notes are too long");
+  const result = await db.rpc("update_invoice", { p_invoice_id: invoice.id, p_tax_rate: invoice.tax_rate,
+    p_notes: input.notes?.trim() || null, p_actor: ctx.userId, p_expected_version: validateExpectedVersion(input.expected_version),
+    p_items: [{ description: "Consultation", quantity: 1, unit_price: input.amount }] });
+  if (result.error) throwMappedDatabaseError(result.error, "Invoice");
 }
 
 export async function deleteInvoice(

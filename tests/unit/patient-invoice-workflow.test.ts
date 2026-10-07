@@ -16,16 +16,26 @@ const context = (role: AuthContext["role"] = "front_office") => ({
 
 function chain(result: { data: unknown; error: unknown; count?: number }) {
   const query = {
-    select: vi.fn(), eq: vi.fn(), is: vi.fn(), in: vi.fn(), or: vi.fn(), order: vi.fn(),
+    select: vi.fn(), eq: vi.fn(), is: vi.fn(), in: vi.fn(), or: vi.fn(), order: vi.fn(), gte: vi.fn(), lte: vi.fn(),
     limit: vi.fn().mockResolvedValue(result), maybeSingle: vi.fn().mockResolvedValue(result),
     range: vi.fn().mockResolvedValue(result),
   };
-  for (const key of ["select", "eq", "is", "in", "or", "order"] as const) query[key].mockReturnValue(query);
+  for (const key of ["select", "eq", "is", "in", "or", "order", "gte", "lte"] as const) query[key].mockReturnValue(query);
   return query;
 }
 beforeEach(() => vi.resetAllMocks());
 
 describe("patient invoice history", () => {
+  it("filters billing dates inclusively without changing patient history defaults", async () => {
+    const query = chain({ data: [], error: null, count: 0 });
+    mocks.from.mockReturnValue(query);
+    await listInvoices(context(), { fromDate: "2026-10-01", toDate: "2026-10-07" });
+    expect(query.gte).toHaveBeenCalledWith("billing_date", "2026-10-01");
+    expect(query.lte).toHaveBeenCalledWith("billing_date", "2026-10-07");
+    query.gte.mockClear(); query.lte.mockClear();
+    await listInvoices(context(), { leadId });
+    expect(query.gte).not.toHaveBeenCalled(); expect(query.lte).not.toHaveBeenCalled();
+  });
   it("uses exact totals rather than summing a capped preview, with no debt for cancelled rows", async () => {
     const lead = chain({ data: { id: leadId, branch_id: branchId, assignee_id: userId }, error: null });
     const empty = () => chain({ data: [], error: null });

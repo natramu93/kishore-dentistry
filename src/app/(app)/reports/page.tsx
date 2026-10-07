@@ -63,8 +63,8 @@ export default async function ReportsPage({
   };
   const exportParams = new URLSearchParams();
   for (const [key, value] of Object.entries({
-    from: params.from,
-    to: params.to,
+    from: fromValue,
+    to: toValue,
     branch: params.branch,
     doctor: params.doctor,
   })) {
@@ -173,6 +173,7 @@ export default async function ReportsPage({
 
           <div className="flex flex-wrap gap-2 mt-3">
             {[
+              { label: "Today", days: 1 },
               { label: "Last 7 days", days: 7 },
               { label: "Last 30 days", days: 30 },
               { label: "Last 90 days", days: 90 },

@@ -380,6 +380,10 @@ export type Invoice = Timestamps & {
   invoice_date: string | null;
   consulting_doctor_name: string | null;
   referring_doctor_name: string | null;
+  billing_date: string;
+  void_reason: string | null;
+  voided_at: string | null;
+  voided_by: string | null;
   lead_id: string;
   branch_id: string;
   treatment_id: string | null;
@@ -1089,7 +1093,7 @@ export type Database = {
         };
         Returns: Invoice;
       };
-      cancel_invoice: { Args: { p_invoice_id: string; p_actor: string; p_reason: string }; Returns: Invoice };
+      cancel_invoice: { Args: { p_invoice_id: string; p_actor: string; p_reason: string; p_expected_version?: number }; Returns: Invoice };
       get_patient_invoice_summary: {
         Args: { p_lead_id: string; p_actor: string };
         Returns: { invoice_count: number; total_invoiced: number; amount_paid: number; balance_due: number }[];

@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -18,6 +18,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import type { InvoiceStatus, UserRole } from "@/lib/database.types";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Pencil, Trash2 } from "lucide-react";
 
 export function InvoiceActions({
@@ -28,6 +30,7 @@ export function InvoiceActions({
   codeEnforced,
   consultation,
   hasPayments = false,
+  editWindowOpen,
 }: {
   invoiceId: string;
   status: InvoiceStatus;
@@ -36,9 +39,12 @@ export function InvoiceActions({
   codeEnforced: boolean;
   consultation: boolean;
   hasPayments?: boolean;
+  editWindowOpen: boolean;
   hasPrimaryTreatment: boolean;
 }) {
   const router = useRouter();
+  const [voidReason, setVoidReason] = useState("");
+  const [voidOpen, setVoidOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   function setStatus(next: "sent") {
     startTransition(async () => {
@@ -65,12 +71,13 @@ export function InvoiceActions({
   }
 
   function cancelInvoice() {
-    const reason = window.prompt("Enter the reason for cancelling this invoice:");
-    if (!reason?.trim()) return;
+    const reason = voidReason.trim();
+    if (!reason) return;
     startTransition(async () => {
-      const result = await cancelInvoiceAction(invoiceId, reason);
+      const result = await cancelInvoiceAction(invoiceId, reason, version);
       if (result.ok) {
-        toast.success("Invoice cancelled");
+        toast.success("Invoice voided");
+        setVoidOpen(false);
         router.refresh();
       } else toast.error(result.error);
     });
@@ -80,7 +87,7 @@ export function InvoiceActions({
 
   return (
     <div className="flex flex-wrap gap-2">
-      {codeEnforced && !hasPayments && status !== "paid" && status !== "cancelled" && (
+      {(codeEnforced || consultation) && editWindowOpen && !hasPayments && status !== "paid" && status !== "cancelled" && (
         <Button asChild size="sm" variant="outline">
           <Link href={`/invoices/${invoiceId}/edit`}>
             <Pencil className="h-3.5 w-3.5 mr-1" />
@@ -94,7 +101,17 @@ export function InvoiceActions({
         </Button>
       )}
       {role === "admin" && !hasPayments && status !== "cancelled" && status !== "paid" && (
-        <Button size="sm" variant="destructive" disabled={pending} onClick={cancelInvoice}>Cancel invoice</Button>
+        <AlertDialog open={voidOpen} onOpenChange={setVoidOpen}>
+          <AlertDialogTrigger render={<Button size="sm" variant="destructive" disabled={pending}>Void invoice</Button>} />
+          <AlertDialogContent>
+            <AlertDialogHeader><AlertDialogTitle>Void this invoice?</AlertDialogTitle>
+              <AlertDialogDescription>The invoice and its history will be retained, but the balance will be removed. This cannot be undone. Create a replacement invoice if needed.</AlertDialogDescription></AlertDialogHeader>
+            <div className="space-y-2"><Label htmlFor="invoice-void-reason">Reason for voiding</Label>
+              <Textarea id="invoice-void-reason" value={voidReason} onChange={(event) => setVoidReason(event.target.value)} required maxLength={1000} placeholder="e.g. Wrong treatment or duplicate bill" /></div>
+            <AlertDialogFooter><AlertDialogCancel disabled={pending}>Keep invoice</AlertDialogCancel>
+              <Button variant="destructive" disabled={pending || !voidReason.trim()} onClick={cancelInvoice}>{pending ? "Voiding…" : "Confirm void"}</Button></AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
       {canDelete && status !== "paid" && !hasPayments && (
         <AlertDialog>

@@ -157,15 +157,18 @@ export async function createInvoiceAction(
   });
 }
 
-export async function cancelInvoiceAction(id: string, reason: unknown): Promise<ActionResult> {
+export async function cancelInvoiceAction(id: string, reason: unknown, expectedVersion: unknown): Promise<ActionResult> {
   const ctx = await getAuthContext();
-  const parsed = z.object({ id: uuidSchema, reason: z.string().trim().min(1).max(1000) }).safeParse({ id, reason });
+  const parsed = z.object({ id: uuidSchema, reason: z.string().trim().min(1).max(1000), expected_version: z.number().int().positive() }).safeParse({ id, reason, expected_version: expectedVersion });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Cancellation reason is required" };
   return runAction(async () => {
     await invoiceMutationLimit(ctx.userId);
-    await invoices.cancelInvoice(ctx, parsed.data.id, parsed.data.reason);
+    await invoices.cancelInvoice(ctx, parsed.data.id, parsed.data.reason, parsed.data.expected_version);
     revalidatePath(`/invoices/${parsed.data.id}`);
     revalidatePath("/invoices");
+    revalidatePath("/leads", "layout");
+    revalidatePath("/dashboard");
+    revalidatePath("/reports");
   });
 }
 
@@ -265,6 +268,20 @@ export async function updateInvoicePaymentAction(id: string, paymentId: string, 
     revalidatePath("/invoices");
     revalidatePath("/leads", "layout");
     revalidatePath("/dashboard");
+    revalidatePath("/reports");
+  });
+}
+
+export async function updateConsultationInvoiceAction(id: string, input: unknown): Promise<ActionResult> {
+  const ctx = await getAuthContext();
+  const parsed = z.object({ amount: money.refine((amount) => amount > 0, "Enter an amount greater than zero"), notes: z.string().trim().max(4000).optional(), expected_version: z.number().int().positive() }).safeParse(input);
+  if (!uuidSchema.safeParse(id).success || !parsed.success) return { ok: false, error: "Enter valid consultation invoice details" };
+  return runAction(async () => {
+    await invoiceMutationLimit(ctx.userId);
+    await invoices.updateConsultationInvoice(ctx, id, parsed.data);
+    revalidatePath(`/invoices/${id}`);
+    revalidatePath("/invoices");
+    revalidatePath("/leads", "layout");
     revalidatePath("/reports");
   });
 }

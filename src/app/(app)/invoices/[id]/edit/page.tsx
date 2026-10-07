@@ -1,6 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/auth/context";
 import { getInvoice, listInvoiceEligibleTreatments, listInvoiceTreatmentCatalog } from "@/data/invoices";
+import { invoiceEditWindowOpen } from "@/lib/invoice-policy";
+import { ConsultationInvoiceEditor } from "@/components/invoices/consultation-invoice-editor";
 import { InvoiceEditor } from "@/components/invoices/invoice-editor";
 
 export const metadata = { title: "Edit Invoice — Dr. Kishor's Dentistry CRM" };
@@ -14,7 +16,12 @@ export default async function EditInvoicePage({
   const ctx = await getAuthContext();
   const invoice = await getInvoice(ctx, id);
   if (!invoice) notFound();
-  if (!invoice.code_enforced || invoice.status === "paid" || invoice.status === "cancelled" || invoice.amount_paid > 0) redirect(`/invoices/${invoice.id}`);
+  if ((!invoice.code_enforced && invoice.invoice_kind !== "consultation") || !invoiceEditWindowOpen(invoice.created_at) || invoice.status === "paid" || invoice.status === "cancelled" || invoice.amount_paid > 0) redirect(`/invoices/${invoice.id}`);
+  if (invoice.invoice_kind === "consultation" && !invoice.code_enforced) return <div className="max-w-2xl space-y-4">
+    <h1 className="text-2xl font-bold">Edit consultation invoice</h1>
+    <p className="text-sm text-muted-foreground">{invoice.invoice_number} · Editing is available for 24 hours after creation.</p>
+    <ConsultationInvoiceEditor invoiceId={invoice.id} version={invoice.version} initialAmount={invoice.subtotal} initialNotes={invoice.notes ?? ""} />
+  </div>;
   const [eligible, treatmentOptions] = await Promise.all([
     listInvoiceEligibleTreatments(ctx, invoice.lead_id),
     listInvoiceTreatmentCatalog(ctx, invoice.branch_id),
@@ -48,7 +55,7 @@ export default async function EditInvoicePage({
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Edit invoice</h1>
         <p className="text-sm text-muted-foreground">
-          {invoice.invoice_number} · {invoice.lead?.name}
+          {invoice.invoice_number} · {invoice.lead?.name} · Editing is available for 24 hours after creation.
         </p>
       </div>
       <InvoiceEditor

@@ -111,7 +111,7 @@ export default async function AppointmentsPage({
             );
           })}
           <AppointmentDatePicker
-            selectedDate={view === "date" ? selectedDate : undefined}
+            selectedDate={view === "date" || view === "today" ? selectedDate : undefined}
             filters={{
               branch: params.branch,
               doctor: params.doctor,

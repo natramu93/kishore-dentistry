@@ -9,15 +9,10 @@ import { PaginationNav } from "@/components/pagination-nav";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { clinicDayRange, fmt, formatINR } from "@/lib/tz";
+import { clinicDateFilterDefaults } from "@/lib/date-filter-defaults";
+import { fmt, formatINR } from "@/lib/tz";
 
 export const metadata = { title: "My Patients — Dr. Kishor's Dentistry CRM" };
-
-function isValidDateParam(value: string | undefined): value is string {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const parsed = new Date(`${value}T00:00:00Z`);
-  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
-}
 
 export default async function MyPatientsPage({
   searchParams,
@@ -30,8 +25,10 @@ export default async function MyPatientsPage({
   if (ctx.role !== "doctor") redirect("/dashboard");
 
   // Date inputs are clinic-local calendar days — widen to UTC boundaries.
-  const from = isValidDateParam(params.from) ? clinicDayRange(params.from).start : undefined;
-  const to = isValidDateParam(params.to) ? clinicDayRange(params.to).end : undefined;
+  const { from, to, fromValue, toValue } = clinicDateFilterDefaults(params);
+  const allDateParams = new URLSearchParams({ dates: "all" });
+  if (params.q) allDateParams.set("q", params.q);
+  if (params.treatment_code) allDateParams.set("treatment_code", params.treatment_code);
 
   const [result, patientCount, clinicalFiles] = await Promise.all([
     listMyTreatments(ctx, {
@@ -86,7 +83,7 @@ export default async function MyPatientsPage({
                 id="mp-from"
                 type="date"
                 name="from"
-                defaultValue={isValidDateParam(params.from) ? params.from : ""}
+                defaultValue={fromValue}
                 className="block h-11 rounded-md border border-input bg-transparent px-3 text-sm"
               />
             </div>
@@ -96,7 +93,7 @@ export default async function MyPatientsPage({
                 id="mp-to"
                 type="date"
                 name="to"
-                defaultValue={isValidDateParam(params.to) ? params.to : ""}
+                defaultValue={toValue}
                 className="block h-11 rounded-md border border-input bg-transparent px-3 text-sm"
               />
             </div>
@@ -113,8 +110,9 @@ export default async function MyPatientsPage({
             </div>
             <Button type="submit" variant="secondary" size="sm">Filter</Button>
             <Button asChild variant="ghost" size="sm">
-              <Link href="/my-patients">Reset</Link>
+              <Link href="/my-patients">Reset to today</Link>
             </Button>
+            <Button asChild variant="outline" size="sm"><Link href={`/my-patients?${allDateParams.toString()}`}>All dates</Link></Button>
           </form>
         </CardContent>
       </Card>

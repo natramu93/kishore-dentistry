@@ -7,14 +7,15 @@ import { PaginationNav } from "@/components/pagination-nav";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { clinicDayRange, clinicToday, fmt } from "@/lib/tz";
+import { followUpDayFilters } from "@/lib/date-filter-defaults";
+import { fmt } from "@/lib/tz";
 import { CompleteFollowUpButtons } from "./complete-buttons";
 import { LeadStatusBadge } from "@/components/lead-status-badge";
 import type { LeadStatus } from "@/lib/database.types";
 
 export const metadata = { title: "Follow-ups — Dr. Kishor's Dentistry CRM" };
 
-const WINDOWS = ["overdue", "today", "upcoming"] as const;
+const WINDOWS = ["today", "overdue", "upcoming"] as const;
 type FollowUpWindow = (typeof WINDOWS)[number];
 
 function isFollowUpWindow(value: string | undefined): value is FollowUpWindow {
@@ -28,19 +29,11 @@ export default async function FollowUpsPage({
 }) {
   const params = await searchParams;
   const ctx = await getAuthContext();
-  const { end: todayEnd } = clinicDayRange(clinicToday());
-  const now = new Date().toISOString();
+
   const selectedWindow: FollowUpWindow = isFollowUpWindow(params.window)
     ? params.window
-    : "overdue";
-  const filters = {
-    overdue: { dueBefore: now },
-    today: { dueFrom: now, dueBefore: todayEnd },
-    upcoming: { dueFrom: todayEnd },
-  } satisfies Record<
-    FollowUpWindow,
-    { dueFrom?: string; dueBefore?: string }
-  >;
+    : "today";
+  const filters = followUpDayFilters();
 
   const [selected, overdueResult, todayResult, upcomingResult] =
     await Promise.all([
@@ -108,7 +101,7 @@ export default async function FollowUpsPage({
           >
             <Link
               href={
-                window === "overdue"
+                window === "today"
                   ? "/follow-ups"
                   : `/follow-ups?window=${window}`
               }

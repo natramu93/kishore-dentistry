@@ -16,6 +16,7 @@ import { InvoiceActions } from "./status-buttons";
 import { WhatsAppInvoiceShare } from "@/components/invoices/whatsapp-invoice-share";
 import { Printer } from "lucide-react";
 import { invoiceLineToothLabel } from "@/lib/invoice-lines";
+import { invoiceEditWindowOpen, invoiceStatusLabel } from "@/lib/invoice-policy";
 import { receivedAmountInWords } from "@/lib/invoice-receipts";
 import { EditPaymentReceipt } from "@/components/invoices/edit-payment-receipt";
 
@@ -55,7 +56,7 @@ export default async function InvoiceDetailPage({
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight">{invoice.invoice_number}</h1>
             <Badge variant={invoice.status === "paid" ? "default" : "secondary"} className="capitalize">
-              {invoice.status}
+              {invoiceStatusLabel(invoice.status)}
             </Badge>
             <Badge variant={invoice.code_enforced || invoice.invoice_kind === "consultation" ? "outline" : "destructive"}>
               {invoice.code_enforced
@@ -97,6 +98,7 @@ export default async function InvoiceDetailPage({
             status={invoice.status}
             role={ctx.role}
             version={invoice.version}
+            editWindowOpen={invoiceEditWindowOpen(invoice.created_at)}
             codeEnforced={invoice.code_enforced}
             consultation={invoice.invoice_kind === "consultation"}
             hasPrimaryTreatment={Boolean(invoice.treatment_id)}
@@ -105,6 +107,10 @@ export default async function InvoiceDetailPage({
         </div>
       </div>
 
+      {invoice.status === "cancelled" && <div role="status" className="rounded-md border border-destructive p-3 text-sm">
+        This invoice is voided and has no outstanding balance. {invoice.void_reason && <>Reason: {invoice.void_reason}</>}
+      </div>}
+      {!invoiceEditWindowOpen(invoice.created_at) && invoice.status !== "cancelled" && <p className="text-sm text-muted-foreground">The 24-hour invoice editing window has closed. An admin can void an unpaid invoice if it was generated incorrectly.</p>}
       <Card>
         <CardContent className="pt-6">
           <div className="mb-4 space-y-1 text-sm">

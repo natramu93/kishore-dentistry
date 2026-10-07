@@ -10,7 +10,9 @@ import { PaginationNav } from "@/components/pagination-nav";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { fmtDate, formatINR } from "@/lib/tz";
+import { invoiceDateFilter, invoiceStatusLabel } from "@/lib/invoice-policy";
+import { InvoiceDateFilters } from "@/components/invoices/invoice-date-filters";
+import { clinicToday, fmtDate, formatINR } from "@/lib/tz";
 import type { InvoicePaymentMethod, InvoiceStatus } from "@/lib/database.types";
 
 export const metadata = { title: "Invoices — Dr. Kishor's Dentistry CRM" };
@@ -39,7 +41,10 @@ export default async function InvoicesPage({
     ? (params.status as InvoiceStatus)
     : undefined;
 
-  const invoiceResult = await listInvoices(ctx, {
+  const dateFilter = invoiceDateFilter(params);
+  const invoiceResult = dateFilter.error ? { invoices: [], total: 0, page: 1, pageSize: 25 } : await listInvoices(ctx, {
+    fromDate: dateFilter.from,
+    toDate: dateFilter.to,
     leadId: patient?.id,
     branchId: params.branch || undefined,
     status,
@@ -72,6 +77,7 @@ export default async function InvoicesPage({
       {/* Per-center + payment filters */}
       <form className="flex flex-wrap gap-2 items-end" action="/invoices" method="get">
         {patient && <input type="hidden" name="lead" value={patient.id} />}
+        <InvoiceDateFilters key={`${dateFilter.mode}:${params.from}:${params.to}`} mode={dateFilter.mode} from={params.from ?? clinicToday()} to={params.to ?? clinicToday()} />
         {(ctx.role === "admin" || branches.length > 1) && (
           <div className="space-y-1">
             <label htmlFor="invoice-branch" className="text-xs text-muted-foreground">Center</label>
@@ -98,7 +104,7 @@ export default async function InvoicesPage({
           >
             <option value="">All statuses</option>
             {STATUSES.map((s) => (
-              <option key={s} value={s} className="capitalize">{s}</option>
+              <option key={s} value={s} className="capitalize">{invoiceStatusLabel(s)}</option>
             ))}
           </select>
         </div>
@@ -120,6 +126,8 @@ export default async function InvoicesPage({
         </Button>
       </form>
 
+      {dateFilter.error && <p role="alert" className="text-sm text-destructive">{dateFilter.error}</p>}
+      <p className="text-sm text-muted-foreground">Showing {dateFilter.mode === "all" ? "all invoice dates" : dateFilter.mode === "today" ? `today’s invoices (${fmtDate(clinicToday())})` : "the selected invoice date range"}.</p>
       <Table aria-label="Invoices">
         <TableHeader>
           <TableRow>
@@ -148,7 +156,7 @@ export default async function InvoicesPage({
                 </Link>
                 <div className="mt-1 sm:hidden">
                   <Badge variant={STATUS_VARIANT[inv.status]} className="capitalize">
-                    {inv.status}
+                    {invoiceStatusLabel(inv.status)}
                   </Badge>
                 </div>
               </TableCell>
@@ -160,7 +168,7 @@ export default async function InvoicesPage({
                 ) : "—"}
               </TableCell>
               <TableCell className="hidden md:table-cell">{inv.branch?.name ?? "—"}</TableCell>
-              <TableCell className="hidden whitespace-nowrap text-muted-foreground md:table-cell">{fmtDate(inv.created_at)}</TableCell>
+              <TableCell className="hidden whitespace-nowrap text-muted-foreground md:table-cell">{fmtDate(inv.billing_date)}</TableCell>
               <TableCell className="whitespace-nowrap">
                 <span className="font-semibold">{formatINR(inv.total)}</span>
                 <span className="mt-1 block text-xs text-muted-foreground sm:hidden">Due {formatINR(inv.balance_due)}</span>
@@ -171,7 +179,7 @@ export default async function InvoicesPage({
               </TableCell>
               <TableCell className="hidden sm:table-cell">
                 <Badge variant={STATUS_VARIANT[inv.status]} className="capitalize">
-                  {inv.status}
+                  {invoiceStatusLabel(inv.status)}
                 </Badge>
               </TableCell>
             </TableRow>
