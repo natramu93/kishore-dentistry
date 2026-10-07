@@ -14,7 +14,7 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 const TREATMENT_TYPE_ID = "treatment-type-1";
 
 function renderInvoiceEditor() {
-  return render(
+  const result = render(
     <InvoiceEditor
       mode="create"
       leadId="lead-1"
@@ -31,6 +31,9 @@ function renderInvoiceEditor() {
       initialItems={[]}
     />
   );
+  fireEvent.change(screen.getByLabelText("Consulting doctor"), { target: { value: "Dr. Test Doctor" } });
+  fireEvent.change(screen.getByLabelText("Referring doctor"), { target: { value: "Dr. Referrer" } });
+  return result;
 }
 
 afterEach(() => {
@@ -39,6 +42,18 @@ afterEach(() => {
 });
 
 describe("independent invoice editor", () => {
+  it("requires both doctor details and provides an explicit walk-in choice", async () => {
+    renderInvoiceEditor();
+    fireEvent.change(screen.getByRole("combobox", { name: "Treatment" }), { target: { value: TREATMENT_TYPE_ID } });
+    const referring = screen.getByLabelText("Referring doctor");
+    fireEvent.change(referring, { target: { value: " " } });
+    fireEvent.click(screen.getByRole("button", { name: "Create invoice" }));
+    expect(createInvoiceAction).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("both doctor details"));
+    fireEvent.click(screen.getByRole("button", { name: "No referring doctor" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create invoice" }));
+    await waitFor(() => expect(createInvoiceAction).toHaveBeenCalledWith(expect.objectContaining({ referring_doctor_name: "No referring doctor" })));
+  });
   it("keeps site summaries in their own full-width row, outside treatment controls", () => {
     renderInvoiceEditor();
     fireEvent.click(screen.getByRole("button", { name: "Add treatment line" }));
@@ -84,7 +99,7 @@ describe("independent invoice editor", () => {
   it("creates an invoice from the treatment catalog without a completed case-sheet treatment", async () => {
     renderInvoiceEditor();
     fireEvent.change(screen.getByLabelText("Invoice date"), { target: { value: "2026-09-25" } });
-    fireEvent.change(screen.getByLabelText("Consulting doctor (optional)"), { target: { value: "Dr. Test Doctor" } });
+    fireEvent.change(screen.getByLabelText("Consulting doctor"), { target: { value: "Dr. Test Doctor" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Treatment" }), {
       target: { value: TREATMENT_TYPE_ID },
     });
@@ -95,6 +110,7 @@ describe("independent invoice editor", () => {
         lead_id: "lead-1",
         invoice_date: "2026-09-25",
         consulting_doctor_name: "Dr. Test Doctor",
+        referring_doctor_name: "Dr. Referrer",
         items: [{ treatment_type_id: TREATMENT_TYPE_ID, quantity: 1, unit_price: 200 }],
       }));
     });

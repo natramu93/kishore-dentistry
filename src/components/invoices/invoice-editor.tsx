@@ -93,6 +93,7 @@ export function InvoiceEditor({
   const [mention, setMention] = useState(initialMention);
   const [invoiceDate, setInvoiceDate] = useState(() => initialInvoiceDate ?? clinicToday());
   const [consultingDoctor, setConsultingDoctor] = useState("");
+  const [referringDoctor, setReferringDoctor] = useState("");
   const [dirty, setDirty] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -180,6 +181,10 @@ export function InvoiceEditor({
   }
 
   function submit() {
+    if (mode === "create" && (!consultingDoctor.trim() || !referringDoctor.trim())) {
+      toast.error("Enter both doctor details; choose No referring doctor for a walk-in.");
+      return;
+    }
     if (!items.length) {
       toast.error("Add at least one treatment line");
       return;
@@ -219,6 +224,7 @@ export function InvoiceEditor({
           lead_id: leadId,
           invoice_date: invoiceDate,
           consulting_doctor_name: consultingDoctor,
+          referring_doctor_name: referringDoctor,
           tax_rate: taxRate,
           discount_amount: safeDiscount,
           discount_given_by: discountGivenBy,
@@ -275,11 +281,18 @@ export function InvoiceEditor({
                 onChange={(event) => { setDirty(true); setInvoiceDate(event.target.value); }} />
             </div>
             <div className="min-w-0 space-y-1.5">
-              <Label htmlFor={`${idPrefix}-consulting-doctor`}>Consulting doctor (optional)</Label>
+              <Label htmlFor={`${idPrefix}-consulting-doctor`}>Consulting doctor</Label>
               <Input id={`${idPrefix}-consulting-doctor`} list={`${idPrefix}-doctors`} value={consultingDoctor}
-                maxLength={200} placeholder="Choose or enter doctor name"
+                required maxLength={200} placeholder="Choose or enter doctor name"
                 onChange={(event) => { setDirty(true); setConsultingDoctor(event.target.value); }} />
               <datalist id={`${idPrefix}-doctors`}>{doctorNames.map((name) => <option key={name} value={name} />)}</datalist>
+            </div>
+            <div className="min-w-0 space-y-1.5">
+              <Label htmlFor={`${idPrefix}-referring-doctor`}>Referring doctor</Label>
+              <Input id={`${idPrefix}-referring-doctor`} list={`${idPrefix}-doctors`} value={referringDoctor}
+                required maxLength={200} placeholder="Choose or enter referring doctor"
+                onChange={(event) => { setDirty(true); setReferringDoctor(event.target.value); }} />
+              <Button type="button" variant="outline" size="sm" onClick={() => { setDirty(true); setReferringDoctor("No referring doctor"); }}>No referring doctor</Button>
             </div>
           </div>}
 

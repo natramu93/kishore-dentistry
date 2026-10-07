@@ -25,7 +25,7 @@ begin
     jsonb_build_object('treatment_type_id',v_type,'quantity',1,'unit_price',200,'tooth_numbers',jsonb_build_array('11','12'),'line_note','Discussed restoration'),
     jsonb_build_object('treatment_type_id',v_type,'quantity',2,'unit_price',300,'tooth_numbers',jsonb_build_array('55'),'line_note','Primary tooth'));
   execute 'set local role service_role';
-  select * into v_invoice from crm.create_patient_invoice(v_lead,10,100,'Admin','Review next week','Invoice remark',v_items,v_admin);
+  select * into v_invoice from crm.create_patient_invoice(v_lead,10,100,'Admin','Review next week','Invoice remark',v_items,v_admin,(now() at time zone 'Asia/Kolkata')::date,'Dr. Test Consulting','No referring doctor');
   execute 'reset role';
   if v_invoice.treatment_id is not null or v_invoice.total <> 770 or v_invoice.discount_amount <> 100
      or (select count(*) from crm.treatments where lead_id=v_lead) <> 0
@@ -62,7 +62,7 @@ begin
   if not v_rejected then raise exception 'stale invoice edit accepted'; end if;
   v_rejected := false;
   begin
-    perform crm.create_patient_invoice(v_lead,0,0,null,null,null,v_items,v_other);
+    perform crm.create_patient_invoice(v_lead,0,0,null,null,null,v_items,v_other,(now() at time zone 'Asia/Kolkata')::date,'Dr. Test Consulting','No referring doctor');
   exception when insufficient_privilege then v_rejected := true;
   end;
   if not v_rejected then raise exception 'cross-center actor created invoice'; end if;
@@ -77,13 +77,13 @@ begin
   )) loop
     v_rejected := false;
     begin
-      perform crm.create_patient_invoice(v_lead,0,0,null,null,null,jsonb_build_array((v_items->0)||v_bad),v_admin);
+      perform crm.create_patient_invoice(v_lead,0,0,null,null,null,jsonb_build_array((v_items->0)||v_bad),v_admin,(now() at time zone 'Asia/Kolkata')::date,'Dr. Test Consulting','No referring doctor');
     exception when invalid_parameter_value or check_violation then v_rejected := true;
     end;
     if not v_rejected then raise exception 'invalid tooth/note/center data accepted: %',v_bad; end if;
   end loop;
   if (select count(*) from crm.invoices) <> v_count then raise exception 'failed invoice creation left partial records'; end if;
-  select * into v_cancelled from crm.create_patient_invoice(v_lead,0,0,null,null,null,v_items,v_admin);
+  select * into v_cancelled from crm.create_patient_invoice(v_lead,0,0,null,null,null,v_items,v_admin,(now() at time zone 'Asia/Kolkata')::date,'Dr. Test Consulting','No referring doctor');
   perform crm.cancel_invoice(v_cancelled.id,v_admin,'Regression test');
   v_rejected := false;
   begin

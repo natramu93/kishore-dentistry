@@ -91,7 +91,8 @@ export default async function InvoicePrintPage({
         <p className="font-medium mt-1">{invoice.lead?.name}</p>
         {invoice.lead?.mobile && <p>{invoice.lead.mobile}</p>}
         {invoice.lead?.email && <p>{invoice.lead.email}</p>}
-        {invoice.consulting_doctor_name && <p className="mt-2">Consulting doctor: {invoice.consulting_doctor_name}</p>}
+        <p className="mt-2">Referring doctor: {invoice.referring_doctor_name || "Not recorded"}</p>
+        <p>Consulting doctor: {invoice.consulting_doctor_name || "Not recorded"}</p>
       </section>
 
       <table className="w-full mt-6 border-collapse">

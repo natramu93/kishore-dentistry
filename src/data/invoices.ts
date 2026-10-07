@@ -480,12 +480,19 @@ export async function updateInvoicePayment(ctx: AuthContext, id: string, payment
   return result.data;
 }
 
+function validateInvoiceDoctor(value: string, label: string): string {
+  const name = value?.trim();
+  if (!name || name.length > 200) throw new ValidationError(`${label} doctor is required and must be at most 200 characters`);
+  return name;
+}
+
 export async function createInvoice(
   ctx: AuthContext,
   input: {
     lead_id: string;
     invoice_date?: string;
-    consulting_doctor_name?: string | null;
+    consulting_doctor_name: string;
+    referring_doctor_name: string;
     tax_rate: number;
     notes?: string | null;
     discount_amount?: number;
@@ -497,8 +504,8 @@ export async function createInvoice(
   requireAnyRole(ctx, INVOICE_ROLES, "Invoices access required");
   const leadId = assertUuid(input.lead_id, "Lead");
   const invoiceDate = assertDateOnly(input.invoice_date ?? clinicToday(), "Invoice date");
-  const consultingDoctorName = input.consulting_doctor_name?.trim() || null;
-  if (consultingDoctorName && consultingDoctorName.length > 200) throw new ValidationError("Consulting doctor name is too long");
+  const consultingDoctorName = validateInvoiceDoctor(input.consulting_doctor_name, "Consulting");
+  const referringDoctorName = validateInvoiceDoctor(input.referring_doctor_name, "Referring");
   if (input.items.some((item) => !item.treatment_type_id || item.treatment_id)) {
     throw new ValidationError("New invoices must use treatments from this center’s treatment list");
   }
@@ -524,6 +531,7 @@ export async function createInvoice(
     p_lead_id: leadId,
     p_invoice_date: invoiceDate,
     p_consulting_doctor_name: consultingDoctorName,
+    p_referring_doctor_name: referringDoctorName,
     p_tax_rate: input.tax_rate,
     p_discount_amount: discountAmount,
     p_discount_given_by: input.discount_given_by?.trim() || null,
@@ -553,7 +561,7 @@ export async function cancelInvoice(ctx: AuthContext, id: string, reason: string
 
 export async function createConsultationInvoice(
   ctx: AuthContext,
-  input: { lead_id: string; amount: number; notes?: string | null }
+  input: { lead_id: string; amount: number; notes?: string | null; consulting_doctor_name: string; referring_doctor_name: string }
 ): Promise<Invoice> {
   requireAnyRole(ctx, INVOICE_ROLES, "Invoices access required");
   const leadId = assertUuid(input.lead_id, "Lead");
@@ -575,7 +583,11 @@ export async function createConsultationInvoice(
   if (leadResult.error) throw leadResult.error;
   if (!leadResult.data) throw new NotFoundError("Lead");
   assertInvoiceWriteAccess(ctx, leadResult.data);
+  const consultingDoctorName = validateInvoiceDoctor(input.consulting_doctor_name, "Consulting");
+  const referringDoctorName = validateInvoiceDoctor(input.referring_doctor_name, "Referring");
   const result = await db.rpc("create_consultation_invoice", {
+    p_consulting_doctor_name: consultingDoctorName,
+    p_referring_doctor_name: referringDoctorName,
     p_lead_id: leadId,
     p_amount: roundCurrency(input.amount),
     p_notes: input.notes?.trim() || null,

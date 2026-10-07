@@ -64,7 +64,7 @@ export async function GET(
     let y = page.getHeight() - margin;
 
     const draw = (text: string, x: number, atY: number, size = 10, font = regular, color = ink) => {
-      page.drawText(safeText(text), { x, y: atY, size, font, color, maxWidth: page.getWidth() - x - margin });
+      page.drawText(safeText(text), { x, y: atY, size, font, color });
     };
     const ensureSpace = (needed: number) => {
       if (y - needed < margin) {
@@ -96,8 +96,10 @@ export async function GET(
     const issuerAddress = invoice.issuer_address ?? invoice.branch?.address;
     const issuerPhone = invoice.issuer_phone ?? invoice.branch?.phone;
 
-    draw(issuerName, margin, y, 17, bold, accent);
-    y -= 22;
+    for (const line of wrap(issuerName, 310, 17, bold)) {
+      draw(line, margin, y, 17, bold, accent);
+      y -= 22;
+    }
     for (const paragraph of (issuerAddress ?? "").split(/\r?\n/).filter(Boolean)) {
       for (const line of wrap(paragraph, page.getWidth() - margin * 2, 9)) {
         draw(line, margin, y, 9, regular, muted);
@@ -123,7 +125,7 @@ export async function GET(
       x: 385, y: page.getHeight() - margin - 56, size: 9, font: regular, color: muted,
     });
 
-    y -= 12;
+    y = Math.min(y - 12, page.getHeight() - margin - 72);
     page.drawLine({ start: { x: margin, y }, end: { x: page.getWidth() - margin, y }, thickness: 1.5, color: accent });
     y -= 25;
     draw("BILLED TO", margin, y, 8, bold, muted);
@@ -132,8 +134,11 @@ export async function GET(
     y -= 16;
     if (invoice.lead?.mobile) { draw(invoice.lead.mobile, margin, y, 9, regular, muted); y -= 13; }
     if (invoice.lead?.email) { draw(invoice.lead.email, margin, y, 9, regular, muted); y -= 13; }
-    if (invoice.consulting_doctor_name) {
-      for (const line of wrap(`Consulting doctor: ${invoice.consulting_doctor_name}`, page.getWidth() - margin * 2, 9)) {
+    for (const detail of [
+      `Referring doctor: ${invoice.referring_doctor_name || "Not recorded"}`,
+      `Consulting doctor: ${invoice.consulting_doctor_name || "Not recorded"}`,
+    ]) {
+      for (const line of wrap(detail, page.getWidth() - margin * 2, 9)) {
         ensureSpace(16); draw(line, margin, y, 9); y -= 13;
       }
     }
@@ -188,7 +193,7 @@ export async function GET(
     totalRow("Subtotal", invoice.subtotal);
     totalRow(`Discount${invoice.discount_given_by ? ` (${invoice.discount_given_by})` : ""}`, invoice.discount_amount ?? 0);
     totalRow(`Tax (${invoice.tax_rate}%)`, invoice.tax_amount);
-    page.drawLine({ start: { x: totalsX, y: y + 7 }, end: { x: page.getWidth() - margin, y: y + 7 }, thickness: 1, color: accent });
+    page.drawLine({ start: { x: totalsX, y: y + 11 }, end: { x: page.getWidth() - margin, y: y + 11 }, thickness: 1, color: accent });
     totalRow("Total", invoice.total, true);
     totalRow("Amount received", invoice.amount_paid);
     totalRow("Balance due", invoice.balance_due, true);

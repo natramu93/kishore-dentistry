@@ -22,10 +22,12 @@ begin
   insert into crm.treatment_types(branch_id,name,default_cost) values(v_branch,'Filling',1000) returning id into v_type;
   v_items := jsonb_build_array(jsonb_build_object('treatment_type_id',v_type,'quantity',1,'unit_price',1000,'tooth_numbers',jsonb_build_array('18','17','16')));
   execute 'set local role service_role';
-  select * into v_invoice from crm.create_patient_invoice(v_lead,0,0,null,null,null,v_items,v_admin,'2026-08-01','Dr. Receipt Doctor');
-  select * into v_second from crm.create_patient_invoice(v_lead,0,0,null,null,null,v_items,v_admin);
+  select * into v_invoice from crm.create_patient_invoice(v_lead,0,0,null,null,null,v_items,v_admin,'2026-08-01','Dr. Receipt Doctor','Dr. Referrer');
+  select * into v_second from crm.create_patient_invoice(v_lead,0,0,null,null,null,v_items,v_admin,(now() at time zone 'Asia/Kolkata')::date,'Dr. Receipt Doctor','No referring doctor');
   execute 'reset role';
   if v_invoice.invoice_date <> date '2026-08-01' or v_invoice.consulting_doctor_name <> 'Dr. Receipt Doctor'
+    or v_invoice.referring_doctor_name <> 'Dr. Referrer'
+    or v_second.referring_doctor_name <> 'No referring doctor'
     or v_second.invoice_date <> (now() at time zone 'Asia/Kolkata')::date
     or not exists(select 1 from crm.invoice_items where invoice_id=v_invoice.id and tooth_numbers=array['18','17','16']) then
     raise exception 'invoice business date, doctor or teeth not preserved'; end if;

@@ -1,5 +1,8 @@
 -- Dependency-free TAP-compatible regression test for coded case sheets.
 begin;
+-- These legacy-RPC fixtures model invoices issued before doctor snapshots were required.
+-- The current creation requirement is exercised separately in 0022_invoice_doctors_test.sql.
+alter table crm.invoices disable trigger invoice_doctors_guard;
 
 select '1..1';
 

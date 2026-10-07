@@ -379,6 +379,7 @@ export type Invoice = Timestamps & {
   invoice_number: string;
   invoice_date: string | null;
   consulting_doctor_name: string | null;
+  referring_doctor_name: string | null;
   lead_id: string;
   branch_id: string;
   treatment_id: string | null;
@@ -1081,7 +1082,8 @@ export type Database = {
           p_items: Json;
           p_actor: string;
           p_invoice_date?: string;
-          p_consulting_doctor_name?: string | null;
+          p_consulting_doctor_name: string;
+          p_referring_doctor_name: string;
         };
         Returns: Invoice;
       };
@@ -1108,6 +1110,8 @@ export type Database = {
       };
       create_consultation_invoice: {
         Args: {
+          p_consulting_doctor_name: string;
+          p_referring_doctor_name: string;
           p_lead_id: string;
           p_amount: number;
           p_notes: string | null;

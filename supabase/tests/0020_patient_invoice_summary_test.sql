@@ -28,17 +28,17 @@ begin
     values(v_branch,'Empty Summary Patient','9000000021','open',v_admin) returning id into v_empty;
   insert into crm.treatment_types(branch_id,name,default_cost) values(v_branch,'Summary consultation',200) returning id into v_type;
   v_items := jsonb_build_array(jsonb_build_object('treatment_type_id',v_type,'quantity',1,'unit_price',200));
-  select * into v_invoice from crm.create_patient_invoice(v_lead,0,0,null,null,null,v_items,v_admin);
+  select * into v_invoice from crm.create_patient_invoice(v_lead,0,0,null,null,null,v_items,v_admin,(now() at time zone 'Asia/Kolkata')::date,'Dr. Test Consulting','No referring doctor');
   perform crm.record_invoice_payment(v_invoice.id,40,'cash',null,null,v_admin);
   perform crm.record_invoice_payment(v_invoice.id,60,'upi',null,null,v_admin);
   -- Exceed the patient page's 200-row preview; none of these may be omitted from totals.
   for n in 1..201 loop
     perform crm.create_patient_invoice(v_lead,0,0,null,null,null,
-      jsonb_build_array(jsonb_build_object('treatment_type_id',v_type,'quantity',1,'unit_price',1)),v_admin);
+      jsonb_build_array(jsonb_build_object('treatment_type_id',v_type,'quantity',1,'unit_price',1)),v_admin,(now() at time zone 'Asia/Kolkata')::date,'Dr. Test Consulting','No referring doctor');
   end loop;
-  select * into v_invoice from crm.create_patient_invoice(v_lead,0,0,null,null,null,v_items,v_admin);
+  select * into v_invoice from crm.create_patient_invoice(v_lead,0,0,null,null,null,v_items,v_admin,(now() at time zone 'Asia/Kolkata')::date,'Dr. Test Consulting','No referring doctor');
   perform crm.cancel_invoice(v_invoice.id,v_admin,'Cancelled test invoice');
-  select * into v_invoice from crm.create_patient_invoice(v_lead,0,0,null,null,null,v_items,v_admin);
+  select * into v_invoice from crm.create_patient_invoice(v_lead,0,0,null,null,null,v_items,v_admin,(now() at time zone 'Asia/Kolkata')::date,'Dr. Test Consulting','No referring doctor');
   perform crm.delete_invoice(v_invoice.id,v_admin,'Archived test invoice');
   execute 'set local role service_role';
   select * into v_summary from crm.get_patient_invoice_summary(v_lead,v_front);

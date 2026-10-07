@@ -93,7 +93,8 @@ const invoiceSchema = invoiceDetailsSchema
   .extend({
     lead_id: uuidSchema,
     invoice_date: z.iso.date("Enter a valid invoice date").optional(),
-    consulting_doctor_name: z.string().trim().max(200).optional(),
+    consulting_doctor_name: z.string().trim().min(1, "Enter the consulting doctor").max(200),
+    referring_doctor_name: z.string().trim().min(1, "Enter the referring doctor or choose No referring doctor").max(200),
   })
   .superRefine(validateInvoiceTotal);
 const invoiceUpdateSchema = invoiceDetailsSchema
@@ -102,6 +103,8 @@ const invoiceUpdateSchema = invoiceDetailsSchema
   })
   .superRefine(validateInvoiceTotal);
 const consultationInvoiceSchema = z.object({
+  consulting_doctor_name: z.string().trim().min(1, "Enter the consulting doctor").max(200),
+  referring_doctor_name: z.string().trim().min(1, "Enter the referring doctor or choose No referring doctor").max(200),
   lead_id: uuidSchema,
   amount: z.coerce
     .number()
@@ -139,7 +142,8 @@ export async function createInvoiceAction(
     const invoice = await invoices.createInvoice(ctx, {
       lead_id: parsed.data.lead_id,
       invoice_date: parsed.data.invoice_date,
-      consulting_doctor_name: parsed.data.consulting_doctor_name || null,
+      consulting_doctor_name: parsed.data.consulting_doctor_name,
+      referring_doctor_name: parsed.data.referring_doctor_name,
       tax_rate: parsed.data.tax_rate,
       notes: parsed.data.notes || null,
       discount_amount: parsed.data.discount_amount,
@@ -178,6 +182,8 @@ export async function createConsultationInvoiceAction(
     const invoice = await invoices.createConsultationInvoice(ctx, {
       lead_id: parsed.data.lead_id,
       amount: parsed.data.amount,
+      consulting_doctor_name: parsed.data.consulting_doctor_name,
+      referring_doctor_name: parsed.data.referring_doctor_name,
       notes: parsed.data.notes || null,
     });
     revalidatePath(`/leads/${parsed.data.lead_id}`);

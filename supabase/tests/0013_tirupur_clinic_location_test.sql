@@ -43,7 +43,9 @@ begin
     code_enforced,
     issuer_name,
     issuer_address,
-    issuer_phone
+    issuer_phone,
+    consulting_doctor_name,
+    referring_doctor_name
   )
   values (
     v_invoice_id,
@@ -53,7 +55,9 @@ begin
     false,
     'Untrusted caller-supplied name',
     'Untrusted caller-supplied address',
-    '+910000000000'
+    '+910000000000',
+    'Dr. Test Consulting',
+    'No referring doctor'
   )
   returning * into v_invoice;
 

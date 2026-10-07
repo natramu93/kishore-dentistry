@@ -107,7 +107,10 @@ export default async function InvoiceDetailPage({
 
       <Card>
         <CardContent className="pt-6">
-          {invoice.consulting_doctor_name && <p className="mb-4 text-sm">Consulting doctor: {invoice.consulting_doctor_name}</p>}
+          <div className="mb-4 space-y-1 text-sm">
+            <p>Referring doctor: {invoice.referring_doctor_name || "Not recorded"}</p>
+            <p>Consulting doctor: {invoice.consulting_doctor_name || "Not recorded"}</p>
+          </div>
           {!invoice.code_enforced && invoice.invoice_kind !== "consultation" && (
             <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:bg-amber-950/20 dark:text-amber-100">
               This historical invoice predates coded digital case sheets. It remains readable,
