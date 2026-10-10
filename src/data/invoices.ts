@@ -6,6 +6,8 @@ import { invoiceLineDetailsSchema } from "@/lib/invoice-lines";
 import { paymentReceiptSchema } from "@/lib/invoice-receipts";
 import { invoiceEditWindowOpen } from "@/lib/invoice-policy";
 import { clinicToday } from "@/lib/tz";
+import { patientDisplayName, type PatientTitle } from "@/lib/patient-demographics";
+import type { PatientInvoiceBalance } from "@/lib/patient-invoice-balance";
 import type { AuthContext } from "@/lib/auth/context";
 import {
   assertBranchAccess,
@@ -60,6 +62,7 @@ type InvoiceScopeRow = Invoice & {
   lead: {
     id: string;
     name: string;
+    title: PatientTitle | null;
     mobile: string;
     email: string | null;
     assignee_id: string | null;
@@ -279,7 +282,7 @@ function toInvoiceDto(row: InvoiceScopeRow): Omit<InvoiceWithRefs, "amount_paid"
     lead: row.lead
       ? {
           id: row.lead.id,
-          name: row.lead.name,
+          name: patientDisplayName(row.lead),
           mobile: row.lead.mobile,
           email: row.lead.email,
         }
@@ -311,7 +314,7 @@ export async function listInvoices(
   let query = db
     .from("invoices")
     .select(
-      "*, lead:leads!inner(id, name, mobile, email, assignee_id), branch:branches(name, code, address, phone, company_name, invoice_email, gst_number), payments:invoice_payments(amount)",
+      "*, lead:leads!inner(id, name, title, mobile, email, assignee_id), branch:branches(name, code, address, phone, company_name, invoice_email, gst_number), payments:invoice_payments(amount)",
       { count: "exact" }
     )
     .is("deleted_at", null)
@@ -374,7 +377,7 @@ async function loadInvoiceScope(id: string): Promise<InvoiceScopeRow | null> {
   const { data, error } = await db
     .from("invoices")
     .select(
-      "*, lead:leads(id, name, mobile, email, assignee_id), branch:branches(name, code, address, phone, company_name, invoice_email, gst_number)"
+      "*, lead:leads(id, name, title, mobile, email, assignee_id), branch:branches(name, code, address, phone, company_name, invoice_email, gst_number)"
     )
     .eq("id", invoiceId)
     .is("deleted_at", null)
@@ -386,7 +389,7 @@ async function loadInvoiceScope(id: string): Promise<InvoiceScopeRow | null> {
 export async function getInvoice(
   ctx: AuthContext,
   id: string
-): Promise<(InvoiceWithRefs & { items: InvoiceItem[]; payments: InvoicePayment[] }) | null> {
+): Promise<(InvoiceWithRefs & { items: InvoiceItem[]; payments: InvoicePayment[]; patient_balance: PatientInvoiceBalance }) | null> {
   const invoice = await loadInvoiceScope(id);
   if (!invoice) return null;
   if (
@@ -412,7 +415,18 @@ export async function getInvoice(
     .order("received_at", { ascending: false })
     .limit(500);
   if (paymentsResult.error) throw paymentsResult.error;
-  return { ...toInvoiceDto(invoice), ...paymentTotals(invoice, paymentsResult.data ?? []), items: itemsResult.data, payments: paymentsResult.data ?? [] };
+  const balanceResult = await db.rpc("get_invoice_patient_balance", { p_invoice_id: invoice.id, p_actor: ctx.userId }).single();
+  if (balanceResult.error) throwMappedDatabaseError(balanceResult.error, "Patient balance");
+  const patient_balance = Object.fromEntries(Object.entries(balanceResult.data).map(([key, value]) => [key, Number(value)])) as PatientInvoiceBalance;
+  return { ...toInvoiceDto(invoice), amount_paid: patient_balance.amount_paid, balance_due: patient_balance.invoice_due,
+    items: itemsResult.data, payments: paymentsResult.data ?? [], patient_balance };
+}
+
+export async function getPatientInvoiceSummary(ctx: AuthContext, leadId: string) {
+  requireAnyRole(ctx, INVOICE_ROLES, "Invoices access required");
+  const result = await db.rpc("get_patient_invoice_summary", { p_lead_id: assertUuid(leadId, "Patient"), p_actor: ctx.userId }).single();
+  if (result.error) throwMappedDatabaseError(result.error, "Patient balance");
+  return result.data;
 }
 
 export async function recordInvoicePayment(

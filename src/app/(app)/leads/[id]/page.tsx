@@ -23,6 +23,8 @@ import {
   type ToothAssessmentHistoryItem,
 } from "@/components/clinical/tooth-assessment-history";
 import { MedicalHistorySummary } from "@/components/clinical/medical-history-summary";
+import { PatientIdentityFields } from "@/components/leads/patient-identity-fields";
+import { patientDisplayName } from "@/lib/patient-demographics";
 import { PrescriptionHistory } from "@/components/clinical/prescription-history";
 import { ClinicalAttachmentPanel } from "@/components/clinical/clinical-attachment-panel";
 import { LeadDeleteButton } from "@/components/leads/lead-delete-button";
@@ -161,11 +163,12 @@ export default async function LeadDetailPage({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight">{lead.name}</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{patientDisplayName(lead)}</h1>
             <LeadStatusBadge status={lead.status} />
           </div>
           <p className="text-sm text-muted-foreground mt-1">
             {lead.branch?.name} · {lead.source?.name ?? "Unknown source"} · Added {fmtDate(lead.created_at)}
+            {lead.gender && <> · Gender: {lead.gender[0].toUpperCase() + lead.gender.slice(1)}</>}
           </p>
         </div>
         <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
@@ -202,10 +205,7 @@ export default async function LeadDetailPage({
           <div className="flex flex-wrap items-center gap-1">
             <RowEditDialog title="Edit lead details" action={updateLeadAction.bind(null, lead.id)}>
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-name">Name</Label>
-                  <Input id="edit-name" name="name" defaultValue={lead.name} required />
-                </div>
+                <PatientIdentityFields initialName={lead.name} initialTitle={lead.title} initialGender={lead.gender} />
                 <div className="space-y-2">
                   <Label htmlFor="edit-mobile">Mobile</Label>
                   <Input id="edit-mobile" name="mobile" type="tel" inputMode="tel" autoComplete="tel" defaultValue={lead.mobile} required />
@@ -697,7 +697,7 @@ export default async function LeadDetailPage({
               <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-md bg-muted/40 px-3 py-2 text-sm" aria-label="Patient payment summary">
                 <span>Total invoiced: <strong>{formatINR(invoiceSummary.total_invoiced)}</strong></span>
                 <span>Total paid: <strong>{formatINR(invoiceSummary.amount_paid)}</strong></span>
-                <span>Balance due: <strong>{formatINR(invoiceSummary.balance_due)}</strong></span>
+                <span>Overall patient due (all bills): <strong>{formatINR(invoiceSummary.balance_due)}</strong></span>
               </div>
               <p className="text-xs text-muted-foreground">Across all active patient invoices. Cancelled and archived invoices are excluded from these totals.</p>
               {invoiceTotal !== null && invoiceTotal > invoices.length && (

@@ -38,6 +38,7 @@ import {
   normalizeSearch,
 } from "@/lib/validation";
 import type { Json, Lead, LeadStatus } from "@/lib/database.types";
+import { patientNameTitleCase, type PatientTitle, type PatientGender } from "@/lib/patient-demographics";
 
 export type LeadWithRefs = Lead & {
   branch: { name: string; code: string } | null;
@@ -139,6 +140,8 @@ export async function createLead(
   input: {
     branch_id: string;
     name: string;
+    title?: PatientTitle | null;
+    gender?: PatientGender | null;
     mobile: string;
     email?: string | null;
     source_id?: string | null;
@@ -162,7 +165,9 @@ export async function createLead(
 
   const { data, error } = await db.rpc("create_lead", {
     p_branch_id: branchId,
-    p_name: input.name,
+    p_name: patientNameTitleCase(input.name),
+    p_title: input.title ?? null,
+    p_gender: input.gender ?? null,
     p_mobile: input.mobile,
     p_email: input.email ?? null,
     p_source_id: input.source_id ?? null,
@@ -181,6 +186,8 @@ export async function updateLeadDetails(
   id: string,
   input: {
     name?: string;
+    title?: PatientTitle | null;
+    gender?: PatientGender | null;
     mobile?: string;
     email?: string | null;
     source_id?: string | null;
@@ -207,7 +214,10 @@ export async function updateLeadDetails(
       ? requireActiveTreatmentType(input.interest_id, lookup.data.branch_id)
       : Promise.resolve(),
   ]);
-  const { error } = await db.from("leads").update(input).eq("id", leadId);
+  const { error } = await db.from("leads").update({
+    ...input,
+    ...(input.name !== undefined && { name: patientNameTitleCase(input.name) }),
+  }).eq("id", leadId);
   if (error) throw error;
 }
 

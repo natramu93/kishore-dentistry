@@ -12,6 +12,7 @@ import { treatmentProgressLabel } from "@/lib/treatment-progress";
 import { NotFoundError } from "@/lib/errors";
 import { formatClinicalSite } from "@/lib/clinical";
 import { fmt, fmtDate } from "@/lib/tz";
+import { patientDisplayName } from "@/lib/patient-demographics";
 import type {
   PatientMedicalHistoryVersion,
   PrescriptionItem,
@@ -78,9 +79,10 @@ export default async function MyPatientHistoryPage({
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{lead.name}</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{patientDisplayName(lead)}</h1>
           <p className="text-sm text-muted-foreground">
             Digital dental history · {branch?.name ?? "Clinic"}
+            {lead.gender && <> · Gender: {lead.gender[0].toUpperCase() + lead.gender.slice(1)}</>}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             Access is limited to clinicians with a current appointment or treatment relationship to this patient.

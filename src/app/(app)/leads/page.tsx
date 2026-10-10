@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { fmtDate } from "@/lib/tz";
 import { Plus } from "lucide-react";
+import { patientDisplayName } from "@/lib/patient-demographics";
 import { PaginationNav } from "@/components/pagination-nav";
 
 export const metadata = { title: "Leads — Dr. Kishor's Dentistry CRM" };
@@ -147,7 +148,7 @@ export default async function LeadsPage({
             <TableRow key={l.id}>
               <TableCell className="whitespace-normal">
                 <Link href={`/leads/${l.id}`} className="font-medium hover:underline">
-                  {l.name}
+                  {patientDisplayName(l)}
                 </Link>
                 <a
                   href={`tel:${l.mobile}`}

@@ -5,7 +5,7 @@ vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn() }));
 vi.mock("@/data/db", () => ({ db: mocks }));
 import { getLeadRelated } from "@/data/leads";
-import { listInvoices } from "@/data/invoices";
+import { listInvoices, getInvoice } from "@/data/invoices";
 
 const leadId = "20000000-0000-4000-8000-000000000001";
 const branchId = "20000000-0000-4000-8000-000000000002";
@@ -26,6 +26,21 @@ function chain(result: { data: unknown; error: unknown; count?: number }) {
 beforeEach(() => vi.resetAllMocks());
 
 describe("patient invoice history", () => {
+  it("uses the exact ledger balance even when the visible receipt history is capped", async () => {
+    const invoiceId="20000000-0000-4000-8000-000000000004";
+    mocks.from.mockReturnValueOnce(chain({ data: { id:invoiceId, lead_id:leadId,branch_id:branchId,
+      total:1000,status:"sent",lead:{ id:leadId,name:"TEST PATIENT",title:"Mr",assignee_id:userId } },error:null }))
+      .mockReturnValueOnce(chain({ data:[],error:null }))
+      .mockReturnValueOnce(chain({ data:[{ amount:10 }],error:null }));
+    const balance={ amount_paid:600,invoice_due:400,earlier_due:250,later_due:0,overall_due:650,earlier_invoice_count:1 };
+    mocks.rpc.mockReturnValue({ single:vi.fn().mockResolvedValue({ data:balance,error:null }) });
+    const result=await getInvoice(context(),invoiceId);
+    expect(result?.amount_paid).toBe(600);
+    expect(result?.balance_due).toBe(400);
+    expect(result?.patient_balance).toEqual(balance);
+    expect(result?.lead?.name).toBe("Mr Test Patient");
+    expect(mocks.rpc).toHaveBeenCalledWith("get_invoice_patient_balance",{ p_invoice_id:invoiceId,p_actor:userId });
+  });
   it("filters billing dates inclusively without changing patient history defaults", async () => {
     const query = chain({ data: [], error: null, count: 0 });
     mocks.from.mockReturnValue(query);

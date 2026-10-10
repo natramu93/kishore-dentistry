@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { PDFDocument, PDFRawStream, decodePDFRawStream } from "pdf-lib";
 import { GET } from "@/app/api/invoices/[id]/pdf/route";
 import { getInvoice } from "@/data/invoices";
+import { writeFileSync, mkdirSync } from "node:fs";
+import path from "node:path";
 
 vi.mock("@/lib/auth/context", () => ({ getAuthContext: vi.fn().mockResolvedValue({ userId: "staff-1" }) }));
 vi.mock("@/lib/rate-limit", () => ({ assertActionRateLimit: vi.fn().mockResolvedValue(undefined) }));
@@ -16,12 +18,18 @@ describe("downloadable invoice PDF", () => {
       issuer_phone: null, issuer_email: null, issuer_gst_number: null, branch: null, lead: { name: "Synthetic Patient" },
       items: [{ id: "line-1", description: "Filling", tooth_numbers: ["18", "17", "16"], quantity: 1, unit_price: 1000, amount: 1000 }],
       subtotal: 1000, discount_amount: 0, tax_rate: 0, tax_amount: 0, total: 1000, amount_paid: 400, balance_due: 600,
+      patient_balance: { amount_paid: 400, invoice_due: 600, earlier_due: 1250, later_due: 0, overall_due: 1850, earlier_invoice_count: 2 },
       payments: Array.from({ length: 70 }, (_, i) => ({ amount: 5, payment_method: "upi", received_at: "2026-10-01T00:00:00Z", reference: `REF-${i}` })),
     } as unknown as NonNullable<Awaited<ReturnType<typeof getInvoice>>>);
     const result = await GET(new Request("http://localhost/api/invoices/invoice-1/pdf"), { params: Promise.resolve({ id: "invoice-1" }) });
     expect(result.status).toBe(200);
     expect(result.headers.get("Cache-Control")).toContain("no-store");
-    const pdf = await PDFDocument.load(await result.arrayBuffer());
+    const bytes = await result.arrayBuffer();
+    if (process.env.INVOICE_PDF_PREVIEW_DIR) {
+      mkdirSync(process.env.INVOICE_PDF_PREVIEW_DIR, { recursive: true });
+      writeFileSync(path.join(process.env.INVOICE_PDF_PREVIEW_DIR, "patient-balance-invoice.pdf"), Buffer.from(bytes));
+    }
+    const pdf = await PDFDocument.load(bytes);
     expect(pdf.getPageCount()).toBeGreaterThan(1);
     const text = pdf.context.enumerateIndirectObjects().filter((entry) => entry[1] instanceof PDFRawStream)
       .flatMap(([, stream]) => {
@@ -33,6 +41,11 @@ describe("downloadable invoice PDF", () => {
     expect(text).toContain("Referring doctor: Dr. Referrer");
     expect(text).toContain("Teeth (IS 8815): 18, 17, 16");
     expect(text).toContain("Received amount in words: Four Hundred Rupees Only");
+    expect(text).toContain("PATIENT OUTSTANDING BALANCE");
+    expect(text).toContain("Earlier unpaid bills (2)");
+    expect(text).toContain("INR 1,250.00");
+    expect(text).toContain("Overall patient due");
+    expect(text).toContain("INR 1,850.00");
     expect(text).toContain("REF-69");
   });
 });

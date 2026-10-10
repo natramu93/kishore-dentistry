@@ -11,6 +11,7 @@ import * as comments from "@/data/comments";
 import { clinicTimeToUtc } from "@/lib/tz";
 import { assertActionRateLimit } from "@/lib/rate-limit";
 import { NotFoundError } from "@/lib/errors";
+import { PATIENT_TITLES, PATIENT_GENDERS, patientNameTitleCase } from "@/lib/patient-demographics";
 import {
   commentEntitySchema,
   leadStatusSchema,
@@ -45,7 +46,9 @@ const optionalDate = z
 
 const leadSchema = z.object({
   branch_id: uuidSchema,
-  name: z.string().trim().min(1, "Name is required").max(200),
+  name: z.string().trim().min(1, "Name is required").max(200).transform(patientNameTitleCase),
+  title: z.enum(PATIENT_TITLES).optional().or(z.literal("")),
+  gender: z.enum(PATIENT_GENDERS).optional().or(z.literal("")),
   mobile: z.string().trim().min(7, "Valid mobile is required").max(32),
   email: z.string().trim().email().max(254).optional().or(z.literal("")),
   source_id: optionalUuidSchema,
@@ -76,6 +79,8 @@ export async function createLeadAction(
     const lead = await leads.createLead(ctx, {
       branch_id: value.branch_id,
       name: value.name,
+      title: value.title || null,
+      gender: value.gender || null,
       mobile: value.mobile,
       email: value.email || null,
       source_id: value.source_id || null,
@@ -108,6 +113,8 @@ export async function updateLeadAction(
     await leadMutationLimit(ctx.userId);
     await leads.updateLeadDetails(ctx, id.data, {
       ...(value.name !== undefined && { name: value.name }),
+      ...(value.title !== undefined && { title: value.title || null }),
+      ...(value.gender !== undefined && { gender: value.gender || null }),
       ...(value.mobile !== undefined && { mobile: value.mobile }),
       ...(value.email !== undefined && { email: value.email || null }),
       ...(value.source_id !== undefined && { source_id: value.source_id || null }),

@@ -19,6 +19,7 @@ import { invoiceLineToothLabel } from "@/lib/invoice-lines";
 import { invoiceEditWindowOpen, invoiceStatusLabel } from "@/lib/invoice-policy";
 import { receivedAmountInWords } from "@/lib/invoice-receipts";
 import { EditPaymentReceipt } from "@/components/invoices/edit-payment-receipt";
+import { PatientBalanceSummary } from "@/components/invoices/patient-balance-summary";
 
 const getInvoicePageData = cache(async (id: string) => {
   const ctx = await getAuthContext();
@@ -180,6 +181,7 @@ export default async function InvoiceDetailPage({
             </div>
           </div>
           <p className="mt-3 text-sm">Received amount in words: {receivedAmountInWords(invoice.amount_paid)}</p>
+          <PatientBalanceSummary balance={invoice.patient_balance} leadId={invoice.lead_id} />
           {invoice.payments.length > 0 && (
             <div className="mt-6 space-y-2 border-t pt-4">
               <h2 className="font-semibold">Payment history</h2>

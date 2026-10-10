@@ -301,7 +301,7 @@ export async function getMyPatientHistory(
   const results = await Promise.all([
     db
       .from("leads")
-      .select("id, name, email, dob, age, branch_id, branch:branches(name)")
+      .select("id, name, title, gender, email, dob, age, branch_id, branch:branches(name)")
       .eq("id", leadId)
       .eq("branch_id", relationship.branch_id)
       .is("deleted_at", null)

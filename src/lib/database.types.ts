@@ -186,6 +186,8 @@ export type Lead = Timestamps & {
   branch_id: string;
   source_id: string | null;
   name: string;
+  title: import("@/lib/patient-demographics").PatientTitle | null;
+  gender: import("@/lib/patient-demographics").PatientGender | null;
   email: string | null;
   mobile: string;
   age: number | null;
@@ -1098,6 +1100,10 @@ export type Database = {
         Args: { p_lead_id: string; p_actor: string };
         Returns: { invoice_count: number; total_invoiced: number; amount_paid: number; balance_due: number }[];
       };
+      get_invoice_patient_balance: {
+        Args: { p_invoice_id: string; p_actor: string };
+        Returns: import("@/lib/patient-invoice-balance").PatientInvoiceBalance[];
+      };
       get_daily_payment_collections: {
         Args: { p_actor: string; p_day_start: string; p_day_end: string };
         Returns: { payment_method: string; amount: number }[];
@@ -1184,6 +1190,8 @@ export type Database = {
         Args: {
           p_branch_id: string;
           p_name: string;
+          p_title?: string | null;
+          p_gender?: string | null;
           p_mobile: string;
           p_email: string | null;
           p_source_id: string | null;

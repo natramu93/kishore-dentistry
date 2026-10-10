@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { Branch, LeadSource } from "@/lib/database.types";
 import Link from "next/link";
+import { PatientIdentityFields } from "@/components/leads/patient-identity-fields";
 
 type TreatmentOption = { id: string; name: string; category: string; branch_id: string };
 
@@ -75,10 +76,7 @@ export function NewLeadForm({
           onChange={() => setDirty(true)}
         >
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="name">Name *</Label>
-              <Input id="name" name="name" autoComplete="name" required />
-            </div>
+            <PatientIdentityFields />
             <div className="space-y-2">
               <Label htmlFor="mobile">Mobile *</Label>
               <Input

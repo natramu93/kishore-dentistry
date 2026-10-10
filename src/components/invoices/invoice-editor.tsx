@@ -62,6 +62,7 @@ export function InvoiceEditor({
   initialMention = "",
   doctorNames = [],
   initialInvoiceDate,
+  existingBalanceDue,
 }: {
   mode: "create" | "edit";
   invoiceId?: string;
@@ -78,6 +79,7 @@ export function InvoiceEditor({
   initialMention?: string;
   doctorNames?: string[];
   initialInvoiceDate?: string;
+  existingBalanceDue?: number;
 }) {
   const router = useRouter();
   const idPrefix = useId();
@@ -414,7 +416,7 @@ export function InvoiceEditor({
                   <p className="col-span-full min-w-0 break-words text-xs text-muted-foreground">
                     {isCatalogLine && item.tooth_numbers?.length ? `Teeth ${item.tooth_numbers.join(", ")}` : item.site_label}
                   </p>
-                  <details className="col-span-full min-w-0 rounded-md bg-muted/30 p-3">
+                  <details open={isCatalogLine} className="col-span-full min-w-0 rounded-md bg-muted/30 p-3">
                     <summary className="cursor-pointer text-sm font-medium">
                       {isCatalogLine ? "Teeth & line note (optional)" : "Line note (optional)"}
                       {item.tooth_numbers?.length ? ` · ${item.tooth_numbers.length} selected` : ""}
@@ -501,6 +503,13 @@ export function InvoiceEditor({
               <span>{formatINR(total)}</span>
             </div>
           </div>
+
+          {mode === "create" && existingBalanceDue !== undefined && <section aria-label="Patient due after this invoice" className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm">
+            <div className="flex justify-between gap-4"><span>Earlier unpaid bills</span><span>{formatINR(existingBalanceDue)}</span></div>
+            <div className="flex justify-between gap-4"><span>New invoice total</span><span>{formatINR(total)}</span></div>
+            <div className="flex justify-between gap-4 border-t pt-2 text-base font-bold"><span>Overall patient due after this bill</span><span>{formatINR(Math.round((existingBalanceDue + total) * 100) / 100)}</span></div>
+            <p className="text-xs text-muted-foreground">Earlier dues are not added to this invoice’s charges. The saved bill will show the latest unpaid balance.</p>
+          </section>}
 
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button variant="ghost" type="button" onClick={cancel}>Cancel</Button>

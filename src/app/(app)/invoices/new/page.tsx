@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAuthContext } from "@/lib/auth/context";
 import { getLead, listLeads } from "@/data/leads";
-import { listInvoiceTreatmentCatalog } from "@/data/invoices";
+import { listInvoiceTreatmentCatalog, getPatientInvoiceSummary } from "@/data/invoices";
+import { patientDisplayName } from "@/lib/patient-demographics";
 import { listDoctors } from "@/data/catalogs";
 import { InvoiceEditor } from "@/components/invoices/invoice-editor";
 import { consultationInvoicePreset } from "@/lib/invoice-lines";
@@ -51,7 +52,7 @@ export default async function NewInvoicePage({
           {leads.map((lead) => (
             <div key={lead.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div className="min-w-0">
-                <p className="truncate font-medium">{lead.name}</p>
+                <p className="truncate font-medium">{patientDisplayName(lead)}</p>
                 <p className="text-sm text-muted-foreground">
                   {lead.mobile} · {lead.branch?.name ?? "Center not set"} · Added {fmtDate(lead.created_at)}
                 </p>
@@ -77,9 +78,10 @@ export default async function NewInvoicePage({
 
   const lead = await getLead(ctx, params.lead);
   if (!lead) notFound();
-  const [treatmentOptions, doctors] = await Promise.all([
+  const [treatmentOptions, doctors, invoiceSummary] = await Promise.all([
     listInvoiceTreatmentCatalog(ctx, lead.branch_id),
     listDoctors(ctx, { branchId: lead.branch_id }),
+    getPatientInvoiceSummary(ctx, lead.id),
   ]);
   const preset = params.preset === "consultation" ? consultationInvoicePreset(treatmentOptions) : null;
   const needsAssignment = ctx.role === "front_office" && lead.assignee_id !== ctx.userId;
@@ -89,7 +91,7 @@ export default async function NewInvoicePage({
       <div>
         <h1 className="text-2xl font-bold tracking-tight">New invoice</h1>
         <p className="text-sm text-muted-foreground">
-          For {lead.name} · {lead.branch?.name}
+          For {patientDisplayName(lead)} · {lead.branch?.name}
         </p>
       </div>
       <Button asChild variant="outline" size="sm"><Link href={`/leads/${lead.id}#patient-invoices`}>Back to patient invoices</Link></Button>
@@ -109,6 +111,7 @@ export default async function NewInvoicePage({
         initialItems={preset ? [preset] : []}
         doctorNames={[...new Set(doctors.map((doctor) => doctor.full_name))]}
         initialInvoiceDate={clinicToday()}
+        existingBalanceDue={Number(invoiceSummary.balance_due)}
       />}
     </div>
   );

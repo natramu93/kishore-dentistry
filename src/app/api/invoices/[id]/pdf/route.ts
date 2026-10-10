@@ -198,6 +198,28 @@ export async function GET(
     totalRow("Amount received", invoice.amount_paid);
     totalRow("Balance due", invoice.balance_due, true);
 
+    const balance = invoice.patient_balance;
+    // A separate, full-width account summary: carried dues are not invoice revenue.
+    ensureSpace(balance.later_due > 0 ? 145 : 130);
+    y -= 8;
+    draw("PATIENT OUTSTANDING BALANCE", margin, y, 10, bold, accent);
+    y -= 20;
+    const accountRow = (label: string, amount: number, strong = false) => {
+      const font = strong ? bold : regular;
+      draw(label, margin, y, 10, font);
+      const amountText = pdfAmount(amount);
+      draw(amountText, page.getWidth() - margin - font.widthOfTextAtSize(amountText, 10), y, 10, font);
+      y -= 18;
+    };
+    accountRow(`Earlier unpaid bills (${balance.earlier_invoice_count})`, balance.earlier_due);
+    accountRow("This invoice due", balance.invoice_due);
+    if (balance.later_due > 0) accountRow("Newer unpaid bills", balance.later_due);
+    accountRow("Overall patient due", balance.overall_due, true);
+    for (const line of wrap("Current unpaid balances across active bills; earlier dues are not charged again. Record payments against their original invoice.", page.getWidth() - margin * 2, 8)) {
+      ensureSpace(14); draw(line, margin, y, 8, regular, muted); y -= 12;
+    }
+    y -= 8;
+
     for (const line of wrap(`Received amount in words: ${receivedAmountInWords(invoice.amount_paid)}`, page.getWidth() - margin * 2, 9)) {
       ensureSpace(16); draw(line, margin, y, 9, regular, muted); y -= 13;
     }

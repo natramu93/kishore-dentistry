@@ -13,7 +13,7 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const TREATMENT_TYPE_ID = "treatment-type-1";
 
-function renderInvoiceEditor() {
+function renderInvoiceEditor(existingBalanceDue?: number) {
   const result = render(
     <InvoiceEditor
       mode="create"
@@ -29,6 +29,7 @@ function renderInvoiceEditor() {
         },
       ]}
       initialItems={[]}
+      existingBalanceDue={existingBalanceDue}
     />
   );
   fireEvent.change(screen.getByLabelText("Consulting doctor"), { target: { value: "Dr. Test Doctor" } });
@@ -42,6 +43,15 @@ afterEach(() => {
 });
 
 describe("independent invoice editor", () => {
+  it("previews the collective due without adding past debt to new line items", async () => {
+    renderInvoiceEditor(500);
+    fireEvent.change(screen.getByRole("combobox",{ name:"Treatment" }),{ target:{ value:TREATMENT_TYPE_ID } });
+    const preview=screen.getByRole("region",{ name:"Patient due after this invoice" });
+    expect(within(preview).getByText("₹700.00")).toBeInTheDocument();
+    expect(within(preview).getByText(/not added to this invoice/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button",{ name:"Create invoice" }));
+    await waitFor(() => expect(createInvoiceAction).toHaveBeenCalledWith(expect.objectContaining({ items:[{ treatment_type_id:TREATMENT_TYPE_ID,quantity:1,unit_price:200 }] })));
+  });
   it("requires both doctor details and provides an explicit walk-in choice", async () => {
     renderInvoiceEditor();
     fireEvent.change(screen.getByRole("combobox", { name: "Treatment" }), { target: { value: TREATMENT_TYPE_ID } });
@@ -119,7 +129,7 @@ describe("independent invoice editor", () => {
   it("saves multiple teeth and an invoice note without altering billing quantity", async () => {
     renderInvoiceEditor();
     fireEvent.change(screen.getByRole("combobox", { name: "Treatment" }), { target: { value: TREATMENT_TYPE_ID } });
-    fireEvent.click(screen.getByText("Teeth & line note (optional)"));
+    expect(screen.getByText("Teeth & line note (optional)").closest("details")).toHaveAttribute("open");
     fireEvent.click(screen.getByRole("button", { name: /^11,/ }));
     fireEvent.click(screen.getByRole("button", { name: /^12,/ }));
     fireEvent.change(screen.getByLabelText("Line note"), { target: { value: "Review restoration" } });
