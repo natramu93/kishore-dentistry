@@ -2,13 +2,14 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getAuthContext } from "@/lib/auth/context";
 import { getCallLog } from "@/data/call-tracking";
+import { fmt } from "@/lib/tz";
 import { externalHttpUrl } from "@/lib/webhooks/call-tracking-normalizer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 function dateLabel(value: string | null): string {
-  return value ? new Date(value).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—";
+  return value ? fmt(value) : "—";
 }
 
 export default async function CallLogDetailPage({ params }: { params: Promise<{ id: string }> }) {

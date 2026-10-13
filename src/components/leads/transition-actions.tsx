@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
+import { ClinicDateTimeInput } from "@/components/appointments/clinic-date-time-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { LeadStatus, UserRole } from "@/lib/database.types";
@@ -251,10 +252,7 @@ export function TransitionActions({
             }}
             className="space-y-4"
           >
-            <div className="space-y-2">
-              <Label htmlFor="scheduled_at">Date &amp; time (IST)</Label>
-              <Input id="scheduled_at" name="scheduled_at" type="datetime-local" required />
-            </div>
+            <ClinicDateTimeInput id="scheduled_at" name="scheduled_at" label="Date & time (IST)" required />
             <div className="space-y-2">
               <Label htmlFor="doctor_id">Doctor</Label>
               <select
@@ -288,10 +286,7 @@ export function TransitionActions({
             <DialogTitle>Schedule follow-up</DialogTitle>
           </DialogHeader>
           <form action={(fd) => run("follow_up", fd)} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="due_at">Due (IST)</Label>
-              <Input id="due_at" name="due_at" type="datetime-local" required />
-            </div>
+            <ClinicDateTimeInput id="due_at" name="due_at" label="Due (IST)" required />
             <div className="space-y-2">
               <Label htmlFor="reason">Reason</Label>
               <Input id="reason" name="reason" placeholder="e.g. Review healing, discuss braces plan" />

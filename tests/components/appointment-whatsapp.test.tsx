@@ -42,9 +42,10 @@ describe("appointment WhatsApp handoff", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Book appointment" }));
-    fireEvent.change(screen.getByLabelText("Date & time (IST)"), {
-      target: { value: "2026-09-24T15:30" },
-    });
+    fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2026-09-24" } });
+    fireEvent.change(screen.getByLabelText("Hour"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Minute"), { target: { value: "30" } });
+    fireEvent.change(screen.getByLabelText("AM / PM"), { target: { value: "PM" } });
     fireEvent.click(screen.getByRole("button", { name: "Create appointment & open WhatsApp" }));
 
     await waitFor(() => expect(tab.location.href).toBe(whatsappUrl));
@@ -54,6 +55,7 @@ describe("appointment WhatsApp handoff", () => {
       "appointment_booked",
       expect.any(FormData)
     );
+    expect(vi.mocked(transitionLeadAction).mock.calls[0]![2].get("scheduled_at")).toBe("2026-09-24T15:30");
   });
 
   it("opens the prepared WhatsApp message after a reschedule is saved", async () => {

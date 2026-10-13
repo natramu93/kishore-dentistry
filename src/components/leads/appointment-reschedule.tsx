@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CalendarClock } from "lucide-react";
+import { ClinicDateTimeInput } from "@/components/appointments/clinic-date-time-input";
 
 type DoctorOption = { id: string; label: string };
 
@@ -90,16 +91,8 @@ export function AppointmentReschedule({
             }}
             className="space-y-4"
           >
-            <div className="space-y-2">
-              <Label htmlFor={`resched-at-${appointmentId}`}>Date &amp; time (IST)</Label>
-              <Input
-                id={`resched-at-${appointmentId}`}
-                name="scheduled_at"
-                type="datetime-local"
-                defaultValue={defaultScheduledAt}
-                required
-              />
-            </div>
+            <ClinicDateTimeInput key={defaultScheduledAt} id={`resched-at-${appointmentId}`} name="scheduled_at"
+              label="Date & time (IST)" defaultValue={defaultScheduledAt} required />
             <div className="space-y-2">
               <Label htmlFor={`resched-doc-${appointmentId}`}>Doctor</Label>
               <select

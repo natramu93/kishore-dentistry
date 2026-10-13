@@ -40,7 +40,7 @@ import {
   type ToothAssessmentInput,
   type TreatmentSiteScope,
 } from "@/lib/clinical";
-import { toClinicInputValue } from "@/lib/tz";
+import { toClinicInputValue, clinicTimeToUtc, fmt } from "@/lib/tz";
 import { dentalCodeSearchTerms, matchesDentalCodeSearch } from "@/lib/dental-code-search";
 
 export type ClinicalDoctorOption = { id: string; label: string };
@@ -153,9 +153,7 @@ function blankTreatment(rowKey: string): EditableTreatment {
 }
 
 function localDateTimeNow(): string {
-  const now = new Date();
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 16);
+  return toClinicInputValue(new Date());
 }
 
 export function CaseSheetEditor({
@@ -439,9 +437,9 @@ export function CaseSheetEditor({
               <Field label={caseSheetId ? "Original visit date and time" : "Visit date and time (captured on save)"} htmlFor={`${idPrefix}-visit-at`} error={errors.visit_at}>
                 <Input
                   id={`${idPrefix}-visit-at`}
-                  type="datetime-local"
+                  type="text"
                   required
-                  value={visitAt}
+                  value={`${fmt(clinicTimeToUtc(visitAt))} IST`}
                   readOnly
                   aria-readonly="true"
                   aria-invalid={Boolean(errors.visit_at)}

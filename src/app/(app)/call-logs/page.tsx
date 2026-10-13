@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getAuthContext } from "@/lib/auth/context";
 import { listCallLogs, listExternalAppointments } from "@/data/call-tracking";
 import type { CallLog } from "@/lib/database.types";
+import { fmt } from "@/lib/tz";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,7 @@ function value(searchParams: Record<string, string | string[] | undefined>, key:
 }
 
 function dateLabel(value: string | null): string {
-  return value ? new Date(value).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—";
+  return value ? fmt(value) : "—";
 }
 
 export default async function CallLogsPage({

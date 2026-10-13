@@ -4,6 +4,7 @@ import { getCaseSheetForEdit, isCaseSheetAmendmentWindowOpen, listTreatmentCodes
 import { CaseSheetEditor } from "@/components/clinical/case-sheet-editor";
 import { listMedicationSuggestions } from "@/data/catalogs";
 import { getPatientTreatmentProgress } from "@/data/treatment-progress";
+import { fmt } from "@/lib/tz";
 
 export const metadata: Metadata = {
   title: "Amend Digital Case Sheet — Dr. Kishor's Dentistry CRM",
@@ -18,11 +19,7 @@ export default async function EditCaseSheetPage({
   const record = await getCaseSheetForEdit(ctx, id);
   const amendmentWindowOpen = await isCaseSheetAmendmentWindowOpen(ctx, id);
   if (!amendmentWindowOpen) {
-    const finalizedAt = new Intl.DateTimeFormat("en-IN", {
-      dateStyle: "medium",
-      timeStyle: "short",
-      timeZone: "Asia/Kolkata",
-    }).format(new Date(record.caseSheet.finalized_at));
+    const finalizedAt = fmt(record.caseSheet.finalized_at);
     return (
       <div className="mx-auto max-w-3xl space-y-4">
         <div>

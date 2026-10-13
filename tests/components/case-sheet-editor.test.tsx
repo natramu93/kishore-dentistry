@@ -167,6 +167,10 @@ describe("simplified CaseSheetEditor", () => {
       prescriptions: [], toothAssessments: [], treatments: [],
     };
     render(<CaseSheetEditor {...props} initialValues={initialValues} caseSheetId="00000000-0000-4000-8000-000000000004" expectedVersion={2} />);
+    const originalTime=screen.getByLabelText("Original visit date and time");
+    expect(originalTime).toHaveValue("29 Sep 2026, 10:00 AM IST");
+    expect(originalTime).toHaveAttribute("type","text");
+    expect(originalTime).toHaveAttribute("readonly");
     expect(screen.getByText("Original diagnosis")).toBeInTheDocument();
     expect(screen.getByText("Original plan")).toBeInTheDocument();
     fillVisit();
@@ -175,6 +179,7 @@ describe("simplified CaseSheetEditor", () => {
     await waitFor(() => expect(mocks.amend).toHaveBeenCalledWith(expect.objectContaining({
       diagnosis: "Original diagnosis", plan: "Original plan", expected_version: 2,
       findings: "Examined teeth; discussed observation and restoration options.",
+      visit_at:"2026-09-29T10:00",
     })));
   });
 

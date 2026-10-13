@@ -26,6 +26,32 @@ const baseProps = {
 };
 
 describe("lead transition actions", () => {
+  it("books with an explicit AM/PM clock while submitting the original clinic wall time", async () => {
+    vi.mocked(transitionLeadAction).mockResolvedValueOnce({ ok:true });
+    vi.spyOn(window,"open").mockReturnValueOnce(null);
+    render(<TransitionActions {...baseProps} lead={{ id:"22222222-2222-4222-8222-222222222222",status:"assigned" }} />);
+    fireEvent.click(screen.getByRole("button",{ name:"Book appointment" }));
+    fireEvent.change(screen.getByLabelText("Date"),{ target:{ value:"2026-10-13" } });
+    fireEvent.change(screen.getByLabelText("Hour"),{ target:{ value:"7" } });
+    fireEvent.change(screen.getByLabelText("Minute"),{ target:{ value:"30" } });
+    fireEvent.change(screen.getByLabelText("AM / PM"),{ target:{ value:"PM" } });
+    fireEvent.click(screen.getByRole("button",{ name:"Create appointment & open WhatsApp" }));
+    await waitFor(() => expect(transitionLeadAction).toHaveBeenCalledTimes(1));
+    const args=vi.mocked(transitionLeadAction).mock.calls[0]!;
+    expect(args[1]).toBe("appointment_booked");
+    expect(args[2].get("scheduled_at")).toBe("2026-10-13T19:30");
+  });
+  it("schedules future follow-ups with a 12-hour clock", async () => {
+    vi.mocked(transitionLeadAction).mockResolvedValueOnce({ ok:true });
+    render(<TransitionActions {...baseProps} lead={{ id:"22222222-2222-4222-8222-222222222222",status:"visited_treated" }} />);
+    fireEvent.click(screen.getByRole("button",{ name:"Schedule follow-up" }));
+    fireEvent.change(screen.getByLabelText("Date"),{ target:{ value:"2030-10-13" } });
+    fireEvent.change(screen.getByLabelText("Hour"),{ target:{ value:"9" } });
+    fireEvent.change(screen.getByLabelText("AM / PM"),{ target:{ value:"AM" } });
+    fireEvent.click(screen.getByRole("button",{ name:"Schedule" }));
+    await waitFor(() => expect(transitionLeadAction).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(transitionLeadAction).mock.calls[0]![2].get("due_at")).toBe("2030-10-13T09:00");
+  });
   const bookedLead = { id: "22222222-2222-4222-8222-222222222222", status: "appointment_booked" as const };
   const appointmentOptions = [
     { id: "33333333-3333-4333-8333-333333333333", label: "29 Sep, 10:00 AM · Dr One" },

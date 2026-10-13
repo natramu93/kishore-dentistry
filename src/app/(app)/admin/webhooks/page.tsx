@@ -1,4 +1,5 @@
 import { getAuthContext } from "@/lib/auth/context";
+import { fmt } from "@/lib/tz";
 import { redirect } from "next/navigation";
 import { listBranches } from "@/data/branches";
 import { listWebhookEndpoints, listWebhookEvents } from "@/data/call-tracking";
@@ -50,7 +51,7 @@ export default async function WebhooksPage() {
               <TableCell>{endpoint.source_system}</TableCell>
               <TableCell>{endpoint.branch_id ? branchNames.get(endpoint.branch_id) ?? "Unknown branch" : "All branches"}</TableCell>
               <TableCell><Badge variant={endpoint.is_active ? "default" : "secondary"}>{endpoint.is_active ? "Active" : "Revoked"}</Badge></TableCell>
-              <TableCell>{endpoint.last_received_at ? new Date(endpoint.last_received_at).toLocaleString("en-IN") : "Never"}</TableCell>
+              <TableCell>{endpoint.last_received_at ? fmt(endpoint.last_received_at) : "Never"}</TableCell>
               <TableCell className="text-right">
                 {endpoint.is_active && <ToggleActiveButton isActive action={revokeWebhookEndpointAction.bind(null, endpoint.id)} />}
               </TableCell>
@@ -67,7 +68,7 @@ export default async function WebhooksPage() {
         <Table aria-label="Recent webhook events">
           <TableHeader><TableRow><TableHead>Received</TableHead><TableHead>Event</TableHead><TableHead>External IDs</TableHead><TableHead>Status</TableHead><TableHead><span className="sr-only">Open</span></TableHead></TableRow></TableHeader>
           <TableBody>
-            {events.map((event) => <TableRow key={event.id}><TableCell>{new Date(event.received_at).toLocaleString("en-IN")}</TableCell><TableCell>{event.event_type ?? "Unspecified"}</TableCell><TableCell className="text-xs">{event.external_call_id ?? event.external_appointment_id ?? "Not normalized"}</TableCell><TableCell><Badge variant={event.processing_status === "failed" ? "destructive" : event.processing_status === "processed" ? "default" : "secondary"}>{event.processing_status}</Badge></TableCell><TableCell className="text-right"><a className="text-sm text-primary underline" href={`/admin/webhooks/events/${event.id}`}>Inspect</a></TableCell></TableRow>)}
+            {events.map((event) => <TableRow key={event.id}><TableCell>{fmt(event.received_at)}</TableCell><TableCell>{event.event_type ?? "Unspecified"}</TableCell><TableCell className="text-xs">{event.external_call_id ?? event.external_appointment_id ?? "Not normalized"}</TableCell><TableCell><Badge variant={event.processing_status === "failed" ? "destructive" : event.processing_status === "processed" ? "default" : "secondary"}>{event.processing_status}</Badge></TableCell><TableCell className="text-right"><a className="text-sm text-primary underline" href={`/admin/webhooks/events/${event.id}`}>Inspect</a></TableCell></TableRow>)}
             {events.length === 0 && <TableRow><TableCell colSpan={5} className="py-8 text-center text-muted-foreground">No provider events received yet.</TableCell></TableRow>}
           </TableBody>
         </Table>
