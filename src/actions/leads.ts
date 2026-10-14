@@ -11,7 +11,7 @@ import * as comments from "@/data/comments";
 import { clinicTimeToUtc } from "@/lib/tz";
 import { assertActionRateLimit } from "@/lib/rate-limit";
 import { NotFoundError } from "@/lib/errors";
-import { PATIENT_TITLES, PATIENT_GENDERS, patientNameTitleCase } from "@/lib/patient-demographics";
+import { PATIENT_TITLES, PATIENT_GENDERS, patientNameTitleCase, patientDisplayName } from "@/lib/patient-demographics";
 import {
   commentEntitySchema,
   leadStatusSchema,
@@ -241,7 +241,7 @@ export async function checkDuplicateMobile(mobile: string) {
   const matches = await leads.findLeadsByMobile(ctx, parsed.data);
   return matches.map((match) => ({
     id: match.id,
-    name: match.name,
+    name: patientDisplayName(match),
     status: match.status,
   }));
 }

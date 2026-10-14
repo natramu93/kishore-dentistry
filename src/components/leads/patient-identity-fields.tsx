@@ -4,7 +4,7 @@ import { useId, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  PATIENT_TITLES, PATIENT_GENDERS, genderForTitle, patientNameTitleCase,
+  PATIENT_TITLES, PATIENT_GENDERS, genderForTitle, patientNameTitleCase, patientTitleLabel,
   type PatientTitle, type PatientGender,
 } from "@/lib/patient-demographics";
 
@@ -31,7 +31,7 @@ export function PatientIdentityFields({
           setGender(genderForTitle(next) ?? "");
         }}>
         <option value="">Not specified</option>
-        {PATIENT_TITLES.map((value) => <option key={value} value={value}>{value}</option>)}
+        {PATIENT_TITLES.map((value) => <option key={value} value={value}>{patientTitleLabel(value)}</option>)}
       </select>
     </div>
     <div className="space-y-2">

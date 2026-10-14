@@ -38,7 +38,7 @@ describe("patient invoice history", () => {
     expect(result?.amount_paid).toBe(600);
     expect(result?.balance_due).toBe(400);
     expect(result?.patient_balance).toEqual(balance);
-    expect(result?.lead?.name).toBe("Mr Test Patient");
+    expect(result?.lead?.name).toBe("Mr. Test Patient");
     expect(mocks.rpc).toHaveBeenCalledWith("get_invoice_patient_balance",{ p_invoice_id:invoiceId,p_actor:userId });
   });
   it("filters billing dates inclusively without changing patient history defaults", async () => {

@@ -2,6 +2,16 @@ import { describe, expect, it } from "vitest";
 import { buildAppointmentWhatsAppUrl, normalizeWhatsAppNumber } from "@/lib/appointments/whatsapp";
 
 describe("appointment WhatsApp message", () => {
+  it.each([["Mr","Mr."],["Ms","Ms."],["Mrs","Mrs."],["Baby","Baby"],["Master","Master"]])("includes the saved %s title in the prepared greeting", (patientTitle,label) => {
+    const url=new URL(buildAppointmentWhatsAppUrl({ patientName:"tEST PATIENT",patientTitle,patientMobile:"9000000000",scheduledAt:"2026-10-14T10:00:00Z",centerName:"Test Center",centerAddress:null,centerPhone:null }));
+    expect(url.searchParams.get("text")).toContain(`Hello ${label} Test Patient,`);
+    expect(url.searchParams.get("text")).toContain("3:30 PM (IST)");
+  });
+  it("keeps a title embedded in an older name from appearing twice", () => {
+    const url=new URL(buildAppointmentWhatsAppUrl({ patientName:"Mr. TEST PATIENT",patientTitle:"Mr",patientMobile:"9000000000",scheduledAt:"2026-10-14T10:00:00Z",centerName:"Test Center",centerAddress:null,centerPhone:null }));
+    expect(url.searchParams.get("text")).toContain("Hello Mr. Test Patient,");
+    expect(url.searchParams.get("text")).not.toContain("Mr. Mr.");
+  });
   it("normalizes Indian mobile numbers and includes appointment and center details", () => {
     const url = new URL(buildAppointmentWhatsAppUrl({
       patientName: "A Patient",

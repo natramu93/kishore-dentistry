@@ -271,7 +271,7 @@ export async function appointmentWhatsAppUrl(
   const leadId = assertUuid(leadIdValue, "Lead");
   const { data: lead, error: leadError } = await db
     .from("leads")
-    .select("id, branch_id, assignee_id, name, mobile")
+    .select("id, branch_id, assignee_id, name, title, mobile")
     .eq("id", leadId)
     .is("deleted_at", null)
     .maybeSingle();
@@ -290,6 +290,7 @@ export async function appointmentWhatsAppUrl(
 
   return buildAppointmentWhatsAppUrl({
     patientName: lead.name,
+    patientTitle: lead.title,
     patientMobile: lead.mobile,
     scheduledAt,
     centerName: branch.company_name

@@ -7,6 +7,7 @@ import { clinicDayRange, clinicToday } from "@/lib/tz";
 import { requireAnyRole } from "@/lib/auth/guards";
 import { AuthorizationError } from "@/lib/errors";
 import { EMPTY_UUID, normalizeLimit } from "@/lib/validation";
+import { patientDisplayName } from "@/lib/patient-demographics";
 
 function branchScope(ctx: AuthContext): string[] | null {
   if (ctx.role === "admin") return null;
@@ -98,7 +99,7 @@ export async function getRecentActivity(ctx: AuthContext, limit = 15) {
   let query = db
     .from("lead_activity")
     .select(
-      "*, lead:leads!inner(id, name, assignee_id), actor:profiles!lead_activity_actor_id_fkey(full_name)"
+      "*, lead:leads!inner(id, name, title, assignee_id), actor:profiles!lead_activity_actor_id_fkey(full_name)"
     )
     .order("created_at", { ascending: false })
     .limit(safeLimit);
@@ -115,7 +116,7 @@ export async function getRecentActivity(ctx: AuthContext, limit = 15) {
   return data.map((activity) => ({
     ...activity,
     lead: activity.lead
-      ? { id: activity.lead.id, name: activity.lead.name }
+      ? { id: activity.lead.id, name: patientDisplayName(activity.lead) }
       : null,
   }));
 }

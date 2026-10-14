@@ -1,7 +1,9 @@
 import { fmt } from "@/lib/tz";
+import { patientDisplayName } from "@/lib/patient-demographics";
 
 export type AppointmentWhatsAppDetails = {
   patientName: string;
+  patientTitle?: string | null;
   patientMobile: string;
   scheduledAt: string;
   centerName: string;
@@ -19,7 +21,7 @@ export function normalizeWhatsAppNumber(value: string): string | null {
 
 export function buildAppointmentWhatsAppUrl(details: AppointmentWhatsAppDetails): string {
   const message = [
-    `Hello ${details.patientName}, your appointment is booked for ${fmt(details.scheduledAt, "EEEE, d MMMM yyyy 'at' h:mm a")} (IST).`,
+    `Hello ${patientDisplayName({ name: details.patientName, title: details.patientTitle })}, your appointment is booked for ${fmt(details.scheduledAt, "EEEE, d MMMM yyyy 'at' h:mm a")} (IST).`,
     "",
     `Center: ${details.centerName}`,
     ...(details.centerAddress ? [`Address: ${details.centerAddress}`] : []),

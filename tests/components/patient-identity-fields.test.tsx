@@ -8,7 +8,7 @@ describe("patient title and gender inputs", () => {
     render(<PatientIdentityFields />);
     const title = screen.getByRole("combobox", { name: "Title" });
     const gender = screen.getByRole("combobox", { name: "Gender" });
-    for (const value of ["Mr", "Ms", "Mrs", "Baby", "Master"]) expect(screen.getByRole("option", { name: value })).toBeInTheDocument();
+    for (const value of ["Mr.", "Ms.", "Mrs.", "Baby", "Master"]) expect(screen.getByRole("option", { name: value })).toBeInTheDocument();
     fireEvent.change(title, { target: { value: "Mr" } });
     expect(gender).toHaveValue("male");
     fireEvent.change(title, { target: { value: "Mrs" } });
