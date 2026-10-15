@@ -183,7 +183,6 @@ export async function transitionLeadAction(
         await appointments.createAdditionalAppointment(ctx, id.data, {
           scheduled_at: scheduledAt,
           doctor_id: typeof payload.doctor_id === "string" ? payload.doctor_id : null,
-          duration_minutes: typeof payload.duration_minutes === "number" ? payload.duration_minutes : 15,
           notes: typeof payload.notes === "string" ? payload.notes : null,
         });
       } else {

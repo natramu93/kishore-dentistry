@@ -375,8 +375,7 @@ export default async function LeadDetailPage({
                     </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground mt-1">
-                    {(a.doctor as { full_name: string } | null)?.full_name ?? "Doctor TBD"} ·{" "}
-                    {a.duration_minutes} min
+                    {(a.doctor as { full_name: string } | null)?.full_name ?? "Doctor TBD"}
                     {a.notes ? ` · ${a.notes}` : ""}
                   </p>
                   {a.status === "scheduled" && (
@@ -394,7 +393,6 @@ export default async function LeadDetailPage({
                         doctors={doctors.map((d) => ({ id: d.id, label: d.full_name }))}
                         defaultScheduledAt={toClinicInputValue(a.scheduled_at)}
                         defaultDoctorId={a.doctor_id}
-                        defaultDuration={a.duration_minutes}
                         defaultNotes={a.notes}
                       />
                     </div>

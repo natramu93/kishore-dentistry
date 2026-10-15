@@ -252,7 +252,7 @@ export function TransitionActions({
             }}
             className="space-y-4"
           >
-            <ClinicDateTimeInput id="scheduled_at" name="scheduled_at" label="Date & time (IST)" required />
+            <ClinicDateTimeInput id="scheduled_at" name="scheduled_at" label="Start date & time (IST)" required />
             <div className="space-y-2">
               <Label htmlFor="doctor_id">Doctor</Label>
               <select
@@ -266,10 +266,6 @@ export function TransitionActions({
                   <option key={d.id} value={d.id}>{d.label}</option>
                 ))}
               </select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="duration_minutes">Duration (minutes)</Label>
-              <Input id="duration_minutes" name="duration_minutes" type="number" defaultValue={15} min={5} max={480} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="notes">Notes</Label>

@@ -70,7 +70,6 @@ describe("appointment WhatsApp handoff", () => {
         doctors={[]}
         defaultScheduledAt="2026-09-24T15:30"
         defaultDoctorId={null}
-        defaultDuration={15}
         defaultNotes={null}
       />
     );

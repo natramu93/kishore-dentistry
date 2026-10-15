@@ -12,7 +12,6 @@ import { runAction, runActionWithValue, type ActionResult, type ActionValueResul
 const rescheduleSchema = z.object({
   scheduled_at: z.string().min(1, "Pick a date and time").max(64),
   doctor_id: optionalUuidSchema,
-  duration_minutes: z.coerce.number().int().min(5).max(480).default(15),
   notes: z.string().trim().max(4_000).optional(),
 });
 
@@ -49,7 +48,6 @@ export async function rescheduleAppointmentAction(
       {
         scheduled_at: scheduledAt,
         doctor_id: value.doctor_id || null,
-        duration_minutes: value.duration_minutes,
         notes: value.notes || null,
       },
       ids.data.leadId

@@ -31,6 +31,7 @@ describe("lead transition actions", () => {
     vi.spyOn(window,"open").mockReturnValueOnce(null);
     render(<TransitionActions {...baseProps} lead={{ id:"22222222-2222-4222-8222-222222222222",status:"assigned" }} />);
     fireEvent.click(screen.getByRole("button",{ name:"Book appointment" }));
+    expect(screen.queryByLabelText(/duration/i)).toBeNull();
     fireEvent.change(screen.getByLabelText("Date"),{ target:{ value:"2026-10-13" } });
     fireEvent.change(screen.getByLabelText("Hour"),{ target:{ value:"7" } });
     fireEvent.change(screen.getByLabelText("Minute"),{ target:{ value:"30" } });
@@ -40,6 +41,7 @@ describe("lead transition actions", () => {
     const args=vi.mocked(transitionLeadAction).mock.calls[0]!;
     expect(args[1]).toBe("appointment_booked");
     expect(args[2].get("scheduled_at")).toBe("2026-10-13T19:30");
+    expect(args[2].has("duration_minutes")).toBe(false);
   });
   it("schedules future follow-ups with a 12-hour clock", async () => {
     vi.mocked(transitionLeadAction).mockResolvedValueOnce({ ok:true });

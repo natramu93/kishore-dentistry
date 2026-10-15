@@ -112,7 +112,6 @@ export async function updateAppointment(
   input: {
     scheduled_at?: string;
     doctor_id?: string | null;
-    duration_minutes?: number;
     notes?: string | null;
   },
   expectedLeadId?: string
@@ -145,7 +144,7 @@ export async function updateAppointment(
   }
 
   const patch: Partial<
-    Pick<Appointment, "scheduled_at" | "doctor_id" | "duration_minutes" | "notes">
+    Pick<Appointment, "scheduled_at" | "doctor_id" | "notes">
   > = {};
   if (input.scheduled_at !== undefined) {
     patch.scheduled_at = assertIsoDateTime(input.scheduled_at, "Appointment date");
@@ -157,16 +156,6 @@ export async function updateAppointment(
     } else {
       patch.doctor_id = null;
     }
-  }
-  if (input.duration_minutes !== undefined) {
-    if (
-      !Number.isInteger(input.duration_minutes) ||
-      input.duration_minutes < 5 ||
-      input.duration_minutes > 480
-    ) {
-      throw new ValidationError("Duration must be between 5 and 480 minutes");
-    }
-    patch.duration_minutes = input.duration_minutes;
   }
   if (input.notes !== undefined) {
     if (input.notes && input.notes.length > 4_000) {
@@ -209,7 +198,6 @@ export async function createAdditionalAppointment(
   input: {
     scheduled_at: string;
     doctor_id?: string | null;
-    duration_minutes?: number;
     notes?: string | null;
   }
 ): Promise<{ lead_id: string; scheduled_at: string }> {
@@ -230,10 +218,6 @@ export async function createAdditionalAppointment(
   const scheduledAt = assertIsoDateTime(input.scheduled_at, "Appointment date");
   const doctorId = input.doctor_id ? assertUuid(input.doctor_id, "Doctor") : null;
   if (doctorId) await requireActiveDoctorForBranch(doctorId, lead.branch_id);
-  const duration = input.duration_minutes ?? 15;
-  if (!Number.isInteger(duration) || duration < 5 || duration > 480) {
-    throw new ValidationError("Duration must be between 5 and 480 minutes");
-  }
 
   const { data: created, error } = await db
     .from("appointments")
@@ -241,7 +225,6 @@ export async function createAdditionalAppointment(
       lead_id: leadId,
       doctor_id: doctorId,
       scheduled_at: scheduledAt,
-      duration_minutes: duration,
       notes: input.notes ?? null,
       created_by: ctx.userId,
     })

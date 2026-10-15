@@ -210,6 +210,7 @@ export type Appointment = Timestamps & {
   branch_id: string;
   doctor_id: string | null;
   scheduled_at: string;
+  /** Legacy storage only; CRM scheduling uses a start time, not a duration. */
   duration_minutes: number;
   status: AppointmentStatus;
   notes: string | null;

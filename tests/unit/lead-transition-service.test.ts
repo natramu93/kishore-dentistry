@@ -233,7 +233,6 @@ describe("trusted lead transition service", () => {
         p_payload: {
           scheduled_at: "2026-07-26T04:30:00.000Z",
           doctor_id: DOCTOR_ID,
-          duration_minutes: 45,
         },
       })
     );

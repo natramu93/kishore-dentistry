@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CalendarClock } from "lucide-react";
@@ -21,7 +20,6 @@ export function AppointmentReschedule({
   doctors,
   defaultScheduledAt,
   defaultDoctorId,
-  defaultDuration,
   defaultNotes,
 }: {
   appointmentId: string;
@@ -29,7 +27,6 @@ export function AppointmentReschedule({
   doctors: DoctorOption[];
   defaultScheduledAt: string; // datetime-local value (clinic tz)
   defaultDoctorId: string | null;
-  defaultDuration: number;
   defaultNotes: string | null;
 }) {
   const [open, setOpen] = useState(false);
@@ -92,7 +89,7 @@ export function AppointmentReschedule({
             className="space-y-4"
           >
             <ClinicDateTimeInput key={defaultScheduledAt} id={`resched-at-${appointmentId}`} name="scheduled_at"
-              label="Date & time (IST)" defaultValue={defaultScheduledAt} required />
+              label="Start date & time (IST)" defaultValue={defaultScheduledAt} required />
             <div className="space-y-2">
               <Label htmlFor={`resched-doc-${appointmentId}`}>Doctor</Label>
               <select
@@ -106,17 +103,6 @@ export function AppointmentReschedule({
                   <option key={d.id} value={d.id}>{d.label}</option>
                 ))}
               </select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`resched-dur-${appointmentId}`}>Duration (minutes)</Label>
-              <Input
-                id={`resched-dur-${appointmentId}`}
-                name="duration_minutes"
-                type="number"
-                min={5}
-                max={480}
-                defaultValue={defaultDuration}
-              />
             </div>
             <div className="space-y-2">
               <Label htmlFor={`resched-notes-${appointmentId}`}>Notes</Label>

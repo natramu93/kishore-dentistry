@@ -43,13 +43,13 @@ describe("lead state machine", () => {
     expect(transitionPayloadSchemas.assigned.safeParse({}).success).toBe(false);
   });
 
-  it("bounds scheduling duration and treatment amounts", () => {
+  it("uses only the appointment start time while still bounding treatment amounts", () => {
     expect(
       transitionPayloadSchemas.appointment_booked.safeParse({
         scheduled_at: "2026-08-01T10:00:00.000Z",
         duration_minutes: 0,
       }).success
-    ).toBe(false);
+    ).toBe(true);
     expect(
       transitionPayloadSchemas.visited_treated.safeParse({
         cost: -1,

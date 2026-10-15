@@ -35,19 +35,13 @@ describe("lead transition payload contracts", () => {
   });
 
   it.each([
-    [5, true],
-    ["30", true],
-    [480, true],
-    [4, false],
-    [481, false],
-    [30.5, false],
-    [Number.POSITIVE_INFINITY, false],
-  ])("validates appointment duration %j", (duration, valid) => {
-    const parsed = transitionPayloadSchemas.appointment_booked.safeParse({
+    5, "30", 480, 4, 481, 30.5, Number.POSITIVE_INFINITY,
+  ])("ignores retired appointment duration %j rather than using it for scheduling", (duration) => {
+    const parsed = transitionPayloadSchemas.appointment_booked.parse({
       scheduled_at: "2026-07-26T10:00",
       duration_minutes: duration,
     });
-    expect(parsed.success).toBe(valid);
+    expect(parsed).toEqual({ scheduled_at: "2026-07-26T10:00" });
   });
 
   it("bounds appointment notes, identifiers, and required wall time", () => {
@@ -138,7 +132,6 @@ describe("lead transition payload contracts", () => {
       })
     ).toEqual({
       scheduled_at: "2026-07-26T10:00",
-      duration_minutes: 30,
     });
     expect(
       transitionPayloadSchemas.closed.parse({

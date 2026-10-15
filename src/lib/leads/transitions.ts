@@ -51,7 +51,6 @@ export const transitionPayloadSchemas = {
   appointment_booked: z.object({
     scheduled_at: z.string().min(1).max(64),
     doctor_id: z.string().uuid().optional().or(z.literal("")),
-    duration_minutes: z.coerce.number().int().min(5).max(480).default(15),
     notes: z.string().trim().max(4_000).optional(),
   }),
   visited_treated: z.object({
