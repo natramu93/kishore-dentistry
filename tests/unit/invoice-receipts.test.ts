@@ -13,6 +13,7 @@ describe("received amount in Indian words", () => {
     expect(paymentReceiptSchema.parse({ amount: "25.50", method, reference: " ref " })).toEqual({ amount: 25.5, method, reference: "ref" });
   });
   it("rejects overprecise and unsupported receipts", () => {
+    expect(paymentReceiptSchema.safeParse({ amount: 0, method: "cash" }).success).toBe(false);
     expect(paymentReceiptSchema.safeParse({ amount: 1.001, method: "cash" }).success).toBe(false);
     expect(paymentReceiptSchema.safeParse({ amount: 5, method: "crypto" }).success).toBe(false);
   });

@@ -195,7 +195,7 @@ export function TransitionActions({
       )}
 
       {s === "visited_treated" && (
-        <Button size="sm" onClick={() => setDialog("follow_up")}>Schedule follow-up</Button>
+        <Button size="sm" onClick={() => setDialog("follow_up")}>Book appointment</Button>
       )}
 
       {s === "follow_up" && (
@@ -279,7 +279,7 @@ export function TransitionActions({
       <Dialog open={dialog === "follow_up"} onOpenChange={(o) => !o && setDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Schedule follow-up</DialogTitle>
+            <DialogTitle>Book appointment</DialogTitle>
           </DialogHeader>
           <form action={(fd) => run("follow_up", fd)} className="space-y-4">
             <ClinicDateTimeInput id="due_at" name="due_at" label="Due (IST)" required />
@@ -287,7 +287,7 @@ export function TransitionActions({
               <Label htmlFor="reason">Reason</Label>
               <Input id="reason" name="reason" placeholder="e.g. Review healing, discuss braces plan" />
             </div>
-            <SubmitRow pending={pending} label="Schedule" />
+            <SubmitRow pending={pending} label="Book appointment" />
           </form>
         </DialogContent>
       </Dialog>

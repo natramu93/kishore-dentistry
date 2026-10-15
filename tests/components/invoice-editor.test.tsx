@@ -13,6 +13,11 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const TREATMENT_TYPE_ID = "treatment-type-1";
 
+async function chooseConsultation() {
+  fireEvent.input(screen.getByRole("combobox", { name: "Treatment" }), { target: { value: "consult" }, inputType: "insertText" });
+  fireEvent.click(await screen.findByRole("option", { name: "General consultation — Consultation" }));
+}
+
 function renderInvoiceEditor(existingBalanceDue?: number) {
   const result = render(
     <InvoiceEditor
@@ -43,9 +48,96 @@ afterEach(() => {
 });
 
 describe("independent invoice editor", () => {
+  it("searches separate treatment lines and keeps each selected catalog price, including zero", async () => {
+    render(<InvoiceEditor mode="create" leadId="lead-1" treatmentCatalog={[]} initialItems={[]}
+      treatmentOptions={[
+        { id: "filling", name: "Composite filling", category: "Restorative", default_cost: 500, is_general_consultation: false },
+        { id: "scaling", name: "Scaling", category: "Preventive", default_cost: 0, is_general_consultation: false },
+      ]} />);
+    fireEvent.change(screen.getByLabelText("Consulting doctor"), { target: { value: "Dr. Consultant" } });
+    fireEvent.click(screen.getByRole("button", { name: "No referring doctor" }));
+    fireEvent.input(screen.getByRole("combobox", { name: "Treatment" }), { target: { value: "fill" }, inputType: "insertText" });
+    fireEvent.click(await screen.findByRole("option", { name: "Composite filling — Restorative" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add treatment line" }));
+    const second = within(screen.getByRole("group", { name: "Treatment line 2" }));
+    fireEvent.input(second.getByRole("combobox", { name: "Treatment" }), { target: { value: "preventive" }, inputType: "insertText" });
+    fireEvent.click(await screen.findByRole("option", { name: "Scaling — Preventive" }));
+    expect(second.getByRole("spinbutton", { name: "Unit price (₹)" })).toHaveValue(0);
+    fireEvent.click(screen.getByRole("button", { name: "Create invoice" }));
+    await waitFor(() => expect(createInvoiceAction).toHaveBeenCalledWith(expect.objectContaining({ items: [
+      { treatment_type_id: "filling", quantity: 1, unit_price: 500 },
+      { treatment_type_id: "scaling", quantity: 1, unit_price: 0 },
+    ] })));
+  });
+
+  it("does not bill a previously selected treatment after clearing its search", async () => {
+    renderInvoiceEditor();
+    await chooseConsultation();
+    fireEvent.click(screen.getByRole("button", { name: "Clear treatment" }));
+    expect(screen.getByRole("spinbutton", { name: "Unit price (₹)" })).toHaveValue(0);
+    fireEvent.submit(screen.getByRole("button", { name: "Create invoice" }).closest("form")!);
+    expect(createInvoiceAction).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Choose a treatment"));
+  });
+
+  it("also searches saved case-sheet treatments by code when editing", async () => {
+    render(<InvoiceEditor mode="edit" invoiceId="invoice-1" leadId="lead-1" initialVersion={2}
+      treatmentOptions={[{ id: TREATMENT_TYPE_ID, name: "Consultation", category: null, default_cost: 200, is_general_consultation: true }]}
+      initialItems={[{ treatment_type_id: TREATMENT_TYPE_ID, description: "Consultation", site_label: "General service", quantity: 1, unit_price: 200 }]}
+      treatmentCatalog={[{ id: "saved-filling", code: "23.2", name: "Filling", site_label: "Teeth 18", quantity: 1, unit_price: 700 }]} />);
+    fireEvent.click(screen.getByText("Add from a saved case sheet (optional)"));
+    fireEvent.input(screen.getByRole("combobox", { name: "Add a completed case-sheet treatment (optional)" }), { target: { value: "23.2" }, inputType: "insertText" });
+    fireEvent.click(await screen.findByRole("option", { name: "23.2 — Filling — Teeth 18" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(updateInvoiceAction).toHaveBeenCalledWith("invoice-1", expect.objectContaining({ items: [
+      { treatment_type_id: TREATMENT_TYPE_ID, quantity: 1, unit_price: 200 },
+      { treatment_id: "saved-filling", quantity: 1, unit_price: 700 },
+    ] })));
+  });
+
+  it("creates a zero-priced invoice and leaves earlier patient dues unchanged", async () => {
+    renderInvoiceEditor(500);
+    await chooseConsultation();
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Unit price (₹)" }), { target: { value: "0" } });
+    expect(screen.getByText(/This is a ₹0 invoice/)).toBeInTheDocument();
+    expect(screen.getByText("Overall patient due after this bill").parentElement).toHaveTextContent("₹500.00");
+    fireEvent.click(screen.getByRole("button", { name: "Create invoice" }));
+    await waitFor(() => expect(createInvoiceAction).toHaveBeenCalledWith(expect.objectContaining({
+      items: [{ treatment_type_id: TREATMENT_TYPE_ID, quantity: 1, unit_price: 0 }], discount_amount: 0,
+    })));
+  });
+
+  it("allows a fully discounted invoice", async () => {
+    renderInvoiceEditor();
+    await chooseConsultation();
+    fireEvent.change(screen.getByLabelText("Discount amount (₹)"), { target: { value: "200" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create invoice" }));
+    await waitFor(() => expect(createInvoiceAction).toHaveBeenCalledWith(expect.objectContaining({ discount_amount: 200 })));
+  });
+
+  it("edits an unpaid invoice down to zero", async () => {
+    render(<InvoiceEditor mode="edit" invoiceId="invoice-1" initialVersion={2} leadId="lead-1" treatmentCatalog={[]}
+      treatmentOptions={[{ id: TREATMENT_TYPE_ID, name: "Consultation", category: null, default_cost: 200, is_general_consultation: true }]}
+      initialItems={[{ treatment_type_id: TREATMENT_TYPE_ID, description: "Consultation", site_label: "General / not tooth-specific", quantity: 1, unit_price: 200 }]} />);
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Unit price (₹)" }), { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(updateInvoiceAction).toHaveBeenCalledWith("invoice-1", expect.objectContaining({
+      items: [{ treatment_type_id: TREATMENT_TYPE_ID, quantity: 1, unit_price: 0 }],
+    })));
+  });
+
+  it("still rejects negative prices on zero-value bills", async () => {
+    renderInvoiceEditor();
+    await chooseConsultation();
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Unit price (₹)" }), { target: { value: "-1" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Create invoice" }).closest("form")!);
+    expect(toast.error).toHaveBeenCalledWith("Enter a valid unit price for every invoice line");
+    expect(createInvoiceAction).not.toHaveBeenCalled();
+  });
+
   it("previews the collective due without adding past debt to new line items", async () => {
     renderInvoiceEditor(500);
-    fireEvent.change(screen.getByRole("combobox",{ name:"Treatment" }),{ target:{ value:TREATMENT_TYPE_ID } });
+    await chooseConsultation();
     const preview=screen.getByRole("region",{ name:"Patient due after this invoice" });
     expect(within(preview).getByText("₹700.00")).toBeInTheDocument();
     expect(within(preview).getByText(/not added to this invoice/)).toBeInTheDocument();
@@ -54,7 +146,7 @@ describe("independent invoice editor", () => {
   });
   it("requires both doctor details and provides an explicit walk-in choice", async () => {
     renderInvoiceEditor();
-    fireEvent.change(screen.getByRole("combobox", { name: "Treatment" }), { target: { value: TREATMENT_TYPE_ID } });
+    await chooseConsultation();
     const referring = screen.getByLabelText("Referring doctor");
     fireEvent.change(referring, { target: { value: " " } });
     fireEvent.click(screen.getByRole("button", { name: "Create invoice" }));
@@ -110,9 +202,7 @@ describe("independent invoice editor", () => {
     renderInvoiceEditor();
     fireEvent.change(screen.getByLabelText("Invoice date"), { target: { value: "2026-09-25" } });
     fireEvent.change(screen.getByLabelText("Consulting doctor"), { target: { value: "Dr. Test Doctor" } });
-    fireEvent.change(screen.getByRole("combobox", { name: "Treatment" }), {
-      target: { value: TREATMENT_TYPE_ID },
-    });
+    await chooseConsultation();
     fireEvent.click(screen.getByRole("button", { name: "Create invoice" }));
 
     await waitFor(() => {
@@ -128,7 +218,7 @@ describe("independent invoice editor", () => {
 
   it("saves multiple teeth and an invoice note without altering billing quantity", async () => {
     renderInvoiceEditor();
-    fireEvent.change(screen.getByRole("combobox", { name: "Treatment" }), { target: { value: TREATMENT_TYPE_ID } });
+    await chooseConsultation();
     expect(screen.getByText("Teeth & line note (optional)").closest("details")).toHaveAttribute("open");
     fireEvent.click(screen.getByRole("button", { name: /^11,/ }));
     fireEvent.click(screen.getByRole("button", { name: /^12,/ }));
@@ -155,10 +245,10 @@ describe("independent invoice editor", () => {
   it("retains entries and gives feedback when an unexpected save failure occurs", async () => {
     vi.mocked(createInvoiceAction).mockRejectedValueOnce(new Error("Connection interrupted"));
     renderInvoiceEditor();
-    fireEvent.change(screen.getByRole("combobox", { name: "Treatment" }), { target: { value: TREATMENT_TYPE_ID } });
+    await chooseConsultation();
     fireEvent.click(screen.getByRole("button", { name: "Create invoice" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Your entries are still here")));
-    expect(screen.getByRole("combobox", { name: "Treatment" })).toHaveValue(TREATMENT_TYPE_ID);
+    expect(screen.getByRole("combobox", { name: "Treatment" })).toHaveValue("General consultation — Consultation");
     await waitFor(() => expect(screen.getByRole("button", { name: "Create invoice" })).toBeEnabled());
   });
 });

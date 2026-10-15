@@ -28,11 +28,13 @@ function hasAtMostTwoDecimals(value: number): boolean {
 }
 
 const money = z.coerce
-  .number()
+  .number<string | number>()
   .finite()
   .min(0)
   .max(MAX_UNIT_PRICE)
   .refine(hasAtMostTwoDecimals, "Amounts support at most two decimals");
+// A complimentary consultation must explicitly specify zero, not an empty value.
+const consultationAmount = z.union([z.number(), z.string().trim().min(1)]).pipe(money);
 const invoiceItemSchema = invoiceLineDetailsSchema.extend({
   invoice_item_id: uuidSchema.optional(),
   treatment_id: uuidSchema.nullable().optional(),
@@ -106,13 +108,7 @@ const consultationInvoiceSchema = z.object({
   consulting_doctor_name: z.string().trim().min(1, "Enter the consulting doctor").max(200),
   referring_doctor_name: z.string().trim().min(1, "Enter the referring doctor or choose No referring doctor").max(200),
   lead_id: uuidSchema,
-  amount: z.coerce
-    .number()
-    .finite()
-    .positive()
-    .max(MAX_UNIT_PRICE)
-    .refine(hasAtMostTwoDecimals, "Consultation amount supports at most two decimals")
-    .default(200),
+  amount: consultationAmount.default(200),
   notes: z.string().trim().max(4_000).optional(),
 });
 const invoicePaymentSchema = z.object({
@@ -274,7 +270,7 @@ export async function updateInvoicePaymentAction(id: string, paymentId: string, 
 
 export async function updateConsultationInvoiceAction(id: string, input: unknown): Promise<ActionResult> {
   const ctx = await getAuthContext();
-  const parsed = z.object({ amount: money.refine((amount) => amount > 0, "Enter an amount greater than zero"), notes: z.string().trim().max(4000).optional(), expected_version: z.number().int().positive() }).safeParse(input);
+  const parsed = z.object({ amount: consultationAmount, notes: z.string().trim().max(4000).optional(), expected_version: z.number().int().positive() }).safeParse(input);
   if (!uuidSchema.safeParse(id).success || !parsed.success) return { ok: false, error: "Enter valid consultation invoice details" };
   return runAction(async () => {
     await invoiceMutationLimit(ctx.userId);

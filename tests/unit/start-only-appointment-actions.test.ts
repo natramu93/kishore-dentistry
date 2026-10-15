@@ -22,6 +22,18 @@ beforeEach(() => {
   vi.mocked(appointments.appointmentWhatsAppUrl).mockResolvedValue("https://wa.me/?text=test");
 });
 describe("start-only booking and rescheduling actions", () => {
+  it.each([
+    ["2026-10-18T00:00", "2026-10-17T18:30:00.000Z"],
+    ["2026-10-18T07:15", "2026-10-18T01:45:00.000Z"],
+    ["2026-10-18T23:59", "2026-10-18T18:29:00.000Z"],
+  ])("books and reschedules an out-of-hours Sunday time: %s", async (localTime, utcTime) => {
+    vi.mocked(leads.getLead).mockResolvedValue({ id:leadId,status:"assigned" } as Awaited<ReturnType<typeof leads.getLead>>);
+    const form = input(); form.set("scheduled_at", localTime);
+    expect(await transitionLeadAction(leadId,"appointment_booked",form)).toMatchObject({ ok:true });
+    expect(leads.transitionLead).toHaveBeenCalledWith(expect.anything(),leadId,"appointment_booked",{ scheduled_at:utcTime });
+    expect(await rescheduleAppointmentAction(appointmentId,leadId,form)).toMatchObject({ ok:true });
+    expect(appointments.updateAppointment).toHaveBeenCalledWith(expect.anything(),appointmentId,expect.objectContaining({ scheduled_at:utcTime }),leadId);
+  });
   it("reschedules with no duration field while retaining the WhatsApp handoff", async () => {
     const form=input();form.set("duration_minutes","invalid stale value");
     expect(await rescheduleAppointmentAction(appointmentId,leadId,form)).toEqual({ ok:true,whatsappUrl:"https://wa.me/?text=test" });

@@ -22,6 +22,14 @@ describe("invoice date controls", () => {
 });
 
 describe("consultation invoice edits", () => {
+  it("allows correcting an unpaid consultation fee to zero", async () => {
+    render(<ConsultationInvoiceEditor invoiceId="invoice-1" version={3} initialAmount={200} initialNotes="" />);
+    fireEvent.change(screen.getByLabelText("Consultation amount (₹)"), { target: { value: "0" } });
+    expect(screen.getByLabelText("Consultation amount (₹)")).toBeValid();
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(updateConsultationInvoiceAction).toHaveBeenCalledWith("invoice-1", { amount: "0", notes: "", expected_version: 3 }));
+  });
+
   it("saves corrected amounts and notes with the invoice version", async () => {
     render(<ConsultationInvoiceEditor invoiceId="invoice-1" version={3} initialAmount={200} initialNotes="" />);
     fireEvent.change(screen.getByLabelText("Consultation amount (₹)"), { target: { value: "250" } });

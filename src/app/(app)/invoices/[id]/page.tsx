@@ -111,6 +111,9 @@ export default async function InvoiceDetailPage({
       {invoice.status === "cancelled" && <div role="status" className="rounded-md border border-destructive p-3 text-sm">
         This invoice is voided and has no outstanding balance. {invoice.void_reason && <>Reason: {invoice.void_reason}</>}
       </div>}
+      {invoice.total === 0 && invoice.status !== "cancelled" && <p role="status" className="rounded-md border p-3 text-sm">
+        This is a ₹0 invoice. No payment is required for this bill; earlier patient dues remain unchanged.
+      </p>}
       {!invoiceEditWindowOpen(invoice.created_at) && invoice.status !== "cancelled" && <p className="text-sm text-muted-foreground">The 24-hour invoice editing window has closed. An admin can void an unpaid invoice if it was generated incorrectly.</p>}
       <Card>
         <CardContent className="pt-6">

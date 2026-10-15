@@ -4,6 +4,13 @@ import { ClinicDateTimeInput } from "@/components/appointments/clinic-date-time-
 afterEach(cleanup);
 
 describe("explicit AM/PM date and time input", () => {
+  it.each(["2026-10-18T00:00", "2026-10-18T07:15", "2026-10-18T19:30", "2026-10-18T23:59"])("allows any appointment start time, including Sundays: %s", (value) => {
+    const { container } = render(<form><ClinicDateTimeInput id="appointment" name="scheduled_at" label="Start date & time (IST)" defaultValue={value} required /></form>);
+    const form = container.querySelector("form")!;
+    expect(form.checkValidity()).toBe(true);
+    expect(new FormData(form).get("scheduled_at")).toBe(value);
+    expect(screen.getByText(/including outside clinic hours/)).toBeInTheDocument();
+  });
   it("shows an existing evening appointment in 12 hours and preserves its submitted value", () => {
     const { container }=render(<form><ClinicDateTimeInput id="appointment-time" name="scheduled_at" label="Date & time (IST)" defaultValue="2017-01-01T19:30" required /></form>);
     expect(screen.getByRole("group",{ name:"Date & time (IST)" })).toBeInTheDocument();

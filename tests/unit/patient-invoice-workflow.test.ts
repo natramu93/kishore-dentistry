@@ -16,16 +16,24 @@ const context = (role: AuthContext["role"] = "front_office") => ({
 
 function chain(result: { data: unknown; error: unknown; count?: number }) {
   const query = {
-    select: vi.fn(), eq: vi.fn(), is: vi.fn(), in: vi.fn(), or: vi.fn(), order: vi.fn(), gte: vi.fn(), lte: vi.fn(),
+    select: vi.fn(), eq: vi.fn(), is: vi.fn(), in: vi.fn(), or: vi.fn(), order: vi.fn(), gte: vi.fn(), lte: vi.fn(), gt: vi.fn(), not: vi.fn(),
     limit: vi.fn().mockResolvedValue(result), maybeSingle: vi.fn().mockResolvedValue(result),
     range: vi.fn().mockResolvedValue(result),
   };
-  for (const key of ["select", "eq", "is", "in", "or", "order", "gte", "lte"] as const) query[key].mockReturnValue(query);
+  for (const key of ["select", "eq", "is", "in", "or", "order", "gte", "lte", "gt", "not"] as const) query[key].mockReturnValue(query);
   return query;
 }
 beforeEach(() => vi.resetAllMocks());
 
 describe("patient invoice history", () => {
+  it("excludes zero-total invoices from the due-only filter", async () => {
+    const query = chain({ data: [], error: null, count: 0 });
+    mocks.from.mockReturnValue(query);
+    await listInvoices(context(), { dueOnly: true });
+    expect(query.not).toHaveBeenCalledWith("status", "in", "(paid,cancelled)");
+    expect(query.gt).toHaveBeenCalledWith("total", 0);
+  });
+
   it("uses the exact ledger balance even when the visible receipt history is capped", async () => {
     const invoiceId="20000000-0000-4000-8000-000000000004";
     mocks.from.mockReturnValueOnce(chain({ data: { id:invoiceId, lead_id:leadId,branch_id:branchId,

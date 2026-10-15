@@ -54,6 +54,6 @@ export function ClinicDateTimeInput({ id, name, label, defaultValue = "", requir
         </div>
       </div>
     </div>
-    <p id={`${id}-help`} className="text-xs text-muted-foreground">12-hour clock · Indian Standard Time (IST). 12 AM is midnight; 12 PM is noon.</p>
+    <p id={`${id}-help`} className="text-xs text-muted-foreground">Choose any time, including outside clinic hours. 12-hour clock · Indian Standard Time (IST). 12 AM is midnight; 12 PM is noon.</p>
   </fieldset>;
 }

@@ -61,7 +61,7 @@ export function ConsultationInvoiceForm({ leadId }: { leadId: string }) {
               id={`${id}-amount`}
               type="number"
               inputMode="decimal"
-              min={0.01}
+              min={0}
               max={99999999.99}
               step={0.01}
               value={amount}

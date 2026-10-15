@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createInvoiceAction, updateInvoiceAction } from "@/actions/invoices";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ToothSelector } from "@/components/clinical/tooth-selector";
 import { invoiceDisplayTotals } from "@/lib/invoice-lines";
+import { TreatmentSearch } from "@/components/invoices/treatment-search";
 import { clinicToday, formatINR } from "@/lib/tz";
 import { LockKeyhole, Trash2 } from "lucide-react";
 
@@ -109,6 +110,11 @@ export function InvoiceEditor({
   const { subtotal, safeDiscount, tax: discountedTax, total } = invoiceDisplayTotals(items, taxRate, discount);
   const selectedIds = new Set(items.map((item) => item.treatment_id));
   const available = treatmentCatalog.filter((item) => !selectedIds.has(item.id));
+  const searchOptions = useMemo(() => treatmentOptions.map((option) => ({
+    value: option.id,
+    label: `${option.is_general_consultation ? "General consultation" : option.name}${option.category ? ` — ${option.category}` : ""}`,
+    searchText: `${option.name} ${option.category ?? ""} ${option.is_general_consultation ? "general consultation" : ""}`,
+  })), [treatmentOptions]);
 
   function updateItem(
     rowKey: string,
@@ -162,13 +168,13 @@ export function InvoiceEditor({
 
   function selectCatalogTreatment(rowKey: string, treatmentTypeId: string) {
     const selection = treatmentOptions.find((option) => option.id === treatmentTypeId);
-    if (!selection) return;
+    if (treatmentTypeId && !selection) return;
     setDirty(true);
     setItems((previous) => previous.map((item) => item.rowKey === rowKey ? {
       ...item,
-      treatment_type_id: selection.id,
-      description: selection.name,
-      unit_price: selection.default_cost ?? item.unit_price,
+      treatment_type_id: selection?.id ?? null,
+      description: selection?.name ?? "",
+      unit_price: selection ? selection.default_cost ?? item.unit_price : 0,
     } : item));
   }
 
@@ -201,10 +207,6 @@ export function InvoiceEditor({
     }
     if (items.some((item) => !Number.isFinite(item.unit_price) || item.unit_price < 0)) {
       toast.error("Enter a valid unit price for every invoice line");
-      return;
-    }
-    if (subtotal <= 0) {
-      toast.error("Enter a total greater than zero before creating the invoice");
       return;
     }
     if (!Number.isFinite(discount) || discount < 0 || discount > subtotal) {
@@ -301,22 +303,14 @@ export function InvoiceEditor({
           {mode === "edit" && available.length > 0 && <details className="space-y-1.5">
             <summary className="cursor-pointer text-sm font-medium">Add from a saved case sheet (optional)</summary>
             <Label htmlFor={`${idPrefix}-treatment`}>Add a completed case-sheet treatment (optional)</Label>
-            <select
+            <TreatmentSearch
               id={`${idPrefix}-treatment`}
               value=""
-              onChange={(event) => event.target.value && addTreatment(event.target.value)}
-              className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+              onChange={(value) => value && addTreatment(value)}
+              options={available.map((treatment) => ({ value: treatment.id, label: `${treatment.code} — ${treatment.name} — ${treatment.site_label}` }))}
+              placeholder="Search coded treatments…"
               disabled={available.length === 0}
-            >
-              <option value="">
-                {available.length ? "Select a coded treatment…" : "No other eligible treatments"}
-              </option>
-              {available.map((treatment) => (
-                <option key={treatment.id} value={treatment.id}>
-                  {treatment.code} — {treatment.name} — {treatment.site_label}
-                </option>
-              ))}
-            </select>
+            />
           </details>}
 
           <section aria-labelledby={`${idPrefix}-items-heading`} className="space-y-3">
@@ -349,18 +343,14 @@ export function InvoiceEditor({
                     {isCatalogLine ? (
                       <div className="space-y-1.5">
                         <Label htmlFor={`${idPrefix}-${item.rowKey}-catalog`}>Treatment</Label>
-                        <select
+                        <TreatmentSearch
                           id={`${idPrefix}-${item.rowKey}-catalog`}
                           value={item.treatment_type_id ?? ""}
-                          onChange={(event) => selectCatalogTreatment(item.rowKey, event.target.value)}
-                          className="h-11 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-sm"
+                          onChange={(value) => selectCatalogTreatment(item.rowKey, value)}
+                          options={searchOptions}
+                          disabled={pending}
                           required
-                        >
-                          <option value="">Choose a treatment…</option>
-                          {treatmentOptions.map((option) => (
-                            <option key={option.id} value={option.id}>{option.is_general_consultation ? "General consultation" : option.name}{option.category ? ` — ${option.category}` : ""}</option>
-                          ))}
-                        </select>
+                        />
                       </div>
                     ) : (
                     <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
@@ -502,6 +492,9 @@ export function InvoiceEditor({
               <span>Total</span>
               <span>{formatINR(total)}</span>
             </div>
+            {total === 0 && items.length > 0 && items.every((item) => item.treatment_id || item.treatment_type_id) && (
+              <p className="pt-2 text-muted-foreground">This is a ₹0 invoice. No payment is required for this bill; earlier patient dues remain unchanged.</p>
+            )}
           </div>
 
           {mode === "create" && existingBalanceDue !== undefined && <section aria-label="Patient due after this invoice" className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm">

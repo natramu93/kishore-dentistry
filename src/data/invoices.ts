@@ -337,7 +337,7 @@ export async function listInvoices(
   if (toDate) query = query.lte("billing_date", toDate);
   if (opts.status) query = query.eq("status", assertInvoiceStatus(opts.status));
   if (opts.leadId) query = query.eq("lead_id", assertUuid(opts.leadId, "Patient"));
-  if (opts.dueOnly) query = query.not("status", "in", "(paid,cancelled)");
+  if (opts.dueOnly) query = query.not("status", "in", "(paid,cancelled)").gt("total", 0);
   if (opts.paymentMethod) {
     const paymentsQuery = db.from("invoice_payments").select("invoice_id")
       .eq("payment_method", opts.paymentMethod).limit(5_000);
@@ -587,8 +587,8 @@ export async function createConsultationInvoice(
 ): Promise<Invoice> {
   requireAnyRole(ctx, INVOICE_ROLES, "Invoices access required");
   const leadId = assertUuid(input.lead_id, "Lead");
-  if (!Number.isFinite(input.amount) || input.amount <= 0 || input.amount > MAX_UNIT_PRICE) {
-    throw new ValidationError("Consultation amount must be greater than zero");
+  if (!Number.isFinite(input.amount) || input.amount < 0 || input.amount > MAX_UNIT_PRICE) {
+    throw new ValidationError("Consultation amount must be zero or greater and within the allowed limit");
   }
   if (!hasAtMostTwoDecimals(input.amount)) {
     throw new ValidationError("Consultation amount supports at most two decimals");
@@ -738,7 +738,7 @@ export async function updateConsultationInvoice(ctx: AuthContext, id: string, in
   assertInvoiceWriteAccess(ctx, { branch_id: invoice.branch_id, assignee_id: invoice.lead?.assignee_id ?? null });
   if (invoice.invoice_kind !== "consultation" || invoice.status === "paid" || invoice.status === "cancelled") throw new ConflictError("This invoice cannot be edited");
   if (!invoiceEditWindowOpen(invoice.created_at)) throw new ConflictError("Invoices can only be edited within 24 hours of creation");
-  if (!Number.isFinite(input.amount) || input.amount <= invoice.discount_amount || input.amount > MAX_UNIT_PRICE || !hasAtMostTwoDecimals(input.amount)) throw new ValidationError("Enter a valid amount greater than the discount");
+  if (!Number.isFinite(input.amount) || input.amount < invoice.discount_amount || input.amount > MAX_UNIT_PRICE || !hasAtMostTwoDecimals(input.amount)) throw new ValidationError("Enter a valid amount at least equal to the discount");
   if (input.notes && input.notes.length > 4000) throw new ValidationError("Invoice notes are too long");
   const result = await db.rpc("update_invoice", { p_invoice_id: invoice.id, p_tax_rate: invoice.tax_rate,
     p_notes: input.notes?.trim() || null, p_actor: ctx.userId, p_expected_version: validateExpectedVersion(input.expected_version),

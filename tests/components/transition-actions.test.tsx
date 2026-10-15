@@ -43,15 +43,18 @@ describe("lead transition actions", () => {
     expect(args[2].get("scheduled_at")).toBe("2026-10-13T19:30");
     expect(args[2].has("duration_minutes")).toBe(false);
   });
-  it("schedules future follow-ups with a 12-hour clock", async () => {
+  it("uses Book appointment throughout the follow-up dialog without changing its scheduling payload", async () => {
     vi.mocked(transitionLeadAction).mockResolvedValueOnce({ ok:true });
     render(<TransitionActions {...baseProps} lead={{ id:"22222222-2222-4222-8222-222222222222",status:"visited_treated" }} />);
-    fireEvent.click(screen.getByRole("button",{ name:"Schedule follow-up" }));
+    fireEvent.click(screen.getByRole("button",{ name:"Book appointment" }));
+    const dialog = screen.getByRole("dialog", { name: "Book appointment" });
+    expect(screen.queryByText("Schedule follow-up")).toBeNull();
     fireEvent.change(screen.getByLabelText("Date"),{ target:{ value:"2030-10-13" } });
     fireEvent.change(screen.getByLabelText("Hour"),{ target:{ value:"9" } });
     fireEvent.change(screen.getByLabelText("AM / PM"),{ target:{ value:"AM" } });
-    fireEvent.click(screen.getByRole("button",{ name:"Schedule" }));
+    fireEvent.click(within(dialog).getByRole("button",{ name:"Book appointment" }));
     await waitFor(() => expect(transitionLeadAction).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(transitionLeadAction).mock.calls[0]![1]).toBe("follow_up");
     expect(vi.mocked(transitionLeadAction).mock.calls[0]![2].get("due_at")).toBe("2030-10-13T09:00");
   });
   const bookedLead = { id: "22222222-2222-4222-8222-222222222222", status: "appointment_booked" as const };
@@ -102,10 +105,11 @@ describe("lead transition actions", () => {
     expect(transitionLeadAction).not.toHaveBeenCalled();
   });
 
-  it("offers follow-up or drop after treatment without a close action", () => {
+  it.each(["admin", "operations", "front_office"] as const)("offers Book appointment or drop after treatment for %s without a close action", (role) => {
     render(
       <TransitionActions
         {...baseProps}
+        role={role}
         lead={{
           id: "22222222-2222-4222-8222-222222222222",
           status: "visited_treated",
@@ -114,7 +118,7 @@ describe("lead transition actions", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "Schedule follow-up" })
+      screen.getByRole("button", { name: "Book appointment" })
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Drop lead" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /close lead/i })).toBeNull();

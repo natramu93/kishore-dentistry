@@ -28,7 +28,7 @@ export function ConsultationInvoiceEditor({ invoiceId, version, initialAmount, i
     });
   }}>
     <div className="space-y-1"><Label htmlFor={`${id}-amount`}>Consultation amount (₹)</Label>
-      <Input id={`${id}-amount`} type="number" min="0.01" max="99999999.99" step="0.01" required value={amount} onChange={(event) => setAmount(event.target.value)} /></div>
+      <Input id={`${id}-amount`} type="number" min="0" max="99999999.99" step="0.01" required value={amount} onChange={(event) => setAmount(event.target.value)} /></div>
     <div className="space-y-1"><Label htmlFor={`${id}-notes`}>Invoice remarks (optional)</Label>
       <Textarea id={`${id}-notes`} maxLength={4000} value={notes} onChange={(event) => setNotes(event.target.value)} /></div>
     <div className="flex gap-2"><Button disabled={pending} type="submit">{pending ? "Saving…" : "Save changes"}</Button>
