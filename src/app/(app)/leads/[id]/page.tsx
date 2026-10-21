@@ -189,6 +189,7 @@ export default async function LeadDetailPage({
           </div>
           <TransitionActions
             lead={{ id: lead.id, status: lead.status }}
+            hasVisited={caseSheetTotal > 0 || appointments.some((appointment) => appointment.status === "completed")}
             activeAppointmentId={scheduledAppointments.length === 1 ? activeAppointment?.id ?? null : null}
             appointmentOptions={scheduledAppointments.map((appointment) => ({
               id: appointment.id,
