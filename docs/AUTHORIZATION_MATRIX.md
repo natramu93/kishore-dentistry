@@ -16,7 +16,6 @@ physical deletion.
 | Leads | All; manage | Allocated; manage | Read own and unassigned; write own after assignment | Allocated; manage | No Leads module access |
 | Appointments | All; manage | Allocated; manage | Accessible leads; book and reschedule | Allocated; manage | Own linked schedule; complete or mark no-show |
 | Treatment records | All; manage through lead workflow | Allocated; manage through lead workflow | Accessible assigned leads; manage through lead workflow | Allocated; manage through lead workflow | Record treatment only while completing own linked appointment |
-| Follow-ups | All; manage | Allocated; manage | Read own and unassigned; complete own assigned lead's follow-up | Allocated; manage | No access |
 | Comments | All accessible leads; add; edit own; archive own or another author's | Allocated leads; add; edit own; archive own or another author's | Read own and unassigned; add/edit/archive own on assigned leads | Allocated leads; add; edit own; archive own or another author's | No access |
 | Invoices | All; create, edit non-paid, advance status | Allocated; create, edit non-paid, advance status | Read own and unassigned; create/edit/advance only for assigned leads | Allocated; create, edit non-paid, advance status | No access |
 | Reports | Global | Allocated | No access | Allocated | Own dashboard only; no Reports module |
@@ -34,7 +33,11 @@ physical deletion.
   not override record ownership, lead assignment, or Doctor-link checks.
 - Front Office may read the unassigned lead pool, but must claim or receive
   assignment before changing sensitive lead workflow, appointments, comments,
-  follow-ups, or invoices.
+  or invoices.
+- The separate follow-up workflow is retired. Initial and returning visits use
+  the same appointment permissions and booking form. Legacy reminders remain
+  readable within an accessible patient's history; no role can create or
+  complete reminders through the application.
 - A Doctor acts only on a scheduled appointment linked to their own active
   Doctor profile. The server derives Doctor identity; a client-supplied Doctor
   identifier is never trusted as identity.

@@ -7,7 +7,8 @@ export const ALLOWED_TRANSITIONS: Record<LeadStatus, LeadStatus[]> = {
   open: ["assigned", "dropped"],
   assigned: ["open", "appointment_booked", "dropped"],
   appointment_booked: ["appointment_booked", "visited_treated", "missed", "assigned", "dropped"],
-  visited_treated: ["follow_up", "dropped"],
+  visited_treated: ["appointment_booked", "dropped"],
+  // Historical records can return to booking, but no transition creates this stage.
   follow_up: ["appointment_booked", "dropped"],
   missed: ["assigned", "dropped"],
   closed: [],
@@ -23,7 +24,7 @@ export const STATUS_LABELS: Record<LeadStatus, string> = {
   assigned: "Assigned",
   appointment_booked: "Appointment Booked",
   visited_treated: "Visited / Treated",
-  follow_up: "Follow Up",
+  follow_up: "Awaiting appointment (legacy)",
   closed: "Closed",
   dropped: "Dropped",
   missed: "Missed",
@@ -35,7 +36,6 @@ export const PIPELINE_ORDER: LeadStatus[] = [
   "assigned",
   "appointment_booked",
   "visited_treated",
-  "follow_up",
 ];
 
 // Per-transition payload schemas, validated in the server action
@@ -59,10 +59,6 @@ export const transitionPayloadSchemas = {
     doctor_id: z.string().uuid().optional().or(z.literal("")),
     cost: z.coerce.number().finite().min(0).max(100_000_000).optional(),
     notes: z.string().trim().max(4_000).optional(),
-  }),
-  follow_up: z.object({
-    due_at: z.string().min(1).max(64),
-    reason: z.string().trim().max(1_000).optional(),
   }),
   missed: z.object({
     appointment_id: z.string().uuid().optional(),

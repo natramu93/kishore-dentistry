@@ -9,7 +9,7 @@ import { STATUS_LABELS, PIPELINE_ORDER } from "@/lib/leads/transitions";
 import type { LeadStatus } from "@/lib/database.types";
 import { fmt, formatINR } from "@/lib/tz";
 import {
-  CalendarDays, BellRing, Users, TrendingUp, Stethoscope, IndianRupee, BarChart3, Plus,
+  CalendarDays, Users, TrendingUp, Stethoscope, IndianRupee, BarChart3, Plus,
 } from "lucide-react";
 
 export const metadata = { title: "Dashboard — Dr. Kishor's Dentistry CRM" };
@@ -95,7 +95,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* KPI cards */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-3">
         <KpiCard icon={Users} label="Total leads" value={data.totalLeads} href="/leads" accent="blue" />
         <KpiCard
           icon={CalendarDays}
@@ -103,13 +103,6 @@ export default async function DashboardPage() {
           value={data.todaysAppointments}
           href="/appointments"
           accent="violet"
-        />
-        <KpiCard
-          icon={BellRing}
-          label="Follow-ups due"
-          value={data.dueFollowUps}
-          href="/follow-ups"
-          accent="amber"
         />
         <KpiCard
           icon={TrendingUp}

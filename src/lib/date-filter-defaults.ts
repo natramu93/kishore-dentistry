@@ -16,12 +16,3 @@ export function clinicDateFilterDefaults(params: { from?: string; to?: string; d
     to: toValue ? clinicDayRange(toValue).end : undefined,
   };
 }
-
-export function followUpDayFilters(today = clinicToday()) {
-  const { start, end } = clinicDayRange(today);
-  return {
-    overdue: { dueBefore: start },
-    today: { dueFrom: start, dueBefore: end },
-    upcoming: { dueFrom: end },
-  };
-}

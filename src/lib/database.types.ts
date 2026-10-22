@@ -906,15 +906,16 @@ export type Database = {
           }
         ]
       >;
-      follow_ups: TableDef<
-        FollowUp,
-        "lead_id" | "due_at",
-        "id" | "created_at" | "branch_id",
-        [
+      // Retired reminder workflow: retained for patient history only.
+      follow_ups: {
+        Row: FollowUp;
+        Insert: never;
+        Update: never;
+        Relationships: [
           FK<"follow_ups_lead_id_fkey", "lead_id", "leads">,
           FK<"follow_ups_branch_id_fkey", "branch_id", "branches">
-        ]
-      >;
+        ];
+      };
       invoices: TableDef<
         Invoice,
         "invoice_number" | "lead_id",

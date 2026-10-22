@@ -101,16 +101,14 @@ describe("lead transition payload contracts", () => {
     ).toBe(false);
   });
 
-  it("bounds follow-up and dropped reasons", () => {
+  it("bounds dropped reasons", () => {
     expect(
-      transitionPayloadSchemas.follow_up.safeParse({
-        due_at: "2026-07-27T10:00",
+      transitionPayloadSchemas.dropped.safeParse({
         reason: "x".repeat(1_000),
       }).success
     ).toBe(true);
     expect(
-      transitionPayloadSchemas.follow_up.safeParse({
-        due_at: "2026-07-27T10:00",
+      transitionPayloadSchemas.dropped.safeParse({
         reason: "x".repeat(1_001),
       }).success
     ).toBe(false);

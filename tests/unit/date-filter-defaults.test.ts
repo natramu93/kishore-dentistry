@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/data/db", () => ({ db: {} }));
 import { DEFAULT_REPORT_DAYS, defaultReportRange } from "@/data/reports";
-import { clinicDateFilterDefaults, followUpDayFilters } from "@/lib/date-filter-defaults";
+import { clinicDateFilterDefaults } from "@/lib/date-filter-defaults";
 
 beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-06T20:00:00Z")); });
 afterEach(() => vi.useRealTimers());
@@ -30,10 +30,5 @@ describe("today-only filter defaults", () => {
   it("retains user-selected longer report presets", () => {
     expect(defaultReportRange(7)).toEqual({ from: "2026-09-30T18:30:00.000Z", to: end });
     expect(defaultReportRange(30).to).toBe(end);
-  });
-  it("includes earlier follow-ups today without overlapping overdue/upcoming", () => {
-    expect(followUpDayFilters()).toEqual({
-      overdue: { dueBefore: start }, today: { dueFrom: start, dueBefore: end }, upcoming: { dueFrom: end },
-    });
   });
 });

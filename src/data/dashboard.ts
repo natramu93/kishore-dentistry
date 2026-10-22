@@ -20,7 +20,6 @@ export type DashboardData = {
   sourceCounts: { source: string; count: number }[];
   interestCounts: { interest: string; count: number }[];
   todaysAppointments: number;
-  dueFollowUps: number;
   totalLeads: number;
   dailyCollections: { method: "cash" | "upi" | "card" | "neft"; amount: number }[];
 };
@@ -83,7 +82,6 @@ export async function getDashboardData(
         count: Number(row.value),
       })),
     todaysAppointments: summaryValue("todays_appointments"),
-    dueFollowUps: summaryValue("due_follow_ups"),
     totalLeads: summaryValue("total_leads"),
     dailyCollections: (collectionsResult.data ?? []).map((row) => ({
       method: row.payment_method as "cash" | "upi" | "card" | "neft",

@@ -141,6 +141,9 @@ export async function transitionLeadAction(
   if (!id.success || !target.success) {
     return { ok: false, error: "Transition target is invalid" };
   }
+  if (target.data === "follow_up") {
+    return { ok: false, error: "Follow-up scheduling has been retired. Use Book appointment." };
+  }
   if (target.data === "visited_treated") {
     return {
       ok: false,
@@ -160,9 +163,6 @@ export async function transitionLeadAction(
     const payload: Record<string, unknown> = { ...parsed.data };
     if (typeof payload.scheduled_at === "string" && payload.scheduled_at) {
       payload.scheduled_at = clinicTimeToUtc(payload.scheduled_at);
-    }
-    if (typeof payload.due_at === "string" && payload.due_at) {
-      payload.due_at = clinicTimeToUtc(payload.due_at);
     }
     for (const key of Object.keys(payload)) {
       if (payload[key] === "" || payload[key] === undefined) delete payload[key];
@@ -193,7 +193,6 @@ export async function transitionLeadAction(
       revalidatePath("/leads");
       revalidatePath("/dashboard");
       revalidatePath("/appointments");
-      revalidatePath("/follow-ups");
       return { whatsappUrl };
     });
   }
@@ -206,7 +205,6 @@ export async function transitionLeadAction(
     revalidatePath("/leads");
     revalidatePath("/dashboard");
     revalidatePath("/appointments");
-    revalidatePath("/follow-ups");
   });
 }
 

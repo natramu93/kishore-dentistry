@@ -192,7 +192,6 @@ export default async function ReportsPage({
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <TotalCard label="Total leads" value={data.totals.leads} accent="border-l-blue-400" />
         <TotalCard label="Appointments" value={data.totals.appointments} accent="border-l-violet-400" />
-        <TotalCard label="Follow-ups" value={data.totals.followUps} accent="border-l-amber-400" />
         <TotalCard label="Revenue received" value={formatINR(data.collections.total.amount)} accent="border-l-emerald-400" />
         <TotalCard label="Treatment value" value={formatINR(data.totals.revenue)} accent="border-l-blue-400" />
         <TotalCard label="Invoice discounts" value={formatINR(data.invoiceValues.discounts)} accent="border-l-amber-400" />
@@ -322,13 +321,12 @@ function ReportTable({
           <TableHead>{firstColumn}</TableHead>
           <TableHead className="text-right">Leads</TableHead>
           <TableHead className="text-right">Appointments</TableHead>
-          <TableHead className="text-right">Follow-ups</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {rows.length === 0 && (
           <TableRow>
-            <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+            <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
               {emptyText}
             </TableCell>
           </TableRow>
@@ -338,7 +336,6 @@ function ReportTable({
             <TableCell className="font-medium">{r.label}</TableCell>
             <TableCell className="text-right">{r.leads || "—"}</TableCell>
             <TableCell className="text-right">{r.appointments || "—"}</TableCell>
-            <TableCell className="text-right">{r.followUps || "—"}</TableCell>
           </TableRow>
         ))}
         {rows.length > 0 && (
@@ -349,9 +346,6 @@ function ReportTable({
             </TableCell>
             <TableCell className="text-right font-semibold">
               {rows.reduce((s, r) => s + r.appointments, 0)}
-            </TableCell>
-            <TableCell className="text-right font-semibold">
-              {rows.reduce((s, r) => s + r.followUps, 0)}
             </TableCell>
           </TableRow>
         )}

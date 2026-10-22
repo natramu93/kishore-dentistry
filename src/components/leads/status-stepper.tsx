@@ -5,7 +5,8 @@ import { Check, X } from "lucide-react";
 
 export function StatusStepper({ status }: { status: LeadStatus }) {
   const isTerminalBad = status === "dropped" || status === "missed";
-  const currentIdx = PIPELINE_ORDER.indexOf(status);
+  const displayStatus = status === "follow_up" ? "visited_treated" : status;
+  const currentIdx = PIPELINE_ORDER.indexOf(displayStatus);
 
   return (
     <ol
@@ -15,7 +16,7 @@ export function StatusStepper({ status }: { status: LeadStatus }) {
     >
       {PIPELINE_ORDER.map((s, i) => {
         const done = currentIdx > i || status === "closed";
-        const current = s === status;
+        const current = s === displayStatus;
         return (
           <li key={s} className="flex shrink-0 items-center gap-1">
             {i > 0 && (

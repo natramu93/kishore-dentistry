@@ -2,7 +2,7 @@
 
 An internal, multi-branch dental-clinic CRM for patient intake, appointments,
 whole-mouth and tooth-level records, longitudinal medical history, visit
-prescriptions, private clinical files, follow-ups, invoicing, and role-scoped
+prescriptions, private clinical files, invoicing, and role-scoped
 reporting.
 
 The application handles sensitive clinic data. Do not use real patient data in
@@ -147,7 +147,7 @@ the explicit local settings in `supabase/config.toml`.
 | Operations | Branch-wide business workflows and reports for allocated branches |
 | Front Office | Intake and reception; may read assigned leads and the unassigned pool, but must claim a lead before writing |
 | Clinical Head | Branch-wide clinical administration, catalog/roster management, workflows, and reports |
-| Doctor | Own linked schedule and treatment completion only; no Leads, Follow-ups, Comments, or Invoices module access |
+| Doctor | Own linked schedule and treatment completion only; no Leads, Comments, or Invoices module access |
 
 Navigation visibility is not an authorization boundary. Every protected read
 and mutation loads a verified `AuthContext`, re-reads the target record, and
@@ -160,6 +160,10 @@ See the detailed
 
 ## Data integrity highlights
 
+- Initial and returning visits both use **Book appointment**. The separate
+  follow-up scheduling workflow is retired; old reminders remain patient
+  history only. See [appointment booking workflow](docs/appointment-booking-workflow.md)
+  for the matching migration and verification details.
 - Lead transitions, lead creation plus initial activity, invoice writes, and
   comment writes use transactional RPCs.
 - Invoice and comment edits use optimistic versions to reject stale writes.

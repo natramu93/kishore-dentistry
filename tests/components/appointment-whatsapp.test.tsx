@@ -25,14 +25,14 @@ function mockWhatsAppTab() {
 }
 
 describe("appointment WhatsApp handoff", () => {
-  it("opens the prepared WhatsApp message after a new appointment is saved", async () => {
+  it.each(["assigned", "appointment_booked", "visited_treated", "follow_up"] as const)("opens the prepared WhatsApp message after booking from %s", async (status) => {
     const whatsappUrl = "https://wa.me/919361135459?text=appointment";
     const tab = mockWhatsAppTab();
     vi.mocked(transitionLeadAction).mockResolvedValueOnce({ ok: true, whatsappUrl });
 
     render(
       <TransitionActions
-        lead={{ id: "22222222-2222-4222-8222-222222222222", status: "assigned" }}
+        lead={{ id: "22222222-2222-4222-8222-222222222222", status }}
         activeAppointmentId={null}
         assignableUsers={[]}
         doctors={[]}
@@ -83,5 +83,23 @@ describe("appointment WhatsApp handoff", () => {
       "22222222-2222-4222-8222-222222222222",
       expect.any(FormData)
     );
+  });
+
+  it.each([true, false])("closes the reserved tab after a returning booking with no handoff (saved: %s)", async (saved) => {
+    const tab = mockWhatsAppTab();
+    vi.mocked(transitionLeadAction).mockResolvedValueOnce(saved
+      ? { ok: true }
+      : { ok: false, error: "Appointment could not be saved" });
+    render(<TransitionActions lead={{ id: "22222222-2222-4222-8222-222222222222", status: "visited_treated" }}
+      activeAppointmentId={null} assignableUsers={[]} doctors={[]} role="operations"
+      userId="11111111-1111-4111-8111-111111111111" />);
+    fireEvent.click(screen.getByRole("button", { name: "Book appointment" }));
+    fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2030-10-22" } });
+    fireEvent.change(screen.getByLabelText("Hour"), { target: { value: "9" } });
+    fireEvent.change(screen.getByLabelText("AM / PM"), { target: { value: "AM" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create appointment & open WhatsApp" }));
+    await waitFor(() => expect(tab.close).toHaveBeenCalledOnce());
+    expect(tab.location.href).toBe("about:blank");
+    expect(Boolean(screen.queryByRole("dialog", { name: "Book appointment" }))).toBe(!saved);
   });
 });

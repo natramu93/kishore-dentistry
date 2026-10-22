@@ -234,6 +234,9 @@ export async function transitionLead(
 ): Promise<Lead> {
   const leadId = assertUuid(leadIdValue, "Lead");
   const to = assertLeadStatus(toValue);
+  if (to === "follow_up") {
+    throw new ValidationError("Follow-up scheduling has been retired. Use Book appointment.");
+  }
   if (to === "visited_treated") {
     throw new ValidationError(
       "Finalize a coded digital case sheet to complete this visit"
@@ -321,10 +324,6 @@ export async function transitionLead(
 
   if (to === "dropped" && typeof trustedPayload.appointment_id === "string") {
     await requireAppointmentForLead(trustedPayload.appointment_id, leadId);
-  }
-
-  if (to === "follow_up") {
-    trustedPayload.due_at = assertIsoDateTime(trustedPayload.due_at, "Follow-up date");
   }
 
   const { data, error } = await db.rpc("transition_lead", {

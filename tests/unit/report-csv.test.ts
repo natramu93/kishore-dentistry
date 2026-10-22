@@ -53,13 +53,14 @@ describe("report CSV export", () => {
 
     expect(csv.startsWith("\uFEFF")).toBe(true);
     expect(csv).toContain(
-      "\"By doctor\",\"'=HYPERLINK(\"\"https://example.test\"\")\",\"2\",\"3\",\"1\",\"\""
+      "\"By doctor\",\"'=HYPERLINK(\"\"https://example.test\"\")\",\"2\",\"3\",\"\""
     );
-    expect(csv).toContain("\"Overall\",\"Total\",\"2\",\"3\",\"1\",\"500\"");
-    expect(csv).toContain('"Receipts by date","2026-07-02","","","","","250","0","0","0","250"');
-    expect(csv).toContain('"Receipts by month","2026-07","","","","","250","0","0","0","250"');
-    expect(csv).toContain('"Invoice value by doctor","Doctor A","","","","500"');
-    expect(csv).toContain('"Overall","Total","2","3","1","500","250","0","0","0","250","50","0","450"');
+    expect(csv).not.toContain('"Follow-ups"');
+    expect(csv).toContain("\"Overall\",\"Total\",\"2\",\"3\",\"500\"");
+    expect(csv).toContain('"Receipts by date","2026-07-02","","","","250","0","0","0","250"');
+    expect(csv).toContain('"Receipts by month","2026-07","","","","250","0","0","0","250"');
+    expect(csv).toContain('"Invoice value by doctor","Doctor A","","","500"');
+    expect(csv).toContain('"Overall","Total","2","3","500","250","0","0","0","250","50","0","450"');
     expect(csv).not.toContain("doctor-id");
     expect(csv.endsWith("\r\n")).toBe(true);
     expect(csv.replaceAll("\r\n", "")).not.toContain("\n");

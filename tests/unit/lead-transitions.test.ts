@@ -10,6 +10,10 @@ describe("lead state machine", () => {
     expect(canTransition("open", "assigned")).toBe(true);
     expect(canTransition("appointment_booked", "assigned")).toBe(true);
     expect(canTransition("follow_up", "appointment_booked")).toBe(true);
+    expect(canTransition("visited_treated", "appointment_booked")).toBe(true);
+    for (const status of Object.keys(ALLOWED_TRANSITIONS)) {
+      expect(canTransition(status as keyof typeof ALLOWED_TRANSITIONS, "follow_up")).toBe(false);
+    }
     expect(canTransition("visited_treated", "closed")).toBe(false);
     expect(canTransition("follow_up", "closed")).toBe(false);
     expect(canTransition("closed", "open")).toBe(false);
@@ -57,11 +61,12 @@ describe("lead state machine", () => {
     ).toBe(false);
   });
 
-  it("accepts follow-ups scheduled years in the future", () => {
+  it("uses appointment booking for visits years in the future, with no follow-up payload", () => {
+    expect(transitionPayloadSchemas).not.toHaveProperty("follow_up");
     expect(
-      transitionPayloadSchemas.follow_up.safeParse({
-        due_at: "2046-09-03T09:30",
-        reason: "Long-term implant review",
+      transitionPayloadSchemas.appointment_booked.safeParse({
+        scheduled_at: "2046-09-03T09:30",
+        notes: "Long-term implant review",
       }).success
     ).toBe(true);
   });

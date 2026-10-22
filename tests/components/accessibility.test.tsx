@@ -160,6 +160,14 @@ describe("accessible UI primitives", () => {
 });
 
 describe("lead progress semantics", () => {
+  it("shows legacy reminders at the visited stage without adding a follow-up workflow step", async () => {
+    const { container } = render(<StatusStepper status="follow_up" />);
+    const current = container.querySelectorAll('[aria-current="step"]');
+    expect(current).toHaveLength(1);
+    expect(current[0]).toHaveTextContent("Visited / Treated, current stage");
+    expect(screen.queryByText("Follow Up")).toBeNull();
+    await expectNoSemanticViolations(container);
+  });
   it("announces exactly one current pipeline stage and completed stages", async () => {
     const { container } = render(
       <StatusStepper status="appointment_booked" />

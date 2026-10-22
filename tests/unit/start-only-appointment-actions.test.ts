@@ -39,14 +39,23 @@ describe("start-only booking and rescheduling actions", () => {
     expect(await rescheduleAppointmentAction(appointmentId,leadId,form)).toEqual({ ok:true,whatsappUrl:"https://wa.me/?text=test" });
     expect(appointments.updateAppointment).toHaveBeenCalledWith(expect.anything(),appointmentId,{ scheduled_at:"2026-10-15T04:00:00.000Z",doctor_id:null,notes:null },leadId);
   });
-  it.each(["assigned","appointment_booked"] as const)("books from %s with a start time only", async (status) => {
+  it.each(["assigned","appointment_booked","visited_treated","follow_up"] as const)("books from %s with a start time only", async (status) => {
     vi.mocked(leads.getLead).mockResolvedValue({ id:leadId,status } as Awaited<ReturnType<typeof leads.getLead>>);
     const form=input();form.set("duration_minutes","0");
     expect(await transitionLeadAction(leadId,"appointment_booked",form)).toMatchObject({ ok:true });
-    if(status==="assigned") {
+    if(status!=="appointment_booked") {
       expect(leads.transitionLead).toHaveBeenCalledWith(expect.anything(),leadId,"appointment_booked",{ scheduled_at:"2026-10-15T04:00:00.000Z" });
     } else {
       expect(appointments.createAdditionalAppointment).toHaveBeenCalledWith(expect.anything(),leadId,{ scheduled_at:"2026-10-15T04:00:00.000Z",doctor_id:null,notes:null });
     }
+  });
+  it("rejects an old follow-up submission without creating reminders or preparing WhatsApp", async () => {
+    const form = new FormData(); form.set("due_at", "2030-10-22T09:00");
+    expect(await transitionLeadAction(leadId, "follow_up", form)).toEqual({
+      ok: false, error: "Follow-up scheduling has been retired. Use Book appointment.",
+    });
+    expect(leads.transitionLead).not.toHaveBeenCalled();
+    expect(appointments.createAdditionalAppointment).not.toHaveBeenCalled();
+    expect(appointments.appointmentWhatsAppUrl).not.toHaveBeenCalled();
   });
 });

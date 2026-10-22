@@ -288,23 +288,23 @@ begin
     raise exception 'invalid prescription did not roll back the visit atomically';
   end if;
 
-  -- Follow-ups may be years in the future; closed is now a read-only legacy
-  -- state and cannot be newly entered.
+  -- Return visits use normal appointment booking even years in the future.
+  -- Closed remains a read-only legacy state and cannot be newly entered.
   insert into crm.leads(branch_id,name,mobile,status,created_by)
-  values(v_branch,'Future Follow-up Patient','9000000216','visited_treated',v_admin)
+  values(v_branch,'Future Appointment Patient','9000000216','visited_treated',v_admin)
   returning id into v_follow_up_lead;
   perform crm.transition_lead(
-    v_follow_up_lead,'follow_up',v_admin,
-    jsonb_build_object('due_at','2046-01-16T09:00:00Z','reason','Long-term review')
+    v_follow_up_lead,'appointment_booked',v_admin,
+    jsonb_build_object('scheduled_at','2046-01-16T09:00:00Z','doctor_id',v_doctor,'notes','Long-term review')
   );
-  if (select status from crm.leads where id=v_follow_up_lead) <> 'follow_up'
+  if (select status from crm.leads where id=v_follow_up_lead) <> 'appointment_booked'
      or not exists (
-       select 1 from crm.follow_ups
+       select 1 from crm.appointments
        where lead_id=v_follow_up_lead
-         and due_at='2046-01-16T09:00:00Z'::timestamptz
-         and status='pending'
+         and scheduled_at='2046-01-16T09:00:00Z'::timestamptz
+         and status='scheduled'
      ) then
-    raise exception 'far-future follow-up was not preserved';
+    raise exception 'far-future appointment was not preserved';
   end if;
 
   v_rejected := false;
@@ -316,12 +316,12 @@ begin
     v_rejected := true;
   end;
   if not v_rejected
-     or (select status from crm.leads where id=v_follow_up_lead) <> 'follow_up'
+     or (select status from crm.leads where id=v_follow_up_lead) <> 'appointment_booked'
      or not exists (
-       select 1 from crm.follow_ups
+       select 1 from crm.appointments
        where lead_id=v_follow_up_lead
-         and due_at='2046-01-16T09:00:00Z'::timestamptz
-         and status='pending'
+         and scheduled_at='2046-01-16T09:00:00Z'::timestamptz
+         and status='scheduled'
      ) then
     raise exception 'retired closed status remained reachable';
   end if;

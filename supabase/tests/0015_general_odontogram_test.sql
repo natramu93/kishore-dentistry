@@ -270,10 +270,6 @@ begin
   -- A later visit may reassess the same tooth. Both signed rows remain, and
   -- the newest visit can be selected as the current patient odontogram.
   perform crm.transition_lead(
-    v_lead,'follow_up',v_admin,
-    jsonb_build_object('due_at','2021-02-15T09:00:00Z','reason','Clinical review')
-  );
-  perform crm.transition_lead(
     v_lead,'appointment_booked',v_admin,
     jsonb_build_object(
       'scheduled_at','2021-02-15T09:00:00Z','doctor_id',v_doctor,

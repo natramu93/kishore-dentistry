@@ -42,12 +42,6 @@ export const PRIMARY_NAV: NavItem[] = [
     roles: ["doctor"],
   },
   {
-    href: "/follow-ups",
-    label: "Follow-ups",
-    icon: "BellRing",
-    roles: ["admin", "operations", "front_office", "clinical_head"],
-  },
-  {
     href: "/invoices",
     label: "Invoices",
     icon: "ReceiptText",

@@ -204,12 +204,12 @@ describe("trusted lead transition service", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it("validates active branch doctor data before booking", async () => {
+  it.each(["assigned", "visited_treated", "follow_up"] as const)("validates active branch doctor data before booking from %s", async (status) => {
     mockLeadLookup({
       id: LEAD_ID,
       branch_id: BRANCH_ID,
       assignee_id: ASSIGNEE_ID,
-      status: "assigned",
+      status,
     });
 
     await transitionLead(
@@ -236,6 +236,13 @@ describe("trusted lead transition service", () => {
         },
       })
     );
+  });
+
+  it("blocks the retired follow-up target even on a legacy same-state replay", async () => {
+    mockLeadLookup({ id: LEAD_ID, branch_id: BRANCH_ID, assignee_id: ASSIGNEE_ID, status: "follow_up" });
+    await expect(transitionLead(context("operations"), LEAD_ID, "follow_up", { due_at: "2030-10-22T09:00:00Z" }))
+      .rejects.toThrow("Follow-up scheduling has been retired. Use Book appointment.");
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it("routes completion to case sheets and still requires no-show appointments", async () => {

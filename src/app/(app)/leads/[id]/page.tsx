@@ -189,7 +189,6 @@ export default async function LeadDetailPage({
           </div>
           <TransitionActions
             lead={{ id: lead.id, status: lead.status }}
-            hasVisited={caseSheetTotal > 0 || appointments.some((appointment) => appointment.status === "completed")}
             activeAppointmentId={scheduledAppointments.length === 1 ? activeAppointment?.id ?? null : null}
             appointmentOptions={scheduledAppointments.map((appointment) => ({
               id: appointment.id,
@@ -284,7 +283,7 @@ export default async function LeadDetailPage({
         { id: "patient-appointments", label: "Appointments" },
         { id: "patient-clinical", label: "Clinical" },
         { id: "patient-invoices", label: "Invoices" },
-        { id: "patient-follow-ups", label: "Follow-ups" },
+        ...(followUps.length ? [{ id: "patient-follow-ups", label: "Past follow-up history" }] : []),
         { id: "patient-notes", label: "Notes" },
         { id: "patient-activity", label: "Activity" },
       ]} />
@@ -637,15 +636,13 @@ export default async function LeadDetailPage({
             </CardContent>
           </Card>
 
-          {/* Follow-ups */}
-          <Card id="patient-follow-ups" className="scroll-mt-20 border-l-4 border-l-amber-400">
+          {/* Preserve historical reminders without an active follow-up workflow. */}
+          {followUps.length > 0 && <Card id="patient-follow-ups" className="scroll-mt-20 border-l-4 border-l-amber-400">
             <CardHeader>
-              <CardTitle className="text-base">Follow-ups</CardTitle>
+              <CardTitle className="text-base">Past follow-up history</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {followUps.length === 0 && (
-                <p className="text-sm text-muted-foreground">No follow-ups scheduled.</p>
-              )}
+              <p className="text-sm text-muted-foreground">Historical reminders only. Use Book appointment to schedule a visit.</p>
               {followUps.map((f) => (
                 <div key={f.id} className="rounded-lg border p-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
@@ -673,7 +670,7 @@ export default async function LeadDetailPage({
                 </div>
               ))}
             </CardContent>
-          </Card>
+          </Card>}
 
           {/* Invoices */}
           <Card id="patient-invoices" className="scroll-mt-20 border-l-4 border-l-blue-400">

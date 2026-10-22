@@ -17,7 +17,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Input } from "@/components/ui/input";
 import { ClinicDateTimeInput } from "@/components/appointments/clinic-date-time-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,7 +26,6 @@ type Option = { id: string; label: string };
 type DialogKind =
   | "assign"
   | "book"
-  | "follow_up"
   | "drop"
   | "reengage"
   | null;
@@ -46,7 +44,6 @@ export function TransitionActions({
   lead,
   activeAppointmentId,
   appointmentOptions = [],
-  hasVisited = false,
   assignableUsers,
   doctors,
   role,
@@ -55,7 +52,6 @@ export function TransitionActions({
   lead: { id: string; status: LeadStatus };
   activeAppointmentId: string | null;
   appointmentOptions?: Option[];
-  hasVisited?: boolean;
   assignableUsers: Option[];
   doctors: Option[];
   role: UserRole;
@@ -148,8 +144,7 @@ export function TransitionActions({
 
   const s = lead.status;
   const isFrontOffice = role === "front_office";
-  const isReturningPatient = hasVisited || s === "visited_treated" || s === "follow_up";
-  const bookingLabel = isReturningPatient ? "Book Next Appointment" : "Book appointment";
+  const bookingLabel = "Book appointment";
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -178,7 +173,7 @@ export function TransitionActions({
 
       {s === "appointment_booked" && (
         <>
-          <Button size="sm" onClick={() => setDialog("book")}>{isReturningPatient ? bookingLabel : "Book another appointment"}</Button>
+          <Button size="sm" onClick={() => setDialog("book")}>{bookingLabel}</Button>
           <Button
             size="sm"
             variant="outline"
@@ -198,11 +193,7 @@ export function TransitionActions({
         </>
       )}
 
-      {s === "visited_treated" && (
-        <Button size="sm" onClick={() => setDialog("follow_up")}>{bookingLabel}</Button>
-      )}
-
-      {s === "follow_up" && (
+      {(s === "visited_treated" || s === "follow_up") && (
         <Button size="sm" onClick={() => setDialog("book")}>{bookingLabel}</Button>
       )}
 
@@ -276,22 +267,6 @@ export function TransitionActions({
               <Textarea id="notes" name="notes" rows={2} />
             </div>
             <SubmitRow pending={pending} label="Create appointment & open WhatsApp" />
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={dialog === "follow_up"} onOpenChange={(o) => !o && setDialog(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{bookingLabel}</DialogTitle>
-          </DialogHeader>
-          <form action={(fd) => run("follow_up", fd)} className="space-y-4">
-            <ClinicDateTimeInput id="due_at" name="due_at" label="Due (IST)" required />
-            <div className="space-y-2">
-              <Label htmlFor="reason">Reason</Label>
-              <Input id="reason" name="reason" placeholder="e.g. Review healing, discuss braces plan" />
-            </div>
-            <SubmitRow pending={pending} label={bookingLabel} />
           </form>
         </DialogContent>
       </Dialog>
