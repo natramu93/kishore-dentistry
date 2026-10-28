@@ -50,3 +50,6 @@ next-env.d.ts
 
 # Local production-release backups (may contain patient data)
 /backups/
+
+# Local synthetic UI and PDF rendering artifacts
+/tmp/

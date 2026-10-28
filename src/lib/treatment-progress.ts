@@ -1,4 +1,19 @@
 import type { Treatment } from "@/lib/database.types";
+import type { ClinicalAttachmentView } from "@/lib/clinical-files";
+import type { CommentWithAuthor } from "@/data/comments";
+
+export type TreatmentDetails = {
+  treatment: TreatmentProgressRecord;
+  attachments: ClinicalAttachmentView[];
+  filesAvailable: boolean;
+  canUpload: boolean;
+  comments: CommentWithAuthor[];
+  currentUserId: string;
+  canWriteComments: boolean;
+  canModerate: boolean;
+  showComments: boolean;
+  invoiced?: boolean;
+};
 
 export type TreatmentProgressRecord = Pick<Treatment,
   "id" | "case_sheet_id" | "treatment_code" | "treatment_name" | "clinical_status" |

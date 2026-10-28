@@ -252,9 +252,6 @@ export function ClinicalAttachmentPanel({
             <Paperclip className="size-4" aria-hidden="true" />
             {attachmentLabel}
           </h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Photographs, X-rays, scans, DICOM files and reports. Maximum 25 MB each.
-          </p>
         </div>
         {attachments.length > 0 && (
           <span className="shrink-0 text-xs text-muted-foreground">

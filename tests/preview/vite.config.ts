@@ -9,6 +9,7 @@ export default defineConfig({
   root: local("./"),
   resolve: {
     alias: [
+      { find: "@/lib/supabase/client", replacement: local("./mock-supabase.ts") },
       { find: /^@\/actions\/.+$/, replacement: local("./mock-actions.ts") },
       { find: "next/navigation", replacement: local("./mock-navigation.ts") },
       { find: "@", replacement: local("../../src") },

@@ -11,7 +11,6 @@ import { getPatientTreatmentProgress } from "@/data/treatment-progress";
 import { TreatmentProgressSummary } from "@/components/clinical/treatment-progress-summary";
 import { CaseSheetEditLink } from "@/components/clinical/case-sheet-edit-link";
 import { PatientSectionNav } from "@/components/patients/patient-section-nav";
-import { treatmentProgressLabel } from "@/lib/treatment-progress";
 import { listAssignableUsers } from "@/data/users";
 import { listDoctors, listTreatmentTypes, listLeadSources } from "@/data/catalogs";
 import { LeadStatusBadge } from "@/components/lead-status-badge";
@@ -41,7 +40,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { STATUS_LABELS } from "@/lib/leads/transitions";
 import { groupByCategory } from "@/lib/dental";
-import { formatClinicalSite } from "@/lib/clinical";
 import { fmt, fmtDate, formatINR, toClinicInputValue } from "@/lib/tz";
 import { ClipboardPlus } from "lucide-react";
 import type {
@@ -414,9 +412,6 @@ export default async function LeadDetailPage({
             <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
               <div>
                 <CardTitle className="text-base">Digital case sheets &amp; treatment history</CardTitle>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Review findings, planned care and completed work. Invoices can be created separately in the patient’s invoice section.
-                </p>
               </div>
               {canAuthorCaseSheet && activeAppointment && (
                 <Button asChild size="sm" variant="outline">
@@ -428,7 +423,7 @@ export default async function LeadDetailPage({
               )}
             </CardHeader>
             <CardContent className="space-y-4">
-              <TreatmentProgressSummary progress={treatmentProgress} />
+              <TreatmentProgressSummary leadId={id} progress={treatmentProgress} />
               {caseSheets.length === 0 && treatments.length === 0 && (
                 <p className="text-sm text-muted-foreground">
                   No case sheet has been recorded yet.
@@ -445,25 +440,7 @@ export default async function LeadDetailPage({
               )}
               {caseSheets.map((sheet) => {
                 const doctor = sheet.doctor as { full_name: string } | null;
-                const lines = (sheet.treatments ?? []) as Array<{
-                  id: string;
-                  treatment_code: string | null;
-                  treatment_name: string | null;
-                  treatment_category: string | null;
-                  clinical_status: string;
-                  site_scope: string;
-                  site_detail: string | null;
-                  tooth_number: string | null;
-                  tooth_numbers?: string[];
-                  surfaces: string[];
-                  notes: string | null;
-                  invoice_items?: Array<{
-                    id: string;
-                    invoice_id: string;
-                    active_billing: boolean;
-                  }>;
-                  treatment_attachments?: ClinicalAttachmentView[];
-                }>;
+                const hasTreatments = Array.isArray(sheet.treatments) && sheet.treatments.length > 0;
                 const toothAssessments = ((sheet.tooth_assessments ?? []) as ToothAssessmentHistoryItem[]).map(
                   (assessment) => ({ ...assessment, doctor_name: doctor?.full_name ?? null })
                 );
@@ -556,58 +533,9 @@ export default async function LeadDetailPage({
                         </div>
                       </>
                     )}
-                    <div className="mt-3 space-y-3">
-                      {lines.length === 0 && (
-                        <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-                          Examination-only visit — no treatment was recorded. You can still create an invoice in the patient’s invoice section.
-                        </p>
-                      )}
-                      {lines.map((t) => {
-                        const billed = t.invoice_items?.some((item) => item.active_billing) ?? false;
-                        return (
-                          <div key={t.id} className="rounded-md border bg-background p-3">
-                            <div className="flex flex-wrap items-start justify-between gap-2">
-                              <div>
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <Badge variant="outline" className="font-mono">
-                                    {t.treatment_code}
-                                  </Badge>
-                                  <span className="text-sm font-medium">
-                                    {t.treatment_name ?? "Coded treatment"}
-                                  </span>
-                                  <Badge variant={t.clinical_status === "completed" ? "default" : "secondary"}>
-                                    {treatmentProgressLabel(t.clinical_status)}
-                                  </Badge>
-                                </div>
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                  {formatClinicalSite(t)}
-                                </p>
-                                {t.notes && <p className="mt-2 whitespace-pre-wrap text-sm">{t.notes}</p>}
-                              </div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                {billed && <Badge variant="secondary">Invoiced</Badge>}
-                                </div>
-                            </div>
-                            <CommentThread
-                              {...commentProps}
-                              comments={commentsFor("treatment", t.id)}
-                              entityType="treatment"
-                              entityId={t.id}
-                              compact
-                            />
-                            <div className="mt-3">
-                              <ClinicalAttachmentPanel
-                                treatmentId={t.id}
-                                initialAttachments={(t.treatment_attachments ?? []).filter(
-                                  (attachment) => attachment.status === "ready"
-                                )}
-                                canUpload={canAuthorCaseSheet}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                    {!hasTreatments && <p className="mt-3 rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                      Examination-only visit — no treatment was recorded.
+                    </p>}
                   </section>
                 );
               })}
@@ -695,15 +623,9 @@ export default async function LeadDetailPage({
                 <span>Total paid: <strong>{formatINR(invoiceSummary.amount_paid)}</strong></span>
                 <span>Overall patient due (all bills): <strong>{formatINR(invoiceSummary.balance_due)}</strong></span>
               </div>
-              <p className="text-xs text-muted-foreground">Across all active patient invoices. Cancelled and archived invoices are excluded from these totals.</p>
               {invoiceTotal !== null && invoiceTotal > invoices.length && (
                 <p className="text-sm text-muted-foreground">
                   Showing {invoices.length} of {invoiceTotal} invoices. <Link className="font-medium text-primary underline underline-offset-4" href={`/invoices?lead=${encodeURIComponent(lead.id)}`}>View all patient invoices</Link>
-                </p>
-              )}
-              {invoices.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  Choose treatments or the consultation shortcut, add teeth and notes if needed, then create the invoice. No case sheet or completed treatment is required.
                 </p>
               )}
               {invoices.map((inv) => (

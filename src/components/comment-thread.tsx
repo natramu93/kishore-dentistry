@@ -36,6 +36,7 @@ export function CommentThread({
   canModerate,
   canWrite = true,
   compact = false,
+  onChanged,
 }: {
   leadId: string;
   entityType?: CommentEntity;
@@ -45,6 +46,7 @@ export function CommentThread({
   canModerate: boolean;
   canWrite?: boolean;
   compact?: boolean;
+  onChanged?: () => void;
 }) {
   const [pending, startTransition] = useTransition();
   const [expanded, setExpanded] = useState(!compact);
@@ -65,6 +67,7 @@ export function CommentThread({
       if (result.ok) {
         formRef.current?.reset();
         toast.success("Comment added");
+        onChanged?.();
       } else {
         toast.error(result.error);
       }
@@ -82,6 +85,7 @@ export function CommentThread({
         setArchiveTarget(null);
         setArchiveReason("");
         toast.success("Comment archived");
+        onChanged?.();
       } else {
         toast.error(result.error);
       }
@@ -98,6 +102,7 @@ export function CommentThread({
       if (result.ok) {
         setEditingId(null);
         toast.success("Comment updated");
+        onChanged?.();
       } else {
         toast.error(result.error);
       }

@@ -1,10 +1,12 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { getInvoice } from "@/data/invoices";
 import { getAuthContext } from "@/lib/auth/context";
 import { assertActionRateLimit } from "@/lib/rate-limit";
 import { fmtDate, formatINR } from "@/lib/tz";
 import { TIRUPUR_CLINIC } from "@/lib/clinic";
-import { NotFoundError, PublicError } from "@/lib/errors";
+import { NotFoundError, PublicError, ValidationError } from "@/lib/errors";
 import { invoiceLineToothLabel } from "@/lib/invoice-lines";
 import { receivedAmountInWords } from "@/lib/invoice-receipts";
 
@@ -35,7 +37,7 @@ function pdfAmount(value: number): string {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   const ctx = await getAuthContext();
@@ -54,6 +56,7 @@ export async function GET(
     const pdf = await PDFDocument.create();
     const regular = await pdf.embedFont(StandardFonts.Helvetica);
     const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+    const logo = await pdf.embedPng(await readFile(path.join(process.cwd(), "public/brand/kishors-dentistry-mark.png")));
     const pageSize: [number, number] = [595.28, 841.89];
     const margin = 48;
     const ink = rgb(0.08, 0.16, 0.25);
@@ -66,27 +69,22 @@ export async function GET(
     const draw = (text: string, x: number, atY: number, size = 10, font = regular, color = ink) => {
       page.drawText(safeText(text), { x, y: atY, size, font, color });
     };
-    const ensureSpace = (needed: number) => {
-      if (y - needed < margin) {
-        page = pdf.addPage(pageSize);
-        y = page.getHeight() - margin;
-      }
-    };
     const wrap = (text: string, maxWidth: number, size: number, font = regular): string[] => {
-      const words = safeText(text).split(/\s+/).filter(Boolean);
       const lines: string[] = [];
-      let line = "";
-      for (const word of words) {
-        const candidate = line ? `${line} ${word}` : word;
-        if (line && font.widthOfTextAtSize(candidate, size) > maxWidth) {
-          lines.push(line);
-          line = word;
-        } else {
-          line = candidate;
+      for (const paragraph of text.split(/\r?\n/)) {
+        let line = "";
+        for (const word of safeText(paragraph).split(/\s+/).filter(Boolean)) {
+          const candidate = line ? `${line} ${word}` : word;
+          if (font.widthOfTextAtSize(candidate, size) <= maxWidth) { line = candidate; continue; }
+          if (line) { lines.push(line); line = ""; }
+          for (const char of word) {
+            if (line && font.widthOfTextAtSize(line + char, size) > maxWidth) { lines.push(line); line = ""; }
+            line += char;
+          }
         }
+        if (line) lines.push(line);
       }
-      if (line) lines.push(line);
-      return lines.length ? lines : ["—"];
+      return lines.length ? lines : ["-"];
     };
 
     const issuerName = invoice.issuer_name
@@ -96,42 +94,63 @@ export async function GET(
     const issuerAddress = invoice.issuer_address ?? invoice.branch?.address;
     const issuerPhone = invoice.issuer_phone ?? invoice.branch?.phone;
 
-    for (const line of wrap(issuerName, 310, 17, bold)) {
-      draw(line, margin, y, 17, bold, accent);
-      y -= 22;
-    }
-    for (const paragraph of (issuerAddress ?? "").split(/\r?\n/).filter(Boolean)) {
-      for (const line of wrap(paragraph, page.getWidth() - margin * 2, 9)) {
-        draw(line, margin, y, 9, regular, muted);
-        y -= 13;
+    const drawLetterhead = () => {
+      y = page.getHeight() - margin;
+      const top = y;
+      page.drawImage(logo, { x: margin, y: top - 36, width: 40, height: 40 });
+      let nameY = top - 1;
+      for (const line of wrap(issuerName, 270, 14, bold)) {
+        draw(line, margin + 50, nameY, 14, bold, accent);
+        nameY -= 18;
       }
-    }
-    if (issuerPhone) {
-      draw(`Phone: ${issuerPhone}`, margin, y, 9, regular, muted);
-      y -= 13;
-    }
-    if (invoice.issuer_email) { draw(`Email: ${invoice.issuer_email}`, margin, y, 9, regular, muted); y -= 13; }
-    if (invoice.issuer_gst_number) { draw(`GSTIN: ${invoice.issuer_gst_number}`, margin, y, 9, regular, muted); y -= 13; }
-    page.drawText("INVOICE", {
-      x: 385, y: page.getHeight() - margin - 2, size: 20, font: bold, color: ink,
-    });
-    page.drawText(safeText(invoice.invoice_number), {
-      x: 385, y: page.getHeight() - margin - 25, size: 10, font: regular, color: muted,
-    });
-    page.drawText(`Date: ${fmtDate(invoice.invoice_date ?? invoice.issued_at ?? invoice.created_at)}`, {
-      x: 385, y: page.getHeight() - margin - 41, size: 9, font: regular, color: muted,
-    });
-    page.drawText(`Status: ${invoice.status}`, {
-      x: 385, y: page.getHeight() - margin - 56, size: 9, font: regular, color: muted,
-    });
+      const rightX = 385;
+      draw("INVOICE", rightX, top - 2, 20, bold);
+      let metaY = top - 24;
+      for (const detail of [
+        invoice.invoice_number,
+        `Date: ${fmtDate(invoice.invoice_date ?? invoice.issued_at ?? invoice.created_at)}`,
+        `Status: ${invoice.status}`,
+      ]) {
+        for (const line of wrap(detail, page.getWidth() - margin - rightX, 9)) {
+          draw(line, rightX, metaY, 9, regular, muted);
+          metaY -= 13;
+        }
+      }
+      // Contact details sit below both columns, never behind invoice metadata.
+      y = Math.min(nameY - 8, metaY - 4, top - 48);
+      for (const detail of [
+        issuerAddress,
+        issuerPhone ? `Phone: ${issuerPhone}` : null,
+        invoice.issuer_email ? `Email: ${invoice.issuer_email}` : null,
+        invoice.issuer_gst_number ? `GSTIN: ${invoice.issuer_gst_number}` : null,
+      ]) {
+        if (!detail) continue;
+        for (const line of wrap(detail, page.getWidth() - margin * 2, 9)) {
+          draw(line, margin, y, 9, regular, muted);
+          y -= 13;
+        }
+      }
+      y -= 5;
+      if (y < page.getHeight() / 2) throw new ValidationError("The invoice letterhead is too long to print. Review the branch address.");
+      page.drawLine({ start: { x: margin, y }, end: { x: page.getWidth() - margin, y }, thickness: 1.5, color: accent });
+      y -= 24;
+    };
+    const newPage = () => {
+      page = pdf.addPage(pageSize);
+      drawLetterhead();
+    };
+    const ensureSpace = (needed: number) => {
+      if (y - needed >= margin + 12) return false;
+      newPage();
+      return true;
+    };
 
-    y = Math.min(y - 12, page.getHeight() - margin - 72);
-    page.drawLine({ start: { x: margin, y }, end: { x: page.getWidth() - margin, y }, thickness: 1.5, color: accent });
-    y -= 25;
+    drawLetterhead();
     draw("BILLED TO", margin, y, 8, bold, muted);
     y -= 17;
-    draw(invoice.lead?.name ?? "Patient", margin, y, 12, bold);
-    y -= 16;
+    for (const line of wrap(invoice.lead?.name ?? "Patient", page.getWidth() - margin * 2, 12, bold)) {
+      ensureSpace(18); draw(line, margin, y, 12, bold); y -= 16;
+    }
     if (invoice.lead?.mobile) { draw(invoice.lead.mobile, margin, y, 9, regular, muted); y -= 13; }
     if (invoice.lead?.email) { draw(invoice.lead.email, margin, y, 9, regular, muted); y -= 13; }
     for (const detail of [
@@ -158,27 +177,46 @@ export async function GET(
     drawTableHeader();
 
     for (const [index, item] of invoice.items.entries()) {
-      const descLines = wrap(item.description, 300, 9);
-      const surfaceLines = item.surfaces?.length
-        ? wrap(`Surfaces: ${item.surfaces.join(", ")}`, 300, 8)
-        : [];
+      // Keep descriptions out of the quantity/price columns, even at large values.
+      const descriptionWidth = columns.qty - columns.description - 12;
+      const descLines = wrap(item.description, descriptionWidth, 9);
       const toothLabel = invoiceLineToothLabel(item);
-      const lines = [...descLines, ...(toothLabel ? wrap(toothLabel, 300, 8) : []), ...surfaceLines,
-        ...(item.line_note ? wrap(item.line_note, 300, 8) : [])];
-      const rowHeight = Math.max(22, lines.length * 12 + 10);
-      ensureSpace(rowHeight + 10);
-      if (y === page.getHeight() - margin) drawTableHeader();
-      draw(String(index + 1), columns.number + 5, y - 11, 9);
-      lines.forEach((line, lineIndex) => draw(line, columns.description, y - 11 - lineIndex * 12, lineIndex >= descLines.length ? 8 : 9, regular, lineIndex >= descLines.length ? muted : ink));
-      draw(String(item.quantity), columns.qty, y - 11, 9);
-      draw(pdfAmount(item.unit_price), columns.unit, y - 11, 8);
-      draw(pdfAmount(item.amount), columns.amount, y - 11, 8);
-      y -= rowHeight;
-      page.drawLine({ start: { x: margin, y }, end: { x: page.getWidth() - margin, y }, thickness: 0.4, color: pale });
-      y -= 8;
+      const lines = [
+        ...descLines.map((text) => ({ text, size: 9, color: ink })),
+        ...(toothLabel ? wrap(toothLabel, descriptionWidth, 8) : []).map((text) => ({ text, size: 8, color: muted })),
+        ...(item.surfaces?.length ? wrap(`Surfaces: ${item.surfaces.join(", ")}`, descriptionWidth, 8) : []).map((text) => ({ text, size: 8, color: muted })),
+        ...(item.line_note ? wrap(item.line_note, descriptionWidth, 8) : []).map((text) => ({ text, size: 8, color: muted })),
+      ];
+      let offset = 0;
+      while (offset < lines.length) {
+        const remainingHeight = (lines.length - offset) * 12 + 18;
+        const fullPageSpace = pageSize[1] - margin * 2 - 240;
+        // Normal lines stay together; unusually long notes split safely across pages.
+        if (ensureSpace(Math.min(remainingHeight, fullPageSpace))) drawTableHeader();
+        let capacity = Math.floor((y - margin - 30) / 12);
+        if (capacity < 1) { newPage(); drawTableHeader(); capacity = Math.floor((y - margin - 30) / 12); }
+        const chunk = lines.slice(offset, offset + capacity);
+        draw(offset === 0 ? String(index + 1) : `${index + 1} cont.`, columns.number + 3, y - 11, offset === 0 ? 9 : 7);
+        chunk.forEach((line, lineIndex) => draw(line.text, columns.description, y - 11 - lineIndex * 12, line.size, regular, line.color));
+        if (offset === 0) {
+          const cells = [
+            { text: String(item.quantity), right: columns.unit - 10, size: 9 },
+            { text: pdfAmount(item.unit_price), right: columns.amount - 8, size: 8 },
+            { text: pdfAmount(item.amount), right: page.getWidth() - margin, size: 8 },
+          ];
+          for (const cell of cells) {
+            const size = Math.min(cell.size, cell.size * 54 / Math.max(54, regular.widthOfTextAtSize(cell.text, cell.size)));
+            draw(cell.text, cell.right - regular.widthOfTextAtSize(cell.text, size), y - 11, size);
+          }
+        }
+        y -= Math.max(22, chunk.length * 12 + 10);
+        page.drawLine({ start: { x: margin, y }, end: { x: page.getWidth() - margin, y }, thickness: 0.4, color: pale });
+        y -= 8;
+        offset += chunk.length;
+      }
     }
 
-    ensureSpace(115);
+    ensureSpace(130);
     const totalsX = 370;
     const totalRow = (label: string, amount: number, strong = false) => {
       const font = strong ? bold : regular;
@@ -231,7 +269,10 @@ export async function GET(
       y -= 15;
       for (const payment of invoice.payments) {
         const receiptLines = wrap(`${fmtDate(payment.received_at)} | ${payment.payment_method.toUpperCase()} | ${payment.reference ?? "No reference"}`, 350, 8);
-        ensureSpace(receiptLines.length * 13 + 5);
+        if (ensureSpace(receiptLines.length * 13 + 20)) {
+          draw("PAYMENTS RECEIVED (CONTINUED)", margin, y, 8, bold, muted);
+          y -= 15;
+        }
         const receiptAmount = pdfAmount(payment.amount);
         draw(receiptAmount, page.getWidth() - margin - regular.widthOfTextAtSize(receiptAmount, 8), y, 8, regular, ink);
         for (const line of receiptLines) { draw(line, margin, y, 8, regular, muted); y -= 13; }
@@ -240,26 +281,32 @@ export async function GET(
 
     if (invoice.notes) {
       const noteLines = wrap(`Notes: ${invoice.notes}`, page.getWidth() - margin * 2, 9);
-      ensureSpace(noteLines.length * 13 + 20);
       y -= 5;
-      for (const line of noteLines) { draw(line, margin, y, 9, regular, muted); y -= 13; }
+      for (const line of noteLines) { ensureSpace(16); draw(line, margin, y, 9, regular, muted); y -= 13; }
     }
     if (invoice.mention) {
       const mentionLines = wrap(`Mention: ${invoice.mention}`, page.getWidth() - margin * 2, 9);
-      ensureSpace(mentionLines.length * 13 + 16);
       y -= 5;
-      for (const line of mentionLines) { draw(line, margin, y, 9, regular, muted); y -= 13; }
+      for (const line of mentionLines) { ensureSpace(16); draw(line, margin, y, 9, regular, muted); y -= 13; }
     }
-    draw(`Thank you for choosing ${TIRUPUR_CLINIC.brandName}.`, margin, margin - 5, 8, regular, muted);
+    for (const [index, printedPage] of pdf.getPages().entries()) {
+      printedPage.drawText(safeText(`Thank you for choosing ${TIRUPUR_CLINIC.brandName}.`), { x: margin, y: 28, size: 8, font: regular, color: muted });
+      const counter = `Page ${index + 1} of ${pdf.getPageCount()}`;
+      printedPage.drawText(counter, { x: printedPage.getWidth() - margin - regular.widthOfTextAtSize(counter, 8), y: 28, size: 8, font: regular, color: muted });
+    }
 
     const bytes = await pdf.save({ useObjectStreams: true });
     const filename = `${safeFileName(invoice.invoice_number)}.pdf`;
+    const inline = new URL(request.url).searchParams.get("inline") === "1";
     return new Response(bytes as BodyInit, {
       status: 200,
       headers: {
         ...privateHeaders,
+        // CSP sandbox disables native PDF viewers. Only our generated, static
+        // print document uses this policy; downloads/errors keep the sandbox.
+        ...(inline && { "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'" }),
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${filename}"`,
         "Content-Length": String(bytes.byteLength),
       },
     });

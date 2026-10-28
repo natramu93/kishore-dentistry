@@ -8,15 +8,12 @@ import { getPatientTreatmentProgress } from "@/data/treatment-progress";
 import { TreatmentProgressSummary } from "@/components/clinical/treatment-progress-summary";
 import { CaseSheetEditLink } from "@/components/clinical/case-sheet-edit-link";
 import { PatientSectionNav } from "@/components/patients/patient-section-nav";
-import { treatmentProgressLabel } from "@/lib/treatment-progress";
 import { NotFoundError } from "@/lib/errors";
-import { formatClinicalSite } from "@/lib/clinical";
 import { fmt, fmtDate } from "@/lib/tz";
 import { patientDisplayName } from "@/lib/patient-demographics";
 import type {
   PatientMedicalHistoryVersion,
   PrescriptionItem,
-  Treatment,
 } from "@/lib/database.types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -134,7 +131,7 @@ export default async function MyPatientHistoryPage({
       </Card>
 
       <div id="patient-clinical" className="scroll-mt-20">
-        <TreatmentProgressSummary progress={treatmentProgress} />
+        <TreatmentProgressSummary leadId={id} progress={treatmentProgress} />
       </div>
 
       {currentToothAssessments.length > 0 && (
@@ -163,9 +160,7 @@ export default async function MyPatientHistoryPage({
         )}
         {caseSheets.map((sheet) => {
           const doctor = sheet.doctor as { full_name: string } | null;
-          const treatments = (sheet.treatments ?? []) as Array<Treatment & {
-            treatment_attachments?: ClinicalAttachmentView[];
-          }>;
+          const hasTreatments = (sheet.treatments ?? []).length > 0;
           const toothAssessments = ((sheet.tooth_assessments ?? []) as ToothAssessmentHistoryItem[]).map(
             (assessment) => ({ ...assessment, doctor_name: doctor?.full_name ?? null })
           );
@@ -253,41 +248,9 @@ export default async function MyPatientHistoryPage({
                     initialAttachments={clinicalAttachments}
                   />
                 )}
-                <div className="space-y-2">
-                  {treatments.length === 0 && (
-                    <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-                      Examination-only visit — no coded treatment was recorded.
-                    </p>
-                  )}
-                  {treatments.map((treatment) => (
-                    <div key={treatment.id} className="rounded-md border p-3">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="outline" className="font-mono">{treatment.treatment_code}</Badge>
-                            <span className="text-sm font-medium">{treatment.treatment_name}</span>
-                            <Badge variant={treatment.clinical_status === "completed" ? "default" : "secondary"}>
-                              {treatmentProgressLabel(treatment.clinical_status)}
-                            </Badge>
-                          </div>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {formatClinicalSite(treatment)}
-                          </p>
-                          {treatment.notes && <p className="mt-1 text-sm">{treatment.notes}</p>}
-                        </div>
-                      </div>
-                      <div className="mt-3">
-                        <ClinicalAttachmentPanel
-                          treatmentId={treatment.id}
-                          initialAttachments={(treatment.treatment_attachments ?? []).filter(
-                            (attachment) => attachment.status === "ready"
-                          )}
-                          canUpload={canManageClinicalFiles}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                {!hasTreatments && <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                  Examination-only visit — no coded treatment was recorded.
+                </p>}
               </CardContent>
             </Card>
           );

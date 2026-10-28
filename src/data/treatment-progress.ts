@@ -5,15 +5,16 @@ import type { AuthContext } from "@/lib/auth/context";
 import { assertBranchAccess, canReadLead, requireAnyRole } from "@/lib/auth/guards";
 import { AuthorizationError, NotFoundError } from "@/lib/errors";
 import { assertUuid } from "@/lib/validation";
-import type { PatientTreatmentProgress } from "@/lib/treatment-progress";
+import type { PatientTreatmentProgress, TreatmentDetails, TreatmentProgressRecord } from "@/lib/treatment-progress";
+import { listComments } from "./comments";
+import { listClinicalAttachmentsForTreatment } from "./clinical-attachments";
 
 export const TREATMENT_PROGRESS_LIMIT = 100;
 
-/** Independent of case-sheet pagination, so an older plan cannot vanish from the summary. */
-export async function getPatientTreatmentProgress(
+async function requirePatientTreatmentAccess(
   ctx: AuthContext,
   leadIdValue: string,
-): Promise<PatientTreatmentProgress> {
+) {
   requireAnyRole(ctx, ["admin", "operations", "front_office", "clinical_head", "doctor"]);
   const leadId = assertUuid(leadIdValue, "Patient");
   const { data: lead, error: leadError } = await db.from("leads")
@@ -41,6 +42,15 @@ export async function getPatientTreatmentProgress(
   } else if (!canReadLead(ctx, lead)) {
     throw new NotFoundError("Patient");
   }
+  return { leadId, lead };
+}
+
+/** Independent of case-sheet pagination, so an older plan cannot vanish from the summary. */
+export async function getPatientTreatmentProgress(
+  ctx: AuthContext,
+  leadIdValue: string,
+): Promise<PatientTreatmentProgress> {
+  const { leadId, lead } = await requirePatientTreatmentAccess(ctx, leadIdValue);
 
   const load = (status: "planned" | "completed") => db.from("clinical_treatment_progress")
     .select("id, case_sheet_id, planned_treatment_id, treatment_code, treatment_name, clinical_status, site_scope, site_detail, tooth_number, tooth_numbers, remaining_tooth_numbers, surfaces, notes, treated_at, performed_at, doctor_name", { count: "exact" })
@@ -56,5 +66,39 @@ export async function getPatientTreatmentProgress(
   return {
     planned: { records: (planned.data ?? []).map((row) => ({ ...row, doctor: row.doctor_name ? { full_name: row.doctor_name } : null })), total: planned.count },
     completed: { records: (completed.data ?? []).map((row) => ({ ...row, doctor: row.doctor_name ? { full_name: row.doctor_name } : null })), total: completed.count },
+  };
+}
+
+/** Load only the clicked record, including visits outside the current history page. */
+export async function getTreatmentDetails(
+  ctx: AuthContext,
+  leadIdValue: string,
+  treatmentIdValue: string,
+): Promise<TreatmentDetails> {
+  const treatmentId = assertUuid(treatmentIdValue, "Treatment");
+  const { leadId, lead } = await requirePatientTreatmentAccess(ctx, leadIdValue);
+  const { data, error } = await db.from("treatments")
+    .select("id, case_sheet_id, planned_treatment_id, treatment_code, treatment_name, clinical_status, site_scope, site_detail, tooth_number, tooth_numbers, surfaces, notes, treated_at, performed_at, doctor:doctors(full_name), case_sheet:case_sheets!inner(doctor_id, finalized_at)" + (ctx.role !== "doctor" ? ", invoice_items(active_billing)" : ""))
+    .eq("id", treatmentId).eq("lead_id", leadId).eq("branch_id", lead.branch_id).maybeSingle();
+  if (error) throw error;
+  const row = data as unknown as (TreatmentProgressRecord & {
+    case_sheet: { doctor_id: string; finalized_at: string | null } | null;
+    invoice_items?: { active_billing: boolean }[];
+  }) | null;
+  if (!row?.case_sheet?.finalized_at) throw new NotFoundError("Finalized treatment");
+  const { case_sheet: sheet, invoice_items: invoiceItems, ...treatment } = row;
+  const filesAvailable = ctx.role !== "doctor" || sheet.doctor_id === ctx.doctorId;
+  const canWriteComments = ctx.role !== "doctor" && (ctx.role !== "front_office" || lead.assignee_id === ctx.userId);
+  const [attachments, comments] = await Promise.all([
+    filesAvailable ? listClinicalAttachmentsForTreatment(ctx, treatmentId) : Promise.resolve([]),
+    ctx.role !== "doctor" ? listComments(ctx, leadId, { type: "treatment", id: treatmentId }) : Promise.resolve([]),
+  ]);
+  return {
+    treatment, attachments, comments, filesAvailable,
+    canUpload: filesAvailable && (ctx.role !== "front_office" || lead.assignee_id === ctx.userId),
+    currentUserId: ctx.userId, canWriteComments,
+    canModerate: ctx.role !== "front_office" && ctx.role !== "doctor",
+    showComments: ctx.role !== "doctor",
+    ...(ctx.role !== "doctor" && { invoiced: invoiceItems?.some((item) => item.active_billing) ?? false }),
   };
 }

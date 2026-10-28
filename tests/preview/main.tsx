@@ -57,7 +57,7 @@ function Preview() {
     />}
     </section>
     <section id="preview-progress" className="scroll-mt-20">
-      <TreatmentProgressSummary progress={{ planned: { records: [pendingPlan], total: 1 }, completed: { records: [{ ...pendingPlan, id: "00000000-0000-4000-8000-000000000008", clinical_status: "completed", site_scope: "tooth", tooth_number: "16", tooth_numbers: ["16"], remaining_tooth_numbers: ["16"], planned_treatment_id: pendingPlan.id, performed_at: "2026-09-10T04:30:00.000Z", notes: "Synthetic completed work on one tooth." }], total: 1 } }} />
+      <TreatmentProgressSummary leadId="00000000-0000-4000-8000-000000000001" progress={{ planned: { records: [pendingPlan], total: 1 }, completed: { records: [{ ...pendingPlan, id: "00000000-0000-4000-8000-000000000008", clinical_status: "completed", site_scope: "tooth", tooth_number: "16", tooth_numbers: ["16"], remaining_tooth_numbers: ["16"], planned_treatment_id: pendingPlan.id, performed_at: "2026-09-10T04:30:00.000Z", notes: "Synthetic completed work on one tooth." }], total: 1 } }} />
     </section>
     <section id="preview-output" className="scroll-mt-20">
     {payload !== null && <section aria-label="Preview submitted values" className="rounded border p-3">

@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthContext } from "@/lib/auth/context";
 
 vi.mock("server-only", () => ({}));
-const mocks = vi.hoisted(() => ({ from: vi.fn() }));
+const mocks = vi.hoisted(() => ({ from: vi.fn(), comments: vi.fn(), attachments: vi.fn() }));
 vi.mock("@/data/db", () => ({ db: { from: mocks.from } }));
-import { getPatientTreatmentProgress, TREATMENT_PROGRESS_LIMIT } from "@/data/treatment-progress";
+vi.mock("@/data/comments", () => ({ listComments: mocks.comments }));
+vi.mock("@/data/clinical-attachments", () => ({ listClinicalAttachmentsForTreatment: mocks.attachments }));
+import { getPatientTreatmentProgress, getTreatmentDetails, TREATMENT_PROGRESS_LIMIT } from "@/data/treatment-progress";
 
 const leadId = "10000000-0000-4000-8000-000000000001";
 const branchId = "10000000-0000-4000-8000-000000000002";
@@ -22,9 +24,58 @@ function chain(result: { data: unknown; error: unknown; count?: number }) {
   return query;
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => { vi.clearAllMocks(); mocks.comments.mockResolvedValue([]); mocks.attachments.mockResolvedValue([]); });
 
 describe("patient treatment progress access", () => {
+  const treatmentId = "10000000-0000-4000-8000-000000000004";
+  const detailRow = { id: treatmentId, case_sheet_id: "sheet", notes: "Clinical note", doctor: { full_name: "Dr Test" },
+    invoice_items: [{ active_billing: true }],
+    case_sheet: { doctor_id: "doctor-id", finalized_at: "2026-10-27T09:00:00Z" } };
+
+  it.each(["admin", "operations", "front_office", "clinical_head"] as const)("loads only a clicked patient's signed treatment for %s", async (role) => {
+    const lead = chain({ data: { branch_id: branchId, assignee_id: userId }, error: null });
+    const treatment = chain({ data: detailRow, error: null });
+    mocks.from.mockReturnValueOnce(lead).mockReturnValueOnce(treatment);
+    const result = await getTreatmentDetails(context(role), leadId, treatmentId);
+    expect(treatment.eq).toHaveBeenCalledWith("id", treatmentId);
+    expect(treatment.eq).toHaveBeenCalledWith("lead_id", leadId);
+    expect(treatment.eq).toHaveBeenCalledWith("branch_id", branchId);
+    expect(treatment.select.mock.calls[0]?.[0]).not.toMatch(/mobile|email|cost/);
+    expect(mocks.attachments).toHaveBeenCalledWith(context(role), treatmentId);
+    expect(mocks.comments).toHaveBeenCalledWith(context(role), leadId, { type: "treatment", id: treatmentId });
+    expect(result.canUpload).toBe(true);
+    expect(result.invoiced).toBe(true);
+    expect(result.treatment).not.toHaveProperty("case_sheet");
+  });
+
+  it("does not disclose treatment, comments or files to another front-desk assignee", async () => {
+    mocks.from.mockReturnValueOnce(chain({ data: { branch_id: branchId, assignee_id: "other" }, error: null }));
+    await expect(getTreatmentDetails(context("front_office"), leadId, treatmentId)).rejects.toThrow("Patient");
+    expect(mocks.from).toHaveBeenCalledTimes(1);
+    expect(mocks.attachments).not.toHaveBeenCalled();
+    expect(mocks.comments).not.toHaveBeenCalled();
+  });
+
+  it("rejects missing or unsigned treatment records before loading their children", async () => {
+    mocks.from.mockReturnValueOnce(chain({ data: { branch_id: branchId, assignee_id: userId }, error: null }))
+      .mockReturnValueOnce(chain({ data: null, error: null }));
+    await expect(getTreatmentDetails(context("operations"), leadId, treatmentId)).rejects.toThrow("Finalized treatment");
+    expect(mocks.attachments).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false])("preserves doctor file ownership and excludes comments/contact/billing (own visit: %s)", async (own) => {
+    mocks.from.mockReturnValueOnce(chain({ data: { branch_id: branchId, assignee_id: userId }, error: null }))
+      .mockReturnValueOnce(chain({ data: { id: "appointment" }, error: null }))
+      .mockReturnValueOnce(chain({ data: null, error: null }))
+      .mockReturnValueOnce(chain({ data: { ...detailRow, case_sheet: { ...detailRow.case_sheet, doctor_id: own ? "doctor-id" : "another-doctor" } }, error: null }));
+    const result = await getTreatmentDetails(context("doctor"), leadId, treatmentId);
+    expect(result.filesAvailable).toBe(own);
+    expect(result.canUpload).toBe(own);
+    expect(result.showComments).toBe(false);
+    expect(result).not.toHaveProperty("invoiced");
+    expect(mocks.comments).not.toHaveBeenCalled();
+    expect(mocks.attachments.mock.calls).toHaveLength(own ? 1 : 0);
+  });
   it.each(["operations", "front_office", "clinical_head", "admin"] as const)("loads independently counted planned/completed history for %s", async (role) => {
     const lead = chain({ data: { branch_id: branchId, assignee_id: userId }, error: null });
     const planned = chain({ data: [], error: null, count: 130 });

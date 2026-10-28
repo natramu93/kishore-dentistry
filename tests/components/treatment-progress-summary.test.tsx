@@ -1,9 +1,15 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { TreatmentProgressSummary } from "@/components/clinical/treatment-progress-summary";
 import type { TreatmentProgressRecord } from "@/lib/treatment-progress";
+import type { ReactNode } from "react";
 
 afterEach(cleanup);
+vi.mock("@/actions/treatment-details", () => ({ loadTreatmentDetailsAction: vi.fn() }));
+vi.mock("@/components/clinical/treatment-details-dialog", () => ({
+  TreatmentDetailsDialog: ({ name, children }: { name: string; children: ReactNode }) =>
+    <button aria-label={`View treatment details: ${name}`}>{children}</button>,
+}));
 
 function record(id: string, status: "planned" | "completed"): TreatmentProgressRecord {
   return {
@@ -18,17 +24,18 @@ function record(id: string, status: "planned" | "completed"): TreatmentProgressR
 
 describe("TreatmentProgressSummary", () => {
   it("retains a planned record even when completed work exists on the same teeth", () => {
-    render(<TreatmentProgressSummary progress={{
+    render(<TreatmentProgressSummary leadId="patient" progress={{
       planned: { records: [record("plan", "planned")], total: 1 },
       completed: { records: [record("done", "completed")], total: 1 },
     }} />);
     expect(within(screen.getByRole("region", { name: "Yet to treat" })).getByText("Discuss restoration at next visit")).toBeInTheDocument();
     expect(within(screen.getByRole("region", { name: "Treated" })).getByText("Restoration recorded")).toBeInTheDocument();
-    expect(screen.getByText(/Tooth findings remain/)).toBeInTheDocument();
+    expect(screen.queryByText(/Across all recorded visits/)).toBeNull();
+    expect(screen.getAllByRole("button", { name: "View treatment details: Dental care" })).toHaveLength(2);
   });
 
   it("explicitly discloses more pending records instead of showing a complete-looking subset", () => {
-    render(<TreatmentProgressSummary progress={{
+    render(<TreatmentProgressSummary leadId="patient" progress={{
       planned: { records: [record("plan", "planned")], total: 105 },
       completed: { records: [], total: 0 },
     }} />);
@@ -36,7 +43,7 @@ describe("TreatmentProgressSummary", () => {
   });
 
   it("clearly distinguishes partial completion from the original multi-tooth plan", () => {
-    render(<TreatmentProgressSummary progress={{
+    render(<TreatmentProgressSummary leadId="patient" progress={{
       planned: { records: [{ ...record("plan", "planned"), remaining_tooth_numbers: ["26"] }], total: 1 },
       completed: { records: [{ ...record("done", "completed"), planned_treatment_id: "plan", tooth_numbers: ["16"] }], total: 1 },
     }} />);

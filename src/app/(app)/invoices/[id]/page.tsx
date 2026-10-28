@@ -86,7 +86,7 @@ export default async function InvoiceDetailPage({
                 patientMobile={invoice.lead?.mobile ?? null}
               />
               <Button asChild variant="outline" size="sm">
-                <Link href={`/invoices/${invoice.id}/print`} target="_blank" rel="noreferrer">
+                <Link href={`/invoices/${invoice.id}/print`} target="_blank" rel="noreferrer" prefetch={false}>
                   <Printer className="h-4 w-4 mr-1" />
                   Print / PDF
                   <span className="sr-only"> (opens in a new tab)</span>
