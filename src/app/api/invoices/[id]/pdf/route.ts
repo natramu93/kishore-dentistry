@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { getInvoice } from "@/data/invoices";
@@ -6,7 +6,7 @@ import { getAuthContext } from "@/lib/auth/context";
 import { assertActionRateLimit } from "@/lib/rate-limit";
 import { fmtDate, formatINR } from "@/lib/tz";
 import { TIRUPUR_CLINIC } from "@/lib/clinic";
-import { NotFoundError, PublicError, ValidationError } from "@/lib/errors";
+import { NotFoundError, PublicError } from "@/lib/errors";
 import { invoiceLineToothLabel } from "@/lib/invoice-lines";
 import { receivedAmountInWords } from "@/lib/invoice-receipts";
 
@@ -58,16 +58,26 @@ export async function GET(
     const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
     const logo = await pdf.embedPng(await readFile(path.join(process.cwd(), "public/brand/kishors-dentistry-mark.png")));
     const pageSize: [number, number] = [595.28, 841.89];
-    const margin = 48;
+    const margin = 32;
     const ink = rgb(0.08, 0.16, 0.25);
     const muted = rgb(0.37, 0.43, 0.49);
     const accent = rgb(0.05, 0.39, 0.57);
     const pale = rgb(0.91, 0.95, 0.97);
-    let page = pdf.addPage(pageSize);
-    let y = page.getHeight() - margin;
-
-    const draw = (text: string, x: number, atY: number, size = 10, font = regular, color = ink) => {
-      page.drawText(safeText(text), { x, y: atY, size, font, color });
+    // The document has exactly one A4 page. Measure before drawing, then reduce
+    // font sizes and vertical spacing together if the complete invoice is long.
+    const page = pdf.addPage(pageSize);
+    const top = page.getHeight() - margin;
+    const bottom = 42;
+    const width = page.getWidth() - margin * 2;
+    // Standard-font widths scale linearly. Reuse unit-size measurements across
+    // fitting passes and repeated notes; the cache lives only for this request.
+    const widthCache = new Map<PDFFont, Map<string, number>>();
+    const textWidth = (text: string, size: number, font = regular): number => {
+      let measurements = widthCache.get(font);
+      if (!measurements) { measurements = new Map(); widthCache.set(font, measurements); }
+      let measured = measurements.get(text);
+      if (measured === undefined) { measured = font.widthOfTextAtSize(text, 1); measurements.set(text, measured); }
+      return measured * size;
     };
     const wrap = (text: string, maxWidth: number, size: number, font = regular): string[] => {
       const lines: string[] = [];
@@ -75,11 +85,23 @@ export async function GET(
         let line = "";
         for (const word of safeText(paragraph).split(/\s+/).filter(Boolean)) {
           const candidate = line ? `${line} ${word}` : word;
-          if (font.widthOfTextAtSize(candidate, size) <= maxWidth) { line = candidate; continue; }
+          if (textWidth(candidate, size, font) <= maxWidth) { line = candidate; continue; }
           if (line) { lines.push(line); line = ""; }
-          for (const char of word) {
-            if (line && font.widthOfTextAtSize(line + char, size) > maxWidth) { lines.push(line); line = ""; }
-            line += char;
+          // Split long unbroken references/notes by measured prefixes, rather
+          // than repeatedly measuring an ever-growing string per character.
+          let remainder = word;
+          while (remainder) {
+            let low = 1;
+            let high = remainder.length;
+            while (low < high) {
+              const middle = Math.ceil((low + high) / 2);
+              if (textWidth(remainder.slice(0, middle), size, font) <= maxWidth) low = middle;
+              else high = middle - 1;
+            }
+            const fragment = remainder.slice(0, low);
+            remainder = remainder.slice(low);
+            if (remainder) lines.push(fragment);
+            else line = fragment;
           }
         }
         if (line) lines.push(line);
@@ -94,206 +116,159 @@ export async function GET(
     const issuerAddress = invoice.issuer_address ?? invoice.branch?.address;
     const issuerPhone = invoice.issuer_phone ?? invoice.branch?.phone;
 
-    const drawLetterhead = () => {
-      y = page.getHeight() - margin;
-      const top = y;
-      page.drawImage(logo, { x: margin, y: top - 36, width: 40, height: 40 });
-      let nameY = top - 1;
-      for (const line of wrap(issuerName, 270, 14, bold)) {
-        draw(line, margin + 50, nameY, 14, bold, accent);
-        nameY -= 18;
-      }
-      const rightX = 385;
-      draw("INVOICE", rightX, top - 2, 20, bold);
-      let metaY = top - 24;
-      for (const detail of [
-        invoice.invoice_number,
-        `Date: ${fmtDate(invoice.invoice_date ?? invoice.issued_at ?? invoice.created_at)}`,
-        `Status: ${invoice.status}`,
-      ]) {
-        for (const line of wrap(detail, page.getWidth() - margin - rightX, 9)) {
-          draw(line, rightX, metaY, 9, regular, muted);
-          metaY -= 13;
+    const layout = (scale: number, render: boolean): number => {
+      const s = (value: number) => value * scale;
+      const draw = (text: string, x: number, atY: number, size = s(8), font = regular, color = ink) => {
+        if (render) page.drawText(safeText(text), { x, y: atY, size, font, color });
+      };
+      const rule = (atY: number, x = margin, lineWidth = width, color = pale) => {
+        if (render) page.drawLine({ start: { x, y: atY }, end: { x: x + lineWidth, y: atY }, thickness: s(0.5), color });
+      };
+      const paragraph = (text: string, x: number, startY: number, maxWidth: number, size: number, font = regular, color = ink) => {
+        let lineY = startY;
+        for (const line of wrap(text, maxWidth, size, font)) {
+          draw(line, x, lineY, size, font, color);
+          lineY -= size * 1.25;
         }
-      }
-      // Contact details sit below both columns, never behind invoice metadata.
-      y = Math.min(nameY - 8, metaY - 4, top - 48);
+        return lineY;
+      };
+      const right = (text: string, rightX: number, atY: number, maxWidth: number, size: number, font = regular, color = ink) => {
+        const measured = textWidth(safeText(text), size, font);
+        const fittedSize = size * Math.min(1, maxWidth / Math.max(measured, 0.01));
+        draw(text, rightX - textWidth(safeText(text), fittedSize, font), atY, fittedSize, font, color);
+      };
+
+      // Compact letterhead: address/contact information beside the logo, with
+      // invoice metadata in its own column rather than stacked underneath.
+      const metaX = 426;
+      const brandX = margin + s(42);
+      if (render) page.drawImage(logo, { x: margin, y: top - s(32), width: s(34), height: s(34) });
+      let brandY = paragraph(issuerName, brandX, top, metaX - brandX - 16, s(12), bold, accent);
       for (const detail of [
         issuerAddress,
-        issuerPhone ? `Phone: ${issuerPhone}` : null,
-        invoice.issuer_email ? `Email: ${invoice.issuer_email}` : null,
+        [issuerPhone ? `Phone: ${issuerPhone}` : null, invoice.issuer_email ? `Email: ${invoice.issuer_email}` : null].filter(Boolean).join(" | "),
         invoice.issuer_gst_number ? `GSTIN: ${invoice.issuer_gst_number}` : null,
       ]) {
-        if (!detail) continue;
-        for (const line of wrap(detail, page.getWidth() - margin * 2, 9)) {
-          draw(line, margin, y, 9, regular, muted);
-          y -= 13;
+        if (detail) brandY = paragraph(detail, brandX, brandY, metaX - brandX - 16, s(7.2), regular, muted);
+      }
+      draw("INVOICE", metaX, top, s(16), bold);
+      let metaY = top - s(19);
+      for (const detail of [invoice.invoice_number, `Date: ${fmtDate(invoice.invoice_date ?? invoice.issued_at ?? invoice.created_at)}`, `Status: ${invoice.status}`]) {
+        metaY = paragraph(detail, metaX, metaY, page.getWidth() - margin - metaX, s(7.5), regular, muted);
+      }
+      let y = Math.min(brandY, metaY, top - s(34)) - s(4);
+      rule(y, margin, width, accent);
+      y -= s(14);
+
+      const gap = 22;
+      const halfWidth = (width - gap) / 2;
+      const secondX = margin + halfWidth + gap;
+      let patientY = paragraph(`Patient: ${invoice.lead?.name ?? "Patient"}`, margin, y, halfWidth, s(9), bold);
+      const contact = [invoice.lead?.mobile, invoice.lead?.email].filter(Boolean).join(" | ");
+      if (contact) patientY = paragraph(contact, margin, patientY, halfWidth, s(7.5), regular, muted);
+      let doctorY = y;
+      for (const detail of [`Referring doctor: ${invoice.referring_doctor_name || "Not recorded"}`, `Consulting doctor: ${invoice.consulting_doctor_name || "Not recorded"}`]) {
+        doctorY = paragraph(detail, secondX, doctorY, halfWidth, s(7.5));
+      }
+      y = Math.min(patientY, doctorY) - s(6);
+
+      const columns = { description: margin + 21, qtyRight: 408, unitRight: 485, amountRight: page.getWidth() - margin };
+      const descriptionWidth = 372 - columns.description;
+      if (render) page.drawRectangle({ x: margin, y: y - s(14), width, height: s(14), color: pale });
+      draw("#", margin + 3, y - s(10), s(7), bold, accent);
+      draw("Treatment / teeth / notes", columns.description, y - s(10), s(7), bold, accent);
+      right("Qty", columns.qtyRight, y - s(10), 28, s(7), bold, accent);
+      right("Unit (INR)", columns.unitRight, y - s(10), 69, s(7), bold, accent);
+      right("Amount (INR)", columns.amountRight, y - s(10), 70, s(7), bold, accent);
+      y -= s(25);
+      for (const [index, item] of invoice.items.entries()) {
+        draw(String(index + 1), margin + 3, y, s(7.5));
+        let rowY = paragraph(item.description, columns.description, y, descriptionWidth, s(8));
+        const details = [
+          invoiceLineToothLabel(item),
+          item.surfaces?.length ? `Surfaces: ${item.surfaces.join(", ")}` : null,
+          item.line_note,
+        ].filter(Boolean).join(" | ");
+        if (details) rowY = paragraph(details, columns.description, rowY, descriptionWidth, s(7), regular, muted);
+        right(String(item.quantity), columns.qtyRight, y, 28, s(8));
+        right(pdfAmount(item.unit_price), columns.unitRight, y, 69, s(7.5));
+        right(pdfAmount(item.amount), columns.amountRight, y, 70, s(7.5));
+        y = rowY + s(3);
+        rule(y);
+        y -= s(7);
+      }
+
+      // Keep account carry-forward separate from this invoice's financial
+      // totals, but place the two blocks side-by-side to avoid empty space.
+      const summaryTop = y;
+      const moneyRows = (title: string, rows: { label: string; amount: number; strong?: boolean }[], x: number) => {
+        draw(title, x, summaryTop, s(8), bold, accent);
+        let rowY = summaryTop - s(14);
+        for (const row of rows) {
+          const font = row.strong ? bold : regular;
+          const size = s(row.strong ? 8.5 : 7.5);
+          const nextY = paragraph(row.label, x, rowY, halfWidth * 0.55 - s(8), size, font, row.strong ? ink : muted);
+          right(pdfAmount(row.amount), x + halfWidth, rowY, halfWidth * 0.45, size, font);
+          rowY = nextY - s(2);
+        }
+        return rowY;
+      };
+      const balance = invoice.patient_balance;
+      const accountY = moneyRows("PATIENT OUTSTANDING BALANCE", [
+        { label: `Earlier unpaid bills (${balance.earlier_invoice_count})`, amount: balance.earlier_due },
+        { label: "This invoice due", amount: balance.invoice_due },
+        ...(balance.later_due > 0 ? [{ label: "Newer unpaid bills", amount: balance.later_due }] : []),
+        { label: "Overall patient due", amount: balance.overall_due, strong: true },
+      ], margin);
+      const totalsY = moneyRows("INVOICE TOTALS", [
+        { label: "Subtotal", amount: invoice.subtotal },
+        { label: `Discount${invoice.discount_given_by ? ` (${invoice.discount_given_by})` : ""}`, amount: invoice.discount_amount ?? 0 },
+        { label: `Tax (${invoice.tax_rate}%)`, amount: invoice.tax_amount },
+        { label: "Total", amount: invoice.total, strong: true },
+        { label: "Amount received", amount: invoice.amount_paid },
+        { label: "Balance due", amount: invoice.balance_due, strong: true },
+      ], secondX);
+      y = Math.min(accountY, totalsY) - s(3);
+      y = paragraph("Earlier dues are not charged again. Record payments against their original invoice.", margin, y, width, s(6.5), regular, muted);
+      y = paragraph(`Received amount in words: ${receivedAmountInWords(invoice.amount_paid)}`, margin, y, width, s(7.5));
+
+      if (invoice.payments.length > 0) {
+        y -= s(4);
+        draw("PAYMENTS RECEIVED", margin, y, s(7.5), bold, accent);
+        y -= s(12);
+        // Two receipts per row, preserving every date, method, reference and amount.
+        for (let index = 0; index < invoice.payments.length; index += 2) {
+          const rowBottoms = invoice.payments.slice(index, index + 2).map((payment, column) => paragraph(
+            `${fmtDate(payment.received_at)} | ${payment.payment_method.toUpperCase()} | ${payment.reference ?? "No reference"} | ${pdfAmount(payment.amount)}`,
+            column === 0 ? margin : secondX, y, halfWidth, s(7), regular, muted,
+          ));
+          y = Math.min(...rowBottoms) - s(2);
         }
       }
-      y -= 5;
-      if (y < page.getHeight() / 2) throw new ValidationError("The invoice letterhead is too long to print. Review the branch address.");
-      page.drawLine({ start: { x: margin, y }, end: { x: page.getWidth() - margin, y }, thickness: 1.5, color: accent });
-      y -= 24;
-    };
-    const newPage = () => {
-      page = pdf.addPage(pageSize);
-      drawLetterhead();
-    };
-    const ensureSpace = (needed: number) => {
-      if (y - needed >= margin + 12) return false;
-      newPage();
-      return true;
+      for (const detail of [invoice.notes ? `Notes: ${invoice.notes}` : null, invoice.mention ? `Mention: ${invoice.mention}` : null]) {
+        if (detail) { y -= s(4); y = paragraph(detail, margin, y, width, s(7.5), regular, muted); }
+      }
+      return y;
     };
 
-    drawLetterhead();
-    draw("BILLED TO", margin, y, 8, bold, muted);
-    y -= 17;
-    for (const line of wrap(invoice.lead?.name ?? "Patient", page.getWidth() - margin * 2, 12, bold)) {
-      ensureSpace(18); draw(line, margin, y, 12, bold); y -= 16;
-    }
-    if (invoice.lead?.mobile) { draw(invoice.lead.mobile, margin, y, 9, regular, muted); y -= 13; }
-    if (invoice.lead?.email) { draw(invoice.lead.email, margin, y, 9, regular, muted); y -= 13; }
-    for (const detail of [
-      `Referring doctor: ${invoice.referring_doctor_name || "Not recorded"}`,
-      `Consulting doctor: ${invoice.consulting_doctor_name || "Not recorded"}`,
-    ]) {
-      for (const line of wrap(detail, page.getWidth() - margin * 2, 9)) {
-        ensureSpace(16); draw(line, margin, y, 9); y -= 13;
+    const measuredBottom = layout(1, false);
+    let scale = 1;
+    if (measuredBottom < bottom) {
+      // Start with a conservative fit: smaller fonts can only remove wrapped
+      // lines. Then find the largest fitting size, avoiding unnecessary shrink
+      // when reflow removes many lines. The search is bounded to eight passes.
+      scale = (top - bottom) / (top - measuredBottom) * 0.995;
+      let upper = 1;
+      for (let pass = 0; pass < 8; pass++) {
+        const candidate = (scale + upper) / 2;
+        if (layout(candidate, false) >= bottom + 1) scale = candidate;
+        else upper = candidate;
       }
     }
-    y -= 16;
-
-    const columns = { number: margin, description: margin + 32, qty: 390, unit: 430, amount: 490 };
-    const headerHeight = 22;
-    const drawTableHeader = () => {
-      page.drawRectangle({ x: margin, y: y - headerHeight + 3, width: page.getWidth() - margin * 2, height: headerHeight, color: pale });
-      draw("#", columns.number + 5, y - 12, 8, bold, accent);
-      draw("Description", columns.description, y - 12, 8, bold, accent);
-      draw("Qty", columns.qty, y - 12, 8, bold, accent);
-      draw("Unit", columns.unit, y - 12, 8, bold, accent);
-      draw("Amount", columns.amount, y - 12, 8, bold, accent);
-      y -= headerHeight + 2;
-    };
-    drawTableHeader();
-
-    for (const [index, item] of invoice.items.entries()) {
-      // Keep descriptions out of the quantity/price columns, even at large values.
-      const descriptionWidth = columns.qty - columns.description - 12;
-      const descLines = wrap(item.description, descriptionWidth, 9);
-      const toothLabel = invoiceLineToothLabel(item);
-      const lines = [
-        ...descLines.map((text) => ({ text, size: 9, color: ink })),
-        ...(toothLabel ? wrap(toothLabel, descriptionWidth, 8) : []).map((text) => ({ text, size: 8, color: muted })),
-        ...(item.surfaces?.length ? wrap(`Surfaces: ${item.surfaces.join(", ")}`, descriptionWidth, 8) : []).map((text) => ({ text, size: 8, color: muted })),
-        ...(item.line_note ? wrap(item.line_note, descriptionWidth, 8) : []).map((text) => ({ text, size: 8, color: muted })),
-      ];
-      let offset = 0;
-      while (offset < lines.length) {
-        const remainingHeight = (lines.length - offset) * 12 + 18;
-        const fullPageSpace = pageSize[1] - margin * 2 - 240;
-        // Normal lines stay together; unusually long notes split safely across pages.
-        if (ensureSpace(Math.min(remainingHeight, fullPageSpace))) drawTableHeader();
-        let capacity = Math.floor((y - margin - 30) / 12);
-        if (capacity < 1) { newPage(); drawTableHeader(); capacity = Math.floor((y - margin - 30) / 12); }
-        const chunk = lines.slice(offset, offset + capacity);
-        draw(offset === 0 ? String(index + 1) : `${index + 1} cont.`, columns.number + 3, y - 11, offset === 0 ? 9 : 7);
-        chunk.forEach((line, lineIndex) => draw(line.text, columns.description, y - 11 - lineIndex * 12, line.size, regular, line.color));
-        if (offset === 0) {
-          const cells = [
-            { text: String(item.quantity), right: columns.unit - 10, size: 9 },
-            { text: pdfAmount(item.unit_price), right: columns.amount - 8, size: 8 },
-            { text: pdfAmount(item.amount), right: page.getWidth() - margin, size: 8 },
-          ];
-          for (const cell of cells) {
-            const size = Math.min(cell.size, cell.size * 54 / Math.max(54, regular.widthOfTextAtSize(cell.text, cell.size)));
-            draw(cell.text, cell.right - regular.widthOfTextAtSize(cell.text, size), y - 11, size);
-          }
-        }
-        y -= Math.max(22, chunk.length * 12 + 10);
-        page.drawLine({ start: { x: margin, y }, end: { x: page.getWidth() - margin, y }, thickness: 0.4, color: pale });
-        y -= 8;
-        offset += chunk.length;
-      }
-    }
-
-    ensureSpace(130);
-    const totalsX = 370;
-    const totalRow = (label: string, amount: number, strong = false) => {
-      const font = strong ? bold : regular;
-      const amountText = pdfAmount(amount);
-      const amountWidth = font.widthOfTextAtSize(amountText, strong ? 11 : 9);
-      page.drawText(label, { x: totalsX, y, size: strong ? 11 : 9, font, color: strong ? ink : muted });
-      page.drawText(amountText, {
-        x: page.getWidth() - margin - amountWidth, y, size: strong ? 11 : 9, font, color: strong ? ink : muted,
-      });
-      y -= strong ? 20 : 16;
-    };
-    totalRow("Subtotal", invoice.subtotal);
-    totalRow(`Discount${invoice.discount_given_by ? ` (${invoice.discount_given_by})` : ""}`, invoice.discount_amount ?? 0);
-    totalRow(`Tax (${invoice.tax_rate}%)`, invoice.tax_amount);
-    page.drawLine({ start: { x: totalsX, y: y + 11 }, end: { x: page.getWidth() - margin, y: y + 11 }, thickness: 1, color: accent });
-    totalRow("Total", invoice.total, true);
-    totalRow("Amount received", invoice.amount_paid);
-    totalRow("Balance due", invoice.balance_due, true);
-
-    const balance = invoice.patient_balance;
-    // A separate, full-width account summary: carried dues are not invoice revenue.
-    ensureSpace(balance.later_due > 0 ? 145 : 130);
-    y -= 8;
-    draw("PATIENT OUTSTANDING BALANCE", margin, y, 10, bold, accent);
-    y -= 20;
-    const accountRow = (label: string, amount: number, strong = false) => {
-      const font = strong ? bold : regular;
-      draw(label, margin, y, 10, font);
-      const amountText = pdfAmount(amount);
-      draw(amountText, page.getWidth() - margin - font.widthOfTextAtSize(amountText, 10), y, 10, font);
-      y -= 18;
-    };
-    accountRow(`Earlier unpaid bills (${balance.earlier_invoice_count})`, balance.earlier_due);
-    accountRow("This invoice due", balance.invoice_due);
-    if (balance.later_due > 0) accountRow("Newer unpaid bills", balance.later_due);
-    accountRow("Overall patient due", balance.overall_due, true);
-    for (const line of wrap("Current unpaid balances across active bills; earlier dues are not charged again. Record payments against their original invoice.", page.getWidth() - margin * 2, 8)) {
-      ensureSpace(14); draw(line, margin, y, 8, regular, muted); y -= 12;
-    }
-    y -= 8;
-
-    for (const line of wrap(`Received amount in words: ${receivedAmountInWords(invoice.amount_paid)}`, page.getWidth() - margin * 2, 9)) {
-      ensureSpace(16); draw(line, margin, y, 9, regular, muted); y -= 13;
-    }
-
-    if (invoice.payments.length > 0) {
-      ensureSpace(40);
-      y -= 4;
-      draw("PAYMENTS RECEIVED", margin, y, 8, bold, muted);
-      y -= 15;
-      for (const payment of invoice.payments) {
-        const receiptLines = wrap(`${fmtDate(payment.received_at)} | ${payment.payment_method.toUpperCase()} | ${payment.reference ?? "No reference"}`, 350, 8);
-        if (ensureSpace(receiptLines.length * 13 + 20)) {
-          draw("PAYMENTS RECEIVED (CONTINUED)", margin, y, 8, bold, muted);
-          y -= 15;
-        }
-        const receiptAmount = pdfAmount(payment.amount);
-        draw(receiptAmount, page.getWidth() - margin - regular.widthOfTextAtSize(receiptAmount, 8), y, 8, regular, ink);
-        for (const line of receiptLines) { draw(line, margin, y, 8, regular, muted); y -= 13; }
-      }
-    }
-
-    if (invoice.notes) {
-      const noteLines = wrap(`Notes: ${invoice.notes}`, page.getWidth() - margin * 2, 9);
-      y -= 5;
-      for (const line of noteLines) { ensureSpace(16); draw(line, margin, y, 9, regular, muted); y -= 13; }
-    }
-    if (invoice.mention) {
-      const mentionLines = wrap(`Mention: ${invoice.mention}`, page.getWidth() - margin * 2, 9);
-      y -= 5;
-      for (const line of mentionLines) { ensureSpace(16); draw(line, margin, y, 9, regular, muted); y -= 13; }
-    }
-    for (const [index, printedPage] of pdf.getPages().entries()) {
-      printedPage.drawText(safeText(`Thank you for choosing ${TIRUPUR_CLINIC.brandName}.`), { x: margin, y: 28, size: 8, font: regular, color: muted });
-      const counter = `Page ${index + 1} of ${pdf.getPageCount()}`;
-      printedPage.drawText(counter, { x: printedPage.getWidth() - margin - regular.widthOfTextAtSize(counter, 8), y: 28, size: 8, font: regular, color: muted });
-    }
+    layout(scale, true);
+    page.drawText(safeText(`Thank you for choosing ${TIRUPUR_CLINIC.brandName}.`), { x: margin, y: 25, size: 7, font: regular, color: muted });
+    const counter = "Page 1 of 1";
+    page.drawText(counter, { x: page.getWidth() - margin - regular.widthOfTextAtSize(counter, 7), y: 25, size: 7, font: regular, color: muted });
 
     const bytes = await pdf.save({ useObjectStreams: true });
     const filename = `${safeFileName(invoice.invoice_number)}.pdf`;
