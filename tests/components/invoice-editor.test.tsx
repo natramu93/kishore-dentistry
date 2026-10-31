@@ -12,6 +12,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ back: vi.fn(), push: vi.
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const TREATMENT_TYPE_ID = "treatment-type-1";
+const originalScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
 
 async function chooseConsultation() {
   fireEvent.input(screen.getByRole("combobox", { name: "Treatment" }), { target: { value: "consult" }, inputType: "insertText" });
@@ -45,6 +46,8 @@ function renderInvoiceEditor(existingBalanceDue?: number) {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  if (originalScrollIntoView) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", originalScrollIntoView);
+  else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
 });
 
 describe("independent invoice editor", () => {
@@ -58,7 +61,7 @@ describe("independent invoice editor", () => {
     fireEvent.click(screen.getByRole("button", { name: "No referring doctor" }));
     fireEvent.input(screen.getByRole("combobox", { name: "Treatment" }), { target: { value: "fill" }, inputType: "insertText" });
     fireEvent.click(await screen.findByRole("option", { name: "Composite filling — Restorative" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add treatment line" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add treatment after line 1" }));
     const second = within(screen.getByRole("group", { name: "Treatment line 2" }));
     fireEvent.input(second.getByRole("combobox", { name: "Treatment" }), { target: { value: "preventive" }, inputType: "insertText" });
     fireEvent.click(await screen.findByRole("option", { name: "Scaling — Preventive" }));
@@ -158,7 +161,7 @@ describe("independent invoice editor", () => {
   });
   it("keeps site summaries in their own full-width row, outside treatment controls", () => {
     renderInvoiceEditor();
-    fireEvent.click(screen.getByRole("button", { name: "Add treatment line" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add treatment after line 1" }));
 
     for (const line of screen.getAllByRole("group", { name: /^Treatment line \d+$/ })) {
       const fields = within(line);
@@ -193,7 +196,7 @@ describe("independent invoice editor", () => {
       />
     );
     expect(screen.getByRole("status")).toHaveTextContent(/no active treatments are configured/i);
-    fireEvent.click(screen.getByRole("button", { name: "Add treatment line" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add treatment" }));
     expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("No active treatments are available"));
     expect(screen.getByRole("button", { name: "Create invoice" })).toBeEnabled();
   });
@@ -250,5 +253,89 @@ describe("independent invoice editor", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Your entries are still here")));
     expect(screen.getByRole("combobox", { name: "Treatment" })).toHaveValue("General consultation — Consultation");
     await waitFor(() => expect(screen.getByRole("button", { name: "Create invoice" })).toBeEnabled());
+  });
+
+  it("blocks implicit Enter submission from invoice inputs but preserves note line breaks", async () => {
+    renderInvoiceEditor();
+    await chooseConsultation();
+    for (const label of ["Invoice date", "Consulting doctor", "Referring doctor", "Quantity", "Unit price (₹)", "Discount amount (₹)", "Discount given by"]) {
+      for (const key of ["Enter", "NumpadEnter"]) {
+        expect(fireEvent.keyDown(screen.getByLabelText(label), { key })).toBe(false);
+      }
+    }
+    const notes = screen.getByLabelText("Line note");
+    expect(fireEvent.keyDown(notes, { key: "Enter" })).toBe(true);
+    fireEvent.change(notes, { target: { value: "First line\nSecond line" } });
+    expect(notes).toHaveValue("First line\nSecond line");
+    expect(createInvoiceAction).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Create invoice" }));
+    await waitFor(() => expect(createInvoiceAction).toHaveBeenCalledOnce());
+  });
+
+  it("still selects treatments with Enter without creating the invoice", async () => {
+    renderInvoiceEditor();
+    const input = screen.getByRole("combobox", { name: "Treatment" });
+    fireEvent.input(input, { target: { value: "consult" }, inputType: "insertText" });
+    await screen.findByRole("option", { name: "General consultation — Consultation" });
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(input).toHaveValue("General consultation — Consultation"));
+    expect(screen.getByLabelText("Unit price (₹)")).toHaveValue(200);
+    expect(createInvoiceAction).not.toHaveBeenCalled();
+  });
+
+  it("inserts directly below the selected row, focuses it and preserves later treatment details", async () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView });
+    render(<InvoiceEditor mode="create" leadId="lead-1" treatmentCatalog={[]}
+      treatmentOptions={[
+        { id: "filling", name: "Filling", category: null, default_cost: 500, is_general_consultation: false },
+        { id: "scaling", name: "Scaling", category: null, default_cost: 300, is_general_consultation: false },
+        { id: TREATMENT_TYPE_ID, name: "General consultation", category: "Consultation", default_cost: 200, is_general_consultation: true },
+      ]}
+      initialItems={[
+        { treatment_type_id: "filling", description: "Filling", site_label: "General service", quantity: 1, unit_price: 500 },
+        { treatment_type_id: "scaling", description: "Scaling", site_label: "Teeth 11, 12", tooth_numbers: ["11", "12"], line_note: "Keep this note", quantity: 2, unit_price: 300 },
+      ]} />);
+    fireEvent.change(screen.getByLabelText("Consulting doctor"), { target: { value: "Dr. Test Doctor" } });
+    fireEvent.click(screen.getByRole("button", { name: "No referring doctor" }));
+    for (const line of screen.getAllByRole("group", { name: /^Treatment line \d+$/ })) {
+      const add = within(line).getByRole("button", { name: /^Add treatment after line/ });
+      expect(add).toHaveClass("col-span-full", "w-full");
+      expect(add).toBe(line.lastElementChild);
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Add treatment after line 1" }));
+    expect(screen.getAllByRole("group", { name: /^Treatment line \d+$/ })).toHaveLength(3);
+    const inserted = within(screen.getByRole("group", { name: "Treatment line 2" }));
+    const newInput = inserted.getByRole("combobox", { name: "Treatment" });
+    await waitFor(() => expect(newInput).toHaveFocus());
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "center", behavior: "auto" });
+    const later = within(screen.getByRole("group", { name: "Treatment line 3" }));
+    expect(later.getByRole("combobox", { name: "Treatment" })).toHaveValue("Scaling");
+    expect(later.getByLabelText("Quantity")).toHaveValue(2);
+    expect(later.getByLabelText("Unit price (₹)")).toHaveValue(300);
+    expect(later.getByLabelText("Line note")).toHaveValue("Keep this note");
+    expect(later.getByText("Teeth 11, 12")).toBeInTheDocument();
+    fireEvent.input(newInput, { target: { value: "consult" }, inputType: "insertText" });
+    fireEvent.click(await screen.findByRole("option", { name: "General consultation — Consultation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create invoice" }));
+    await waitFor(() => expect(createInvoiceAction).toHaveBeenCalledWith(expect.objectContaining({ items: [
+      { treatment_type_id: "filling", quantity: 1, unit_price: 500 },
+      { treatment_type_id: TREATMENT_TYPE_ID, quantity: 1, unit_price: 200 },
+      { treatment_type_id: "scaling", quantity: 2, unit_price: 300, tooth_numbers: ["11", "12"], line_note: "Keep this note" },
+    ] })));
+  });
+
+  it("supports repeated additions at the last row and restores an empty invoice", async () => {
+    renderInvoiceEditor();
+    fireEvent.click(screen.getByRole("button", { name: "Add treatment after line 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add treatment after line 2" }));
+    expect(screen.getAllByRole("group", { name: /^Treatment line \d+$/ })).toHaveLength(3);
+    expect(within(screen.getByRole("group", { name: "Treatment line 3" })).getByRole("combobox", { name: "Treatment" })).toHaveFocus();
+    for (let count = 3; count > 0; count--) fireEvent.click(screen.getByRole("button", { name: "Remove treatment line 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add treatment" }));
+    expect(screen.getAllByRole("group", { name: /^Treatment line \d+$/ })).toHaveLength(1);
+    expect(screen.getByRole("combobox", { name: "Treatment" })).toHaveFocus();
+    expect(createInvoiceAction).not.toHaveBeenCalled();
   });
 });

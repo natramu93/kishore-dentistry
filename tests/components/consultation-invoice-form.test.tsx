@@ -9,6 +9,14 @@ vi.mock("@/actions/invoices", () => ({
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("consultation invoice doctor details", () => {
+  it("does not create a bill when Enter is pressed in a consultation field", () => {
+    render(<ConsultationInvoiceForm leadId="lead-1" />);
+    for (const label of ["Consulting doctor", "Referring doctor", "Amount (₹)"]) {
+      expect(fireEvent.keyDown(screen.getByLabelText(label), { key: "Enter" })).toBe(false);
+    }
+    expect(fireEvent.keyDown(screen.getByLabelText("Notes (optional)"), { key: "Enter" })).toBe(true);
+    expect(createConsultationInvoiceAndRedirect).not.toHaveBeenCalled();
+  });
   it("allows an explicit zero consultation fee", async () => {
     render(<ConsultationInvoiceForm leadId="lead-1" />);
     fireEvent.change(screen.getByLabelText("Consulting doctor"), { target: { value: "Dr. Consultant" } });

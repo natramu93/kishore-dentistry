@@ -12,8 +12,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { ToothSelector } from "@/components/clinical/tooth-selector";
 import { invoiceDisplayTotals } from "@/lib/invoice-lines";
 import { TreatmentSearch } from "@/components/invoices/treatment-search";
+import { preventImplicitInvoiceSubmit } from "./invoice-form-keyboard";
 import { clinicToday, formatINR } from "@/lib/tz";
-import { LockKeyhole, Trash2 } from "lucide-react";
+import { LockKeyhole, Plus, Trash2 } from "lucide-react";
 
 export type CodedInvoiceItem = {
   invoice_item_id?: string;
@@ -85,6 +86,7 @@ export function InvoiceEditor({
   const router = useRouter();
   const idPrefix = useId();
   const nextRowKey = useRef(initialItems.length);
+  const rowToFocus = useRef<string | null>(null);
   const [items, setItems] = useState<EditableItem[]>(() =>
     initialItems.length ? initialItems.map((item, index) => ({ ...item, rowKey: `initial-${index}` }))
       : mode === "create" && treatmentOptions.length ? [{ rowKey: "first-line", treatment_type_id: null, description: "", site_label: "General / not tooth-specific", quantity: 1, unit_price: 0 }] : []
@@ -99,6 +101,17 @@ export function InvoiceEditor({
   const [referringDoctor, setReferringDoctor] = useState("");
   const [dirty, setDirty] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    const rowKey = rowToFocus.current;
+    if (!rowKey) return;
+    const input = document.getElementById(`${idPrefix}-${rowKey}-row`)
+      ?.querySelector<HTMLInputElement>('input[role="combobox"], input[type="number"]');
+    if (!input) return;
+    rowToFocus.current = null;
+    input.focus({ preventScroll: true });
+    input.scrollIntoView?.({ block: "center", behavior: "auto" });
+  }, [items, idPrefix]);
 
   useEffect(() => {
     if (!dirty || pending) return;
@@ -130,6 +143,7 @@ export function InvoiceEditor({
     const treatment = treatmentCatalog.find((item) => item.id === id);
     if (!treatment || selectedIds.has(treatment.id)) return;
     const rowKey = `new-${nextRowKey.current++}`;
+    rowToFocus.current = rowKey;
     setDirty(true);
     setItems((previous) => [
       ...previous,
@@ -145,14 +159,15 @@ export function InvoiceEditor({
     ]);
   }
 
-  function addCatalogLine() {
+  function addCatalogLine(afterRowKey?: string) {
     if (treatmentOptions.length === 0) {
       toast.error("No active treatments are available for this center. Ask a center admin to add treatments first.");
       return;
     }
     const rowKey = `catalog-${nextRowKey.current++}`;
+    rowToFocus.current = rowKey;
     setDirty(true);
-    setItems((previous) => [...previous, {
+    const newItem: EditableItem = {
       rowKey,
       treatment_id: null,
       treatment_type_id: null,
@@ -163,7 +178,12 @@ export function InvoiceEditor({
       line_note: "",
       quantity: 1,
       unit_price: 0,
-    }]);
+    };
+    setItems((previous) => {
+      const index = afterRowKey ? previous.findIndex((item) => item.rowKey === afterRowKey) : -1;
+      const insertAt = index === -1 ? previous.length : index + 1;
+      return [...previous.slice(0, insertAt), newItem, ...previous.slice(insertAt)];
+    });
   }
 
   function selectCatalogTreatment(rowKey: string, treatmentTypeId: string) {
@@ -266,7 +286,7 @@ export function InvoiceEditor({
 
   return (
     <Card>
-      <form onSubmit={(event) => { event.preventDefault(); submit(); }}>
+      <form onKeyDown={preventImplicitInvoiceSubmit} onSubmit={(event) => { event.preventDefault(); submit(); }}>
         <CardContent className="space-y-5 pt-6">
           <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100">
             <p className="flex items-center gap-2 font-medium">
@@ -314,19 +334,21 @@ export function InvoiceEditor({
           </details>}
 
           <section aria-labelledby={`${idPrefix}-items-heading`} className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 id={`${idPrefix}-items-heading`} className="text-base font-semibold">Invoice line items</h2>
-              <Button type="button" variant="outline" onClick={addCatalogLine}>Add treatment line</Button>
-            </div>
+            <h2 id={`${idPrefix}-items-heading`} className="text-base font-semibold">Invoice line items</h2>
             {treatmentOptions.length === 0 && (
               <p role="status" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-100">
                 No active treatments are configured for this center, so an invoice line cannot be selected yet. Ask a center admin to update the treatment list.
               </p>
             )}
             {items.length === 0 && (
-              <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                There are no invoice lines yet. Add a treatment line, then choose a treatment from this center’s list.
-              </p>
+              <div className="space-y-3">
+                <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                  There are no invoice lines yet. Add a treatment line, then choose a treatment from this center’s list.
+                </p>
+                <Button type="button" variant="outline" className="w-full border-dashed" disabled={pending} onClick={() => addCatalogLine()}>
+                  <Plus aria-hidden="true" /> Add treatment
+                </Button>
+              </div>
             )}
             {items.map((item, index) => {
               const quantityId = `${idPrefix}-${item.rowKey}-quantity`;
@@ -336,6 +358,7 @@ export function InvoiceEditor({
               return (
                 <fieldset
                   key={item.rowKey}
+                  id={`${idPrefix}-${item.rowKey}-row`}
                   className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_44px] items-end gap-3 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_90px_130px_44px]"
                 >
                   <legend className="sr-only">Treatment line {index + 1}</legend>
@@ -434,6 +457,10 @@ export function InvoiceEditor({
                       </div>
                     </div>
                   </details>
+                  <Button type="button" variant="outline" className="col-span-full w-full border-dashed" disabled={pending}
+                    aria-label={`Add treatment after line ${index + 1}`} onClick={() => addCatalogLine(item.rowKey)}>
+                    <Plus aria-hidden="true" /> Add treatment
+                  </Button>
                 </fieldset>
               );
             })}

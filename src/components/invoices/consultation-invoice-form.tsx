@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { preventImplicitInvoiceSubmit } from "./invoice-form-keyboard";
 
 export function ConsultationInvoiceForm({ leadId }: { leadId: string }) {
   const id = useId();
@@ -41,6 +42,7 @@ export function ConsultationInvoiceForm({ leadId }: { leadId: string }) {
       <CardContent>
         <form
           className="grid gap-4 sm:grid-cols-2 sm:items-end"
+          onKeyDown={preventImplicitInvoiceSubmit}
           onSubmit={(event) => {
             event.preventDefault();
             submit();

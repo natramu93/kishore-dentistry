@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { preventImplicitInvoiceSubmit } from "./invoice-form-keyboard";
 
 export function ConsultationInvoiceEditor({ invoiceId, version, initialAmount, initialNotes }: {
   invoiceId: string; version: number; initialAmount: number; initialNotes: string;
@@ -17,7 +18,7 @@ export function ConsultationInvoiceEditor({ invoiceId, version, initialAmount, i
   const [amount, setAmount] = useState(String(initialAmount));
   const [notes, setNotes] = useState(initialNotes);
   const [pending, startTransition] = useTransition();
-  return <form className="space-y-4" onSubmit={(event) => {
+  return <form className="space-y-4" onKeyDown={preventImplicitInvoiceSubmit} onSubmit={(event) => {
     event.preventDefault();
     startTransition(async () => {
       try {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { NewLeadForm } from "@/app/(app)/leads/new/new-lead-form";
 
 vi.mock("@/actions/leads", () => ({
@@ -44,5 +44,18 @@ describe("new lead form", () => {
     expect(email).toHaveAttribute("autocorrect", "off");
     expect(email).toHaveAttribute("enterkeyhint", "next");
     expect(email).toHaveAttribute("spellcheck", "false");
+  });
+
+  it("accepts decimal ages with a decimal keyboard and no native integer-step restriction", () => {
+    render(<NewLeadForm branches={[]} sources={[]} treatmentOptions={[]} />);
+    const age = screen.getByRole("spinbutton", { name: "Age (years)" });
+    expect(age).toHaveAttribute("step", "any");
+    expect(age).toHaveAttribute("inputmode", "decimal");
+    expect(age).toHaveAccessibleDescription("Decimals are allowed below 5 years.");
+    for (const value of ["0.2", "2.5", "4.3"]) {
+      fireEvent.change(age, { target: { value } });
+      expect(age).toHaveValue(Number(value));
+      expect((age as HTMLInputElement).checkValidity()).toBe(true);
+    }
   });
 });

@@ -31,4 +31,37 @@ describe("validated patient identity actions", () => {
     expect(await createLeadAction(form)).toMatchObject({ ok:false });
     expect(createLead).not.toHaveBeenCalled();
   });
+
+  it.each(["0", "0.2", "2.5", "4.3", "4.99", "5", "25", "120"])("preserves age %s on creation and edit", async (age) => {
+    const form = input(); form.set("age", age);
+    expect(await createLeadAction(form)).toMatchObject({ ok: true });
+    expect(createLead).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ age: Number(age) }));
+    form.delete("branch_id");
+    expect(await updateLeadAction(leadId, form)).toMatchObject({ ok: true });
+    expect(updateLeadDetails).toHaveBeenCalledWith(expect.anything(), leadId, expect.objectContaining({ age: Number(age) }));
+  });
+
+  it.each(["5.1", "25.5", "-0.2", "120.1", "121", "NaN", "Infinity", "not an age"])("rejects invalid age %s without writing", async (age) => {
+    const form = input(); form.set("age", age);
+    expect(await createLeadAction(form)).toMatchObject({ ok: false });
+    form.delete("branch_id");
+    expect(await updateLeadAction(leadId, form)).toMatchObject({ ok: false });
+    expect(createLead).not.toHaveBeenCalled();
+    expect(updateLeadDetails).not.toHaveBeenCalled();
+  });
+
+  it.each(["", "   "])("keeps a blank age as null, not zero: %j", async (age) => {
+    const form = input(); form.set("age", age);
+    expect(await createLeadAction(form)).toMatchObject({ ok: true });
+    expect(createLead).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ age: null }));
+    form.delete("branch_id");
+    expect(await updateLeadAction(leadId, form)).toMatchObject({ ok: true });
+    expect(updateLeadDetails).toHaveBeenCalledWith(expect.anything(), leadId, expect.objectContaining({ age: null }));
+  });
+
+  it("does not overwrite an existing age when an edit omits the field", async () => {
+    const form = new FormData(); form.set("name", "Test Patient");
+    expect(await updateLeadAction(leadId, form)).toMatchObject({ ok: true });
+    expect(updateLeadDetails).toHaveBeenCalledWith(expect.anything(), leadId, { name: "Test Patient" });
+  });
 });

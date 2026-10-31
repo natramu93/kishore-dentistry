@@ -197,8 +197,9 @@ export function NewLeadForm({
               </select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="age">Age</Label>
-              <Input id="age" name="age" type="number" min="0" max="120" />
+              <Label htmlFor="age">Age (years)</Label>
+              <Input id="age" name="age" type="number" min="0" max="120" step="any" inputMode="decimal" aria-describedby="age-help" />
+              <p id="age-help" className="text-xs text-muted-foreground">Decimals are allowed below 5 years.</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="dob">Date of birth</Label>

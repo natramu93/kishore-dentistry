@@ -22,6 +22,12 @@ describe("invoice date controls", () => {
 });
 
 describe("consultation invoice edits", () => {
+  it("does not save an invoice implicitly when Enter is pressed in its amount", () => {
+    render(<ConsultationInvoiceEditor invoiceId="invoice-1" version={3} initialAmount={200} initialNotes="" />);
+    expect(fireEvent.keyDown(screen.getByLabelText("Consultation amount (₹)"), { key: "Enter" })).toBe(false);
+    expect(fireEvent.keyDown(screen.getByLabelText("Invoice remarks (optional)"), { key: "Enter" })).toBe(true);
+    expect(updateConsultationInvoiceAction).not.toHaveBeenCalled();
+  });
   it("allows correcting an unpaid consultation fee to zero", async () => {
     render(<ConsultationInvoiceEditor invoiceId="invoice-1" version={3} initialAmount={200} initialNotes="" />);
     fireEvent.change(screen.getByLabelText("Consultation amount (₹)"), { target: { value: "0" } });
