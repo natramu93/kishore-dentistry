@@ -1,10 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { RecordPaymentForm } from "@/components/invoices/record-payment-form";
-import { recordInvoicePaymentsAction } from "@/actions/invoices";
+import { confirmInvoiceCarryForwardAction, recordInvoicePaymentsAction } from "@/actions/invoices";
 import { toast } from "sonner";
 
-vi.mock("@/actions/invoices", () => ({ recordInvoicePaymentsAction: vi.fn().mockResolvedValue({ ok: true }) }));
+vi.mock("@/actions/invoices", () => ({
+  recordInvoicePaymentsAction: vi.fn().mockResolvedValue({ ok: true }),
+  confirmInvoiceCarryForwardAction: vi.fn().mockResolvedValue({ ok: true, balance: {
+    amount_paid: 0, invoice_due: 150, earlier_due: 200, later_due: 0, overall_due: 350, earlier_invoice_count: 1,
+  } }),
+}));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
@@ -14,6 +19,77 @@ afterEach(() => {
 });
 
 describe("record payment form", () => {
+  it("accepts ₹0 received without a method and carries all dues forward without a receipt", async () => {
+    render(<RecordPaymentForm invoiceId="invoice-1" balanceDue={150} />);
+    const amount = screen.getByRole("spinbutton", { name: "Payment amount (₹)" });
+    fireEvent.change(amount, { target: { value: "0" } });
+    expect(amount).toHaveAttribute("min", "0");
+    expect(screen.getByRole("combobox", { name: "Payment method" })).toBeDisabled();
+    const button = screen.getByRole("button", { name: "Confirm ₹0 received / carry forward" });
+    expect(button.closest("form")!.checkValidity()).toBe(true);
+    fireEvent.click(button);
+    await waitFor(() => expect(confirmInvoiceCarryForwardAction).toHaveBeenCalledExactlyOnceWith("invoice-1"));
+    expect(recordInvoicePaymentsAction).not.toHaveBeenCalled();
+    expect(await screen.findByRole("status")).toHaveTextContent("This invoice due: ₹150.00");
+    expect(screen.getByRole("status")).toHaveTextContent("Overall patient due: ₹350.00");
+    expect(await screen.findByRole("button", { name: "Balance carried forward" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Record a payment" }));
+    expect(screen.getByRole("spinbutton", { name: "Payment amount (₹)" })).toHaveValue(150);
+    expect(screen.getByRole("button", { name: "Record payment" })).toBeEnabled();
+  });
+
+  it("offers a no-payment shortcut even after entering split payment details", async () => {
+    render(<RecordPaymentForm invoiceId="invoice-1" balanceDue={150} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add payment method" }));
+    fireEvent.click(screen.getByRole("button", { name: "No payment — carry forward" }));
+    expect(screen.getAllByRole("spinbutton", { name: "Payment amount (₹)" })).toHaveLength(1);
+    expect(screen.getByRole("spinbutton", { name: "Payment amount (₹)" })).toHaveValue(0);
+    expect(screen.getByText(/No receipt will be created/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm ₹0 received / carry forward" }));
+    await waitFor(() => expect(confirmInvoiceCarryForwardAction).toHaveBeenCalledTimes(1));
+    expect(recordInvoicePaymentsAction).not.toHaveBeenCalled();
+  });
+
+  it.each(["", "-1"])("does not treat invalid or blank amount %s as no payment", (value) => {
+    render(<RecordPaymentForm invoiceId="invoice-1" balanceDue={150} />);
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Payment amount (₹)" }), { target: { value } });
+    fireEvent.submit(screen.getByRole("button", { name: "Record payment" }).closest("form")!);
+    expect(toast.error).toHaveBeenCalledWith("Enter a payment amount of zero or greater");
+    expect(confirmInvoiceCarryForwardAction).not.toHaveBeenCalled();
+    expect(recordInvoicePaymentsAction).not.toHaveBeenCalled();
+  });
+
+  it("does not silently discard a transaction reference when an amount is changed to zero", () => {
+    render(<RecordPaymentForm invoiceId="invoice-1" balanceDue={150} />);
+    fireEvent.change(screen.getByRole("textbox", { name: /transaction \/ receipt reference/i }), { target: { value: "UPI-123" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Payment amount (₹)" }), { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm ₹0 received / carry forward" }));
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Clear the transaction reference"));
+    expect(confirmInvoiceCarryForwardAction).not.toHaveBeenCalled();
+  });
+
+  it("does not submit zero-value rows as part of a real split receipt", () => {
+    render(<RecordPaymentForm invoiceId="invoice-1" balanceDue={150} />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Payment method" }), { target: { value: "cash" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add payment method" }));
+    fireEvent.submit(screen.getByRole("button", { name: "Record payment" }).closest("form")!);
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Remove zero-value payment rows"));
+    expect(recordInvoicePaymentsAction).not.toHaveBeenCalled();
+    expect(confirmInvoiceCarryForwardAction).not.toHaveBeenCalled();
+  });
+
+  it("keeps zero entries available for retry if the latest balance cannot be confirmed", async () => {
+    vi.mocked(confirmInvoiceCarryForwardAction).mockResolvedValueOnce({ ok: false, error: "No access to this patient" });
+    render(<RecordPaymentForm invoiceId="invoice-1" balanceDue={150} />);
+    fireEvent.click(screen.getByRole("button", { name: "No payment — carry forward" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm ₹0 received / carry forward" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("No access to this patient"));
+    expect(screen.getByRole("button", { name: "Confirm ₹0 received / carry forward" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm ₹0 received / carry forward" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Overall patient due: ₹350.00");
+    expect(recordInvoicePaymentsAction).not.toHaveBeenCalled();
+  });
+
   it("offers the supported methods and submits a partial payment with its reference", async () => {
     render(<RecordPaymentForm invoiceId="invoice-1" balanceDue={150} />);
 

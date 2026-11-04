@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { Toaster } from "sonner";
 import { CaseSheetEditor } from "@/components/clinical/case-sheet-editor";
 import { InvoiceEditor } from "@/components/invoices/invoice-editor";
+import { RecordPaymentForm } from "@/components/invoices/record-payment-form";
 import { PatientSectionNav } from "@/components/patients/patient-section-nav";
 import { TreatmentProgressSummary } from "@/components/clinical/treatment-progress-summary";
 import type { TreatmentProgressRecord } from "@/lib/treatment-progress";
@@ -33,6 +34,7 @@ function Preview() {
       <nav aria-label="Preview workflow" className="flex gap-3">
         <button className="min-h-11 rounded border bg-background px-3" aria-pressed={view === "case-sheet"} onClick={() => setView("case-sheet")}>Case sheet</button>
         <button className="min-h-11 rounded border bg-background px-3" aria-pressed={view === "invoice"} onClick={() => setView("invoice")}>Invoice</button>
+        <button className="min-h-11 rounded border bg-background px-3" aria-pressed={view === "payment"} onClick={() => setView("payment")}>Payment</button>
       </nav>
     </header>
     <PatientSectionNav sections={[{ id: "preview-entry", label: "Visit entry" }, { id: "preview-progress", label: "Treatment progress" }, { id: "preview-output", label: "Submitted values" }]} />
@@ -45,7 +47,7 @@ function Preview() {
       treatmentCodes={[{ code: "K02.9", name: "Dental caries, unspecified", code_system: "ICD10_IN", code_level: "detail", billable: true }]}
       canPrescribe
       pendingPlans={{ records: [pendingPlan], total: 1 }}
-    /> : <InvoiceEditor
+    /> : view === "payment" ? <RecordPaymentForm invoiceId="00000000-0000-4000-8000-000000000009" balanceDue={800} /> : <InvoiceEditor
       mode="create"
       leadId="00000000-0000-4000-8000-000000000001"
       treatmentCatalog={[]}
@@ -54,6 +56,7 @@ function Preview() {
         { id: "00000000-0000-4000-8000-000000000005", name: "Restoration", category: "Restorative", default_cost: 1000, is_general_consultation: false },
       ]}
       initialItems={[]}
+      existingBalanceDue={200}
     />}
     </section>
     <section id="preview-progress" className="scroll-mt-20">

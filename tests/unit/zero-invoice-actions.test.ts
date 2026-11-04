@@ -4,9 +4,10 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/lib/auth/context", () => ({ getAuthContext: vi.fn().mockResolvedValue({ userId: "staff-1", role: "operations" }) }));
 vi.mock("@/lib/rate-limit", () => ({ assertActionRateLimit: vi.fn() }));
-vi.mock("@/data/invoices", () => ({ createInvoice: vi.fn(), createConsultationInvoice: vi.fn(), updateInvoice: vi.fn(), updateConsultationInvoice: vi.fn(), recordInvoicePayment: vi.fn() }));
+vi.mock("@/data/invoices", () => ({ createInvoice: vi.fn(), createConsultationInvoice: vi.fn(), updateInvoice: vi.fn(), updateConsultationInvoice: vi.fn(), recordInvoicePayment: vi.fn(), confirmInvoiceCarryForward: vi.fn() }));
 import * as invoices from "@/data/invoices";
-import { createInvoiceAction, createConsultationInvoiceAction, updateConsultationInvoiceAction, recordInvoicePaymentAction } from "@/actions/invoices";
+import { createInvoiceAction, createConsultationInvoiceAction, updateConsultationInvoiceAction, recordInvoicePaymentAction, confirmInvoiceCarryForwardAction } from "@/actions/invoices";
+import { AuthorizationError } from "@/lib/errors";
 
 const leadId = "c2500000-0000-4000-8000-000000000001";
 const invoiceId = "c2500000-0000-4000-8000-000000000002";
@@ -19,6 +20,21 @@ beforeEach(() => {
 });
 
 describe("zero invoice action validation", () => {
+  it("confirms zero received using the saved ledger balance without recording a payment", async () => {
+    const balance = { amount_paid: 0, invoice_due: 800, earlier_due: 200, later_due: 0, overall_due: 1000, earlier_invoice_count: 1 };
+    vi.mocked(invoices.confirmInvoiceCarryForward).mockResolvedValueOnce(balance);
+    expect(await confirmInvoiceCarryForwardAction(invoiceId)).toEqual({ ok: true, balance });
+    expect(invoices.confirmInvoiceCarryForward).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ role: "operations" }), invoiceId);
+    expect(invoices.recordInvoicePayment).not.toHaveBeenCalled();
+  });
+  it("rejects an invalid invoice before confirming the carry forward", async () => {
+    expect(await confirmInvoiceCarryForwardAction("invalid")).toEqual({ ok: false, error: "Invoice is invalid" });
+    expect(invoices.confirmInvoiceCarryForward).not.toHaveBeenCalled();
+  });
+  it("returns an authorization error instead of claiming a balance was carried forward", async () => {
+    vi.mocked(invoices.confirmInvoiceCarryForward).mockRejectedValueOnce(new AuthorizationError("No invoice access"));
+    expect(await confirmInvoiceCarryForwardAction(invoiceId)).toEqual({ ok: false, error: "No invoice access" });
+  });
   it("saves zero-priced treatment lines with tooth details", async () => {
     const items = [{ treatment_type_id: typeId, quantity: 1, unit_price: 0, tooth_numbers: ["18", "17"] }];
     expect(await createInvoiceAction({ lead_id: leadId, ...doctors, items })).toEqual({ ok: true, id: invoiceId });

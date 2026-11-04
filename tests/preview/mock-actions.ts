@@ -12,6 +12,10 @@ export async function createInvoiceAction(input: unknown) {
 export const updateInvoiceAction = (_id: unknown, input: unknown) => capture(input);
 export const recordInvoicePaymentAction = capture;
 export const recordInvoicePaymentsAction = (_id: unknown, input: unknown) => capture(input);
+export async function confirmInvoiceCarryForwardAction(invoiceId: string) {
+  await capture({ invoice_id: invoiceId, amount_received_now: 0, no_receipt_created: true });
+  return { ok: true as const, balance: { amount_paid: 0, invoice_due: 800, earlier_due: 200, later_due: 0, overall_due: 1000, earlier_invoice_count: 1 } };
+}
 export const updateInvoicePaymentAction = (_id: unknown, _paymentId: unknown, input: unknown) => capture(input);
 
 export const addCommentAction = capture;

@@ -3,7 +3,7 @@ import type { AuthContext } from "@/lib/auth/context";
 vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn() }));
 vi.mock("@/data/db", () => ({ db: mocks }));
-import { createInvoice, createConsultationInvoice, updateConsultationInvoice, computeInvoiceTotalWithDiscount } from "@/data/invoices";
+import { createInvoice, createConsultationInvoice, updateConsultationInvoice, computeInvoiceTotalWithDiscount, confirmInvoiceCarryForward } from "@/data/invoices";
 
 const leadId = "c2500000-0000-4000-8000-000000000001";
 const invoiceId = "c2500000-0000-4000-8000-000000000002";
@@ -25,6 +25,42 @@ beforeEach(() => {
 });
 
 describe("zero invoice persistence", () => {
+  const unpaidInvoice = (extra = {}) => ({ id: invoiceId, branch_id: branchId, lead: { assignee_id: ctx.userId },
+    invoice_kind: "treatment", code_enforced: true, status: "draft", ...extra });
+
+  it.each([0, 800])("confirms a bill of %s with no payment using only the read-only ledger", async (total) => {
+    mocks.from.mockReturnValueOnce(query(unpaidInvoice({ total })));
+    const balance = { amount_paid: "0", invoice_due: String(total), earlier_due: "200", later_due: "0", overall_due: String(200 + total), earlier_invoice_count: "1" };
+    mocks.rpc.mockReturnValueOnce({ single: vi.fn().mockResolvedValue({ data: balance, error: null }) });
+    expect(await confirmInvoiceCarryForward(ctx, invoiceId)).toEqual({ amount_paid: 0, invoice_due: total, earlier_due: 200, later_due: 0, overall_due: 200 + total, earlier_invoice_count: 1 });
+    expect(mocks.from).toHaveBeenCalledExactlyOnceWith("invoices");
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("get_invoice_patient_balance", { p_invoice_id: invoiceId, p_actor: ctx.userId });
+  });
+  it("preserves earlier receipts on a partially paid invoice and confirms the current remaining balance", async () => {
+    mocks.from.mockReturnValueOnce(query(unpaidInvoice({ total: 800, status: "sent" })));
+    const balance = { amount_paid: 300, invoice_due: 500, earlier_due: 200, later_due: 50, overall_due: 750, earlier_invoice_count: 1 };
+    mocks.rpc.mockReturnValueOnce({ single: vi.fn().mockResolvedValue({ data: balance, error: null }) });
+    expect(await confirmInvoiceCarryForward(ctx, invoiceId)).toEqual(balance);
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    { status: "paid" }, { status: "cancelled" }, { code_enforced: false }, { branch_id: "c2500000-0000-4000-8000-000000000099" },
+  ])("does not confirm a locked or out-of-scope invoice %j", async (extra) => {
+    mocks.from.mockReturnValueOnce(query(unpaidInvoice(extra)));
+    await expect(confirmInvoiceCarryForward(ctx, invoiceId)).rejects.toThrow();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it("requires the front desk to have access to the assigned patient", async () => {
+    mocks.from.mockReturnValueOnce(query(unpaidInvoice({ lead: { assignee_id: "another-staff" } })));
+    await expect(confirmInvoiceCarryForward({ ...ctx, role: "front_office" }, invoiceId)).rejects.toThrow();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it("does not report success for a missing invoice or an unauthorized doctor", async () => {
+    mocks.from.mockReturnValueOnce(query(null));
+    await expect(confirmInvoiceCarryForward(ctx, invoiceId)).rejects.toThrow("not found");
+    await expect(confirmInvoiceCarryForward({ ...ctx, role: "doctor" }, invoiceId)).rejects.toThrow();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
   it("sends zero-priced catalog items to the database without a receipt", async () => {
     mocks.from.mockReturnValueOnce(query({ branch_id: branchId, assignee_id: ctx.userId })).mockReturnValueOnce(query([{ id: typeId }]));
     const items = [{ treatment_type_id: typeId, quantity: 1, unit_price: 0 }];

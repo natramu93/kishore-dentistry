@@ -519,6 +519,10 @@ export function InvoiceEditor({
               <span>Total</span>
               <span>{formatINR(total)}</span>
             </div>
+            {mode === "create" && <>
+              <div className="flex justify-between gap-4"><span>Amount received on creation</span><span>{formatINR(0)}</span></div>
+              {total > 0 && <p className="pt-2 text-muted-foreground">No payment is required to create this invoice. The full unpaid amount carries forward; record a payment separately when received.</p>}
+            </>}
             {total === 0 && items.length > 0 && items.every((item) => item.treatment_id || item.treatment_type_id) && (
               <p className="pt-2 text-muted-foreground">This is a ₹0 invoice. No payment is required for this bill; earlier patient dues remain unchanged.</p>
             )}

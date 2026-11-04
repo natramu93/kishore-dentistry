@@ -386,6 +386,12 @@ async function loadInvoiceScope(id: string): Promise<InvoiceScopeRow | null> {
   return data as InvoiceScopeRow | null;
 }
 
+async function readInvoicePatientBalance(ctx: AuthContext, invoiceId: string): Promise<PatientInvoiceBalance> {
+  const result = await db.rpc("get_invoice_patient_balance", { p_invoice_id: invoiceId, p_actor: ctx.userId }).single();
+  if (result.error) throwMappedDatabaseError(result.error, "Patient balance");
+  return Object.fromEntries(Object.entries(result.data).map(([key, value]) => [key, Number(value)])) as PatientInvoiceBalance;
+}
+
 export async function getInvoice(
   ctx: AuthContext,
   id: string
@@ -415,9 +421,7 @@ export async function getInvoice(
     .order("received_at", { ascending: false })
     .limit(500);
   if (paymentsResult.error) throw paymentsResult.error;
-  const balanceResult = await db.rpc("get_invoice_patient_balance", { p_invoice_id: invoice.id, p_actor: ctx.userId }).single();
-  if (balanceResult.error) throwMappedDatabaseError(balanceResult.error, "Patient balance");
-  const patient_balance = Object.fromEntries(Object.entries(balanceResult.data).map(([key, value]) => [key, Number(value)])) as PatientInvoiceBalance;
+  const patient_balance = await readInvoicePatientBalance(ctx, invoice.id);
   return { ...toInvoiceDto(invoice), amount_paid: patient_balance.amount_paid, balance_due: patient_balance.invoice_due,
     items: itemsResult.data, payments: paymentsResult.data ?? [], patient_balance };
 }
@@ -466,6 +470,13 @@ async function writablePaymentInvoice(ctx: AuthContext, id: string) {
   if (invoice.status === "cancelled") throw new ConflictError("Cancelled invoices cannot accept receipt changes");
   if (!invoice.code_enforced && invoice.invoice_kind !== "consultation") throw new ConflictError("Legacy uncoded invoices cannot accept receipt changes");
   return invoice;
+}
+
+/** No receipt or new charge is needed: the existing ledger already carries unpaid dues forward. */
+export async function confirmInvoiceCarryForward(ctx: AuthContext, id: string): Promise<PatientInvoiceBalance> {
+  const invoice = await writablePaymentInvoice(ctx, id);
+  if (invoice.status === "paid") throw new ConflictError("This invoice is already paid");
+  return readInvoicePatientBalance(ctx, invoice.id);
 }
 
 export async function recordInvoicePayments(ctx: AuthContext, id: string,

@@ -144,6 +144,8 @@ describe("independent invoice editor", () => {
     const preview=screen.getByRole("region",{ name:"Patient due after this invoice" });
     expect(within(preview).getByText("₹700.00")).toBeInTheDocument();
     expect(within(preview).getByText(/not added to this invoice/)).toBeInTheDocument();
+    expect(screen.getByText("Amount received on creation").parentElement).toHaveTextContent("₹0.00");
+    expect(screen.getByText(/No payment is required to create this invoice/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button",{ name:"Create invoice" }));
     await waitFor(() => expect(createInvoiceAction).toHaveBeenCalledWith(expect.objectContaining({ items:[{ treatment_type_id:TREATMENT_TYPE_ID,quantity:1,unit_price:200 }] })));
   });

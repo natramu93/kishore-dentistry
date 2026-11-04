@@ -13,10 +13,12 @@ import {
 import type { InvoicePaymentMethod } from "@/lib/database.types";
 import { invoiceLineDetailsSchema } from "@/lib/invoice-lines";
 import { paymentReceiptSchema } from "@/lib/invoice-receipts";
+import type { PatientInvoiceBalance } from "@/lib/patient-invoice-balance";
 import {
   runAction,
   runActionWithValue,
   type ActionResult,
+  type ActionValueResult,
 } from "./util";
 
 const MAX_UNIT_PRICE = 99_999_999.99;
@@ -248,6 +250,17 @@ export async function recordInvoicePaymentsAction(id: string, input: unknown): P
     revalidatePath("/leads", "layout");
     revalidatePath("/dashboard");
     revalidatePath("/reports");
+  });
+}
+
+export async function confirmInvoiceCarryForwardAction(id: string): Promise<ActionValueResult<{ balance: PatientInvoiceBalance }>> {
+  const ctx = await getAuthContext();
+  const invoiceId = uuidSchema.safeParse(id);
+  if (!invoiceId.success) return { ok: false, error: "Invoice is invalid" };
+  return runActionWithValue(async () => {
+    await invoiceMutationLimit(ctx.userId);
+    const balance = await invoices.confirmInvoiceCarryForward(ctx, invoiceId.data);
+    return { balance };
   });
 }
 
