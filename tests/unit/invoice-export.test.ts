@@ -18,14 +18,14 @@ it("exports every page with the same filters and escapes spreadsheet labels", as
     total: 200, amount_paid: 0, balance_due: 200 };
   list.mockResolvedValueOnce({ invoices: [first], total: 101, page: 1, pageSize: 100 } as Awaited<ReturnType<typeof listInvoices>>)
     .mockResolvedValueOnce({ invoices: [{ ...first, id: "two", invoice_number: "INV-2" }], total: 101, page: 2, pageSize: 100 } as Awaited<ReturnType<typeof listInvoices>>);
-  const response = await GET(request("dates=range&from=2026-11-01&to=2026-11-14&status=sent&balance=due&branch=center&lead=patient&method=upi&page=9"));
+  const response = await GET(request("dates=range&from=2026-11-01&to=2026-11-14&status=sent&balance=due&branch=center&lead=patient&method=upi&q=Test+Patient&page=9"));
   expect(response.status).toBe(200);
   expect(response.headers.get("Content-Disposition")).toMatch(/attachment;.*\.csv/);
   expect(response.headers.get("Cache-Control")).toContain("no-store");
   for (const page of [1, 2]) {
     expect(list).toHaveBeenNthCalledWith(page, { userId: "staff" }, {
       fromDate: "2026-11-01", toDate: "2026-11-14", branchId: "center", leadId: "patient",
-      status: "sent", dueOnly: true, paymentMethod: "upi", page, pageSize: 100,
+      status: "sent", dueOnly: true, paymentMethod: "upi", search: "Test Patient", page, pageSize: 100,
     });
   }
   const csv = await response.text();

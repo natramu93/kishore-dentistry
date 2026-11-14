@@ -69,7 +69,7 @@ export default async function NewCaseSheetPage({
             pendingPlans={progress.planned}
             medicationSuggestions={medicationSuggestions}
             initialMedicalHistory={scope.medicalHistory}
-            successHref={ctx.role === "doctor" ? `/my-patients/${scope.lead.id}` : `/leads/${scope.lead.id}`}
+            successHref={ctx.role === "doctor" ? `/my-patients/${scope.lead.id}` : `/patients/${scope.lead.id}`}
           />
         </div>
         <VisitHistory leadId={scope.lead.id} completed={progress.completed} />

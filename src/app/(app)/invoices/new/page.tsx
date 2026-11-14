@@ -94,9 +94,9 @@ export default async function NewInvoicePage({
           For {patientDisplayName(lead)} · {lead.branch?.name}
         </p>
       </div>
-      <Button asChild variant="outline" size="sm"><Link href={`/leads/${lead.id}#patient-invoices`}>Back to patient invoices</Link></Button>
+      <Button asChild variant="outline" size="sm"><Link href={`/patients/${lead.id}#patient-invoices`}>Back to patient invoices</Link></Button>
       {needsAssignment && <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:bg-amber-950/20 dark:text-amber-100" role="status">
-        This patient is not assigned to you yet. <Link href={`/leads/${lead.id}`} className="font-medium underline underline-offset-4">Return to the patient and claim the lead</Link> before creating an invoice.
+        This patient is not assigned to you yet. <Link href={`/patients/${lead.id}`} className="font-medium underline underline-offset-4">Return to the patient and claim the patient record</Link> before creating an invoice.
       </p>}
       {params.preset === "consultation" && <p className="rounded-lg border bg-muted/40 p-3 text-sm" role="status">
         {preset ? "Consultation has been selected at this center’s default rate. Change the amount or add other treatments below."

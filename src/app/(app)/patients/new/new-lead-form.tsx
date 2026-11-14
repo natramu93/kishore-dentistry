@@ -109,7 +109,7 @@ export function NewLeadForm({
                 <ul className="mt-1 space-y-1">
                   {dupes.map((duplicate) => (
                     <li key={duplicate.id}>
-                      <Link href={`/leads/${duplicate.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab" className="text-amber-950 underline">
+                      <Link href={`/patients/${duplicate.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab" className="text-amber-950 underline">
                         {duplicate.name}
                       </Link>{" "}
                       <span className="text-amber-900">
@@ -138,7 +138,7 @@ export function NewLeadForm({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="source_id">Lead source</Label>
+              <Label htmlFor="source_id">Patient source</Label>
               <select
                 id="source_id"
                 name="source_id"
@@ -215,11 +215,11 @@ export function NewLeadForm({
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button asChild variant="ghost" type="button">
               <Link
-                href="/leads"
+                href="/patients"
                 onClick={(event) => {
                   if (
                     dirty &&
-                    !window.confirm("Discard this unsaved lead?")
+                    !window.confirm("Discard this unsaved patient?")
                   ) {
                     event.preventDefault();
                   }
@@ -229,7 +229,7 @@ export function NewLeadForm({
               </Link>
             </Button>
             <Button type="submit" disabled={pending}>
-              {pending ? "Creating…" : "Create lead"}
+              {pending ? "Creating…" : "Create patient"}
             </Button>
           </div>
         </form>

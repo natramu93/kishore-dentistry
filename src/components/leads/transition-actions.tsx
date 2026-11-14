@@ -68,7 +68,7 @@ export function TransitionActions({
     startTransition(async () => {
       const result = await transitionLeadAction(lead.id, to, formData);
       if (result.ok) {
-        toast.success("Lead status updated");
+        toast.success("Patient status updated");
         setDialog(null);
         setConfirmation(null);
       } else {
@@ -87,14 +87,14 @@ export function TransitionActions({
     setSelectedAppointmentId(activeAppointmentId ?? "");
     setConfirmation(action === "missed" ? {
       title: "Mark an appointment as a no-show?",
-      description: "Choose the appointment that was missed. This updates that appointment and moves the lead to Missed.",
+      description: "Choose the appointment that was missed. This updates that appointment and marks the patient as Missed.",
       confirmLabel: "Mark no-show",
       to: "missed",
       appointmentAction: action,
       destructive: true,
     } : {
       title: "Cancel an appointment?",
-      description: "Choose the appointment to cancel. The lead will return to Assigned.",
+      description: "Choose the appointment to cancel. The patient will return to Assigned.",
       confirmLabel: "Cancel appointment",
       to: "assigned",
       appointmentAction: action,
@@ -152,7 +152,7 @@ export function TransitionActions({
         <>
           {isFrontOffice ? (
             <Button size="sm" disabled={pending} onClick={() => quick("assigned", { assignee_id: userId })}>
-              Claim lead
+              Claim patient
             </Button>
           ) : (
             <Button size="sm" onClick={() => setDialog("assign")}>Assign</Button>
@@ -205,7 +205,7 @@ export function TransitionActions({
 
       {!["closed", "dropped"].includes(s) && (
         <Button size="sm" variant="destructive" onClick={() => setDialog("drop")}>
-          Drop lead
+          Drop patient
         </Button>
       )}
 
@@ -214,7 +214,7 @@ export function TransitionActions({
       <Dialog open={dialog === "assign" || dialog === "reengage"} onOpenChange={(o) => !o && setDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{dialog === "reengage" ? "Re-engage lead" : "Assign lead"}</DialogTitle>
+            <DialogTitle>{dialog === "reengage" ? "Re-engage patient" : "Assign patient"}</DialogTitle>
           </DialogHeader>
           <form action={(fd) => run("assigned", fd)} className="space-y-4">
             <div className="space-y-2">
@@ -274,7 +274,7 @@ export function TransitionActions({
       <Dialog open={dialog === "drop"} onOpenChange={(o) => !o && setDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Drop lead</DialogTitle>
+            <DialogTitle>Drop patient</DialogTitle>
           </DialogHeader>
           <form
             action={(fd) => {
@@ -284,13 +284,13 @@ export function TransitionActions({
             className="space-y-4"
           >
             <p className="text-sm text-muted-foreground">
-              This is a terminal state — the lead can&apos;t re-enter the pipeline.
+              This is a terminal state — the patient can&apos;t re-enter the pipeline.
             </p>
             <div className="space-y-2">
               <Label htmlFor="drop_reason">Reason</Label>
-              <Textarea id="drop_reason" name="reason" rows={2} placeholder="Why is this lead being dropped?" />
+              <Textarea id="drop_reason" name="reason" rows={2} placeholder="Why is this patient being dropped?" />
             </div>
-            <SubmitRow pending={pending} label="Drop lead" destructive />
+            <SubmitRow pending={pending} label="Drop patient" destructive />
           </form>
         </DialogContent>
       </Dialog>

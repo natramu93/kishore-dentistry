@@ -217,11 +217,11 @@ export default async function AppointmentsPage({
         <TableHeader>
           <TableRow>
             <TableHead>Time</TableHead>
-            <TableHead>Patient / Lead</TableHead>
+            <TableHead>Patient</TableHead>
             {!isDoctor && <TableHead className="hidden md:table-cell">Center</TableHead>}
             {!isDoctor && <TableHead className="hidden md:table-cell">Doctor</TableHead>}
             <TableHead className="hidden lg:table-cell">Appointment</TableHead>
-            <TableHead className="hidden lg:table-cell">Lead status</TableHead>
+            <TableHead className="hidden lg:table-cell">Patient status</TableHead>
             {isDoctor && <TableHead><span className="sr-only">Actions</span></TableHead>}
           </TableRow>
         </TableHeader>
@@ -250,7 +250,7 @@ export default async function AppointmentsPage({
                       {a.lead.name}
                     </Link>
                   ) : (
-                    <Link href={`/leads/${a.lead.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab" className="font-medium hover:underline">
+                    <Link href={`/patients/${a.lead.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab" className="font-medium hover:underline">
                       {a.lead.name}
                     </Link>
                   )

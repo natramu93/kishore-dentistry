@@ -48,7 +48,7 @@ export default async function CallLogsPage({
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Call logs</h1>
-        <p className="text-sm text-muted-foreground">AI and cloud call updates are matched to leads by branch and mobile number when the match is unambiguous.</p>
+        <p className="text-sm text-muted-foreground">AI and cloud call updates are matched to patients by branch and mobile number when the match is unambiguous.</p>
       </div>
       <Card>
         <CardContent className="pt-5">
@@ -72,7 +72,7 @@ export default async function CallLogsPage({
         <CardHeader><CardTitle>{total} call{total === 1 ? "" : "s"}</CardTitle></CardHeader>
         <CardContent className="p-0">
           <Table aria-label="Call logs">
-            <TableHeader><TableRow><TableHead>Caller</TableHead><TableHead>Status</TableHead><TableHead>Lead</TableHead><TableHead className="hidden md:table-cell">Source</TableHead><TableHead>Started</TableHead><TableHead><span className="sr-only">Open</span></TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>Caller</TableHead><TableHead>Status</TableHead><TableHead>Patient</TableHead><TableHead className="hidden md:table-cell">Source</TableHead><TableHead>Started</TableHead><TableHead><span className="sr-only">Open</span></TableHead></TableRow></TableHeader>
             <TableBody>
               {callLogs.map((call) => (
                 <TableRow key={call.id}>
@@ -81,7 +81,7 @@ export default async function CallLogsPage({
                     <div className="text-xs text-muted-foreground">{call.phone ?? call.external_call_id}</div>
                   </TableCell>
                   <TableCell><Badge variant={call.status === "completed" ? "default" : call.status === "failed" || call.status === "missed" ? "destructive" : "secondary"}>{STATUS_LABELS[call.status]}</Badge></TableCell>
-                  <TableCell>{call.lead ? <Link className="hover:underline" href={`/leads/${call.lead.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab">{call.lead.name}</Link> : <span className="text-muted-foreground">Unmatched</span>}</TableCell>
+                  <TableCell>{call.lead ? <Link className="hover:underline" href={`/patients/${call.lead.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab">{call.lead.name}</Link> : <span className="text-muted-foreground">Unmatched</span>}</TableCell>
                   <TableCell className="hidden md:table-cell">{call.source_system}</TableCell>
                   <TableCell>{dateLabel(call.started_at)}</TableCell>
                   <TableCell className="text-right"><Button render={<Link href={`/call-logs/${call.id}`} />} variant="outline" size="sm">View</Button></TableCell>
@@ -98,7 +98,7 @@ export default async function CallLogsPage({
           <Table aria-label="External appointment updates">
             <TableHeader><TableRow><TableHead>Patient</TableHead><TableHead>Status</TableHead><TableHead>Scheduled</TableHead><TableHead>Source</TableHead></TableRow></TableHeader>
             <TableBody>
-              {externalAppointments.slice(0, 20).map((appointment) => <TableRow key={appointment.id}><TableCell>{appointment.lead ? <Link className="hover:underline" href={`/leads/${appointment.lead.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab">{appointment.lead.name}</Link> : appointment.patient_name ?? "Unknown patient"}<div className="text-xs text-muted-foreground">{appointment.mobile ?? "No mobile"}</div></TableCell><TableCell><Badge variant={appointment.status === "cancelled" ? "destructive" : "secondary"}>{appointment.status.replace("_", " ")}</Badge></TableCell><TableCell>{dateLabel(appointment.scheduled_at)}</TableCell><TableCell>{appointment.source_system}</TableCell></TableRow>)}
+              {externalAppointments.slice(0, 20).map((appointment) => <TableRow key={appointment.id}><TableCell>{appointment.lead ? <Link className="hover:underline" href={`/patients/${appointment.lead.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab">{appointment.lead.name}</Link> : appointment.patient_name ?? "Unknown patient"}<div className="text-xs text-muted-foreground">{appointment.mobile ?? "No mobile"}</div></TableCell><TableCell><Badge variant={appointment.status === "cancelled" ? "destructive" : "secondary"}>{appointment.status.replace("_", " ")}</Badge></TableCell><TableCell>{dateLabel(appointment.scheduled_at)}</TableCell><TableCell>{appointment.source_system}</TableCell></TableRow>)}
               {externalAppointments.length === 0 && <TableRow><TableCell colSpan={4} className="py-8 text-center text-muted-foreground">No external appointment updates yet.</TableCell></TableRow>}
             </TableBody>
           </Table>

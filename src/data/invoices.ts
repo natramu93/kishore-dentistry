@@ -28,6 +28,7 @@ import {
   assertInvoiceStatus,
   assertUuid,
   normalizePagination,
+  normalizeSearch,
 } from "@/lib/validation";
 import type {
   Invoice,
@@ -294,6 +295,7 @@ export async function listInvoices(
   ctx: AuthContext,
   opts: {
     leadId?: string;
+    search?: string;
     branchId?: string;
     status?: InvoiceStatus;
     dueOnly?: boolean;
@@ -351,6 +353,17 @@ export async function listInvoices(
     query = query.or(`assignee_id.eq.${ctx.userId},assignee_id.is.null`, {
       referencedTable: "lead",
     });
+  }
+  const search = normalizeSearch(opts.search);
+  if (search) {
+    // `lead` is an inner embed, so this filters invoices before pagination.
+    // normalizeSearch strips LIKE wildcards and backslashes; quote the pattern
+    // so punctuation in a patient's name can't become PostgREST syntax.
+    const pattern = `"%${search.replaceAll('"', '\\"')}%"`;
+    const mobile = /^[+\d .-]+$/.test(search) ? search.replace(/\D/g, "") : "";
+    const filters = [`name.ilike.${pattern}`, `mobile.ilike.${pattern}`];
+    if (mobile && mobile !== search) filters.push(`mobile.ilike."%${mobile}%"`);
+    query = query.or(filters.join(","), { referencedTable: "lead" });
   }
 
   const from = (page - 1) * pageSize;
@@ -536,7 +549,7 @@ export async function createInvoice(
   }
 ): Promise<Invoice> {
   requireAnyRole(ctx, INVOICE_ROLES, "Invoices access required");
-  const leadId = assertUuid(input.lead_id, "Lead");
+  const leadId = assertUuid(input.lead_id, "Patient");
   const invoiceDate = assertDateOnly(input.invoice_date ?? clinicToday(), "Invoice date");
   const consultingDoctorName = validateInvoiceDoctor(input.consulting_doctor_name, "Consulting");
   const referringDoctorName = validateInvoiceDoctor(input.referring_doctor_name, "Referring");
@@ -558,7 +571,7 @@ export async function createInvoice(
     .eq("id", leadId)
     .maybeSingle();
   if (leadResult.error) throw leadResult.error;
-  if (!leadResult.data) throw new NotFoundError("Lead");
+  if (!leadResult.data) throw new NotFoundError("Patient");
   assertInvoiceWriteAccess(ctx, leadResult.data);
   await validateCatalogTreatmentsForBranch(input.items, leadResult.data.branch_id);
   const invoiceResult = await db.rpc("create_patient_invoice", {
@@ -598,7 +611,7 @@ export async function createConsultationInvoice(
   input: { lead_id: string; amount: number; notes?: string | null; consulting_doctor_name: string; referring_doctor_name: string }
 ): Promise<Invoice> {
   requireAnyRole(ctx, INVOICE_ROLES, "Invoices access required");
-  const leadId = assertUuid(input.lead_id, "Lead");
+  const leadId = assertUuid(input.lead_id, "Patient");
   if (!Number.isFinite(input.amount) || input.amount < 0 || input.amount > MAX_UNIT_PRICE) {
     throw new ValidationError("Consultation amount must be zero or greater and within the allowed limit");
   }
@@ -615,7 +628,7 @@ export async function createConsultationInvoice(
     .is("deleted_at", null)
     .maybeSingle();
   if (leadResult.error) throw leadResult.error;
-  if (!leadResult.data) throw new NotFoundError("Lead");
+  if (!leadResult.data) throw new NotFoundError("Patient");
   assertInvoiceWriteAccess(ctx, leadResult.data);
   const consultingDoctorName = validateInvoiceDoctor(input.consulting_doctor_name, "Consulting");
   const referringDoctorName = validateInvoiceDoctor(input.referring_doctor_name, "Referring");

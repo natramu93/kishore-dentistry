@@ -100,7 +100,7 @@ export async function confirmClinicalAttachmentAction(
       ctx,
       attachmentId.data
     );
-    revalidatePath(`/leads/${attachment.lead_id}`);
+    revalidatePath(`/patients/${attachment.lead_id}`);
     revalidatePath(`/my-patients/${attachment.lead_id}`);
     return { attachment };
   });

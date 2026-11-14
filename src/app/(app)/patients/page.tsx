@@ -17,11 +17,11 @@ import { Plus } from "lucide-react";
 import { patientDisplayName } from "@/lib/patient-demographics";
 import { PaginationNav } from "@/components/pagination-nav";
 
-export const metadata = { title: "Leads — Dr. Kishor's Dentistry CRM" };
+export const metadata = { title: "Patients — Dr. Kishor's Dentistry CRM" };
 
 const STATUSES = Object.keys(STATUS_LABELS) as LeadStatus[];
 
-export default async function LeadsPage({
+export default async function PatientsPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
@@ -48,19 +48,19 @@ export default async function LeadsPage({
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Leads</h1>
-          <p className="text-sm text-muted-foreground">{total} lead{total === 1 ? "" : "s"}</p>
+          <h1 className="text-2xl font-bold tracking-tight">Patients</h1>
+          <p className="text-sm text-muted-foreground">{total} patient{total === 1 ? "" : "s"}</p>
         </div>
         <Button asChild className="shrink-0">
-          <Link href="/leads/new">
+          <Link href="/patients/new">
             <Plus className="h-4 w-4 mr-1" />
-            New lead
+            New patient
           </Link>
         </Button>
       </div>
 
       {/* Filters (GET form — server-rendered, no client state) */}
-      <form className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end" action="/leads" method="get">
+      <form className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end" action="/patients" method="get">
         <div className="col-span-2 space-y-1 sm:w-64">
           <Label htmlFor="lead-search" className="text-xs text-muted-foreground">Search</Label>
           <Input
@@ -118,12 +118,12 @@ export default async function LeadsPage({
         <div className="col-span-2 flex gap-2 sm:col-span-1">
           <Button type="submit" variant="secondary" size="sm" className="flex-1 sm:flex-none">Filter</Button>
           <Button asChild variant="ghost" size="sm" className="flex-1 sm:flex-none">
-            <Link href="/leads">Reset</Link>
+            <Link href="/patients">Reset</Link>
           </Button>
         </div>
       </form>
 
-      <Table aria-label="Leads">
+      <Table aria-label="Patients">
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
@@ -140,14 +140,14 @@ export default async function LeadsPage({
           {leads.length === 0 && (
             <TableRow>
               <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                No leads match these filters
+                No patients match these filters
               </TableCell>
             </TableRow>
           )}
           {leads.map((l) => (
             <TableRow key={l.id}>
               <TableCell className="whitespace-normal">
-                <Link href={`/leads/${l.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab" className="font-medium hover:underline">
+                <Link href={`/patients/${l.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab" className="font-medium hover:underline">
                   {patientDisplayName(l)}
                 </Link>
                 <a
@@ -174,7 +174,7 @@ export default async function LeadsPage({
       </Table>
 
       <PaginationNav
-        pathname="/leads"
+        pathname="/patients"
         searchParams={params}
         page={page}
         pageSize={pageSize}

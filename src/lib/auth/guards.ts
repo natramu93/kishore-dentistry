@@ -71,11 +71,11 @@ export function assertLeadWriteAccess(
   lead: ScopedLead
 ): void {
   if (ctx.role === "doctor") {
-    throw new AuthorizationError("Doctors work through appointments, not the lead pipeline");
+    throw new AuthorizationError("Doctors work through appointments, not the Patients module");
   }
   assertBranchAccess(ctx, lead.branch_id);
   if (ctx.role === "front_office" && lead.assignee_id !== ctx.userId) {
-    throw new AuthorizationError("This lead is not assigned to you");
+    throw new AuthorizationError("This patient is not assigned to you");
   }
 }
 
@@ -106,7 +106,7 @@ export function assertInvoiceAccess(ctx: AuthContext, invoice: ScopedLead): void
 export function assertInvoiceWriteAccess(ctx: AuthContext, invoice: ScopedLead): void {
   assertInvoiceAccess(ctx, invoice);
   if (ctx.role === "front_office" && invoice.assignee_id !== ctx.userId) {
-    throw new AuthorizationError("This lead must be assigned to you before invoicing");
+    throw new AuthorizationError("This patient must be assigned to you before invoicing");
   }
 }
 

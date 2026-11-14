@@ -26,8 +26,8 @@ export function LeadDeleteButton({ leadId }: { leadId: string }) {
     startTransition(async () => {
       const result = await deleteLeadAction(leadId);
       if (result.ok) {
-        toast.success("Lead archived");
-        router.push("/leads");
+        toast.success("Patient archived");
+        router.push("/patients");
       } else {
         toast.error(result.error);
       }
@@ -38,23 +38,23 @@ export function LeadDeleteButton({ leadId }: { leadId: string }) {
     <AlertDialog>
       <AlertDialogTrigger
         render={
-          <Button variant="ghost" size="icon-sm" aria-label="Archive lead" disabled={pending}>
+          <Button variant="ghost" size="icon-sm" aria-label="Archive patient" disabled={pending}>
             <Trash2 aria-hidden="true" className="h-4 w-4 text-destructive" />
           </Button>
         }
       />
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Archive this lead?</AlertDialogTitle>
+          <AlertDialogTitle>Archive this patient?</AlertDialogTitle>
           <AlertDialogDescription>
-            This removes the lead and its related records from active views
+            This removes the patient and related records from active views
             while preserving the protected audit history.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
           <AlertDialogAction variant="destructive" disabled={pending} onClick={remove}>
-            {pending ? "Archiving…" : "Archive lead"}
+            {pending ? "Archiving…" : "Archive patient"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

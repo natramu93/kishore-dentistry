@@ -29,7 +29,7 @@ describe("proxy CSP generation", () => {
 
   it("passes a fresh nonce and matching policy to each session update", async () => {
     await proxy(new NextRequest("https://crm.example.test/dashboard"));
-    await proxy(new NextRequest("https://crm.example.test/leads"));
+    await proxy(new NextRequest("https://crm.example.test/patients"));
 
     const first = mocks.updateSession.mock.calls[0][1];
     const second = mocks.updateSession.mock.calls[1][1];

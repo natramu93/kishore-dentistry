@@ -190,7 +190,7 @@ export default async function ReportsPage({
       </Card>
 
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <TotalCard label="Total leads" value={data.totals.leads} accent="border-l-blue-400" />
+        <TotalCard label="Total patients" value={data.totals.leads} accent="border-l-blue-400" />
         <TotalCard label="Appointments" value={data.totals.appointments} accent="border-l-violet-400" />
         <TotalCard label="Revenue received" value={formatINR(data.collections.total.amount)} accent="border-l-emerald-400" />
         <TotalCard label="Treatment value" value={formatINR(data.totals.revenue)} accent="border-l-blue-400" />
@@ -214,7 +214,7 @@ export default async function ReportsPage({
 
       <Card className="border-l-4 border-l-gold">
         <CardContent className="pt-5">
-          <h2 className="mb-4 text-base font-semibold">Clinical and lead activity</h2>
+          <h2 className="mb-4 text-base font-semibold">Clinical and patient activity</h2>
           <Tabs defaultValue="doctor">
             <TabsList className="mb-4 flex-wrap h-auto">
               <TabsTrigger value="doctor">
@@ -319,7 +319,7 @@ function ReportTable({
       <TableHeader>
         <TableRow>
           <TableHead>{firstColumn}</TableHead>
-          <TableHead className="text-right">Leads</TableHead>
+          <TableHead className="text-right">Patients</TableHead>
           <TableHead className="text-right">Appointments</TableHead>
         </TableRow>
       </TableHeader>

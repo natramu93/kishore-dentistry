@@ -189,7 +189,7 @@ describe("runtime enum and boolean validation", () => {
     expect(assertLeadStatus("appointment_booked")).toBe(
       "appointment_booked"
     );
-    expect(() => assertLeadStatus("booked")).toThrow("Lead status is invalid");
+    expect(() => assertLeadStatus("booked")).toThrow("Patient status is invalid");
     expect(assertAppointmentStatus("no_show")).toBe("no_show");
     expect(() => assertAppointmentStatus("missed")).toThrow(
       "Appointment status is invalid"

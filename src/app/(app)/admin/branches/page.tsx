@@ -91,7 +91,7 @@ export default async function BranchesPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Branches</h1>
           <p className="text-sm text-muted-foreground">
-            Add a branch here to scale — users, doctors and leads can be attached to it immediately.
+            Add a branch to assign users, doctors, and patients to it.
           </p>
         </div>
         <FormDialog triggerLabel="New branch" title="Create branch" action={createBranchAction}>

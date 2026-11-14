@@ -144,7 +144,7 @@ describe("comment history controls", () => {
 
     expect(screen.getByText("Original patient note")).toBeInTheDocument();
     expect(
-      screen.getByText("Claim this lead before adding or changing comments.")
+      screen.getByText("Claim this patient record before adding or changing comments.")
     ).toHaveAttribute("role", "status");
     expect(screen.queryByLabelText("New comment")).toBeNull();
     expect(

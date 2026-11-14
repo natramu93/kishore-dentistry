@@ -71,7 +71,7 @@ export function assertUserRole(value: unknown): UserRole {
 }
 
 export function assertLeadStatus(value: unknown): LeadStatus {
-  return parseOrThrow(leadStatusSchema, value, "Lead status is invalid");
+  return parseOrThrow(leadStatusSchema, value, "Patient status is invalid");
 }
 
 export function assertAppointmentStatus(value: unknown): AppointmentStatus {

@@ -173,7 +173,7 @@ describe("lead progress semantics", () => {
       <StatusStepper status="appointment_booked" />
     );
 
-    expect(screen.getByRole("list", { name: "Lead progress" })).toHaveAttribute(
+    expect(screen.getByRole("list", { name: "Patient progress" })).toHaveAttribute(
       "tabindex",
       "0"
     );
@@ -239,7 +239,7 @@ describe("pagination semantics", () => {
   it("renders unavailable directions as disabled buttons, not active links", () => {
     render(
       <PaginationNav
-        pathname="/leads"
+        pathname="/patients"
         searchParams={{}}
         page={1}
         pageSize={25}

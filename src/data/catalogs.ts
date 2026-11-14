@@ -17,7 +17,7 @@ function rejectOversizedLookup(rows: readonly unknown[], label: string): void {
   }
 }
 
-// ---------- Lead sources ----------
+// ---------- Patient sources ----------
 
 export async function listLeadSources(
   _ctx: AuthContext,
@@ -31,7 +31,7 @@ export async function listLeadSources(
   if (!opts.includeInactive) q = q.eq("is_active", true);
   const { data, error } = await q;
   if (error) throw error;
-  rejectOversizedLookup(data ?? [], "lead sources");
+  rejectOversizedLookup(data ?? [], "patient sources");
   return data ?? [];
 }
 
@@ -47,7 +47,7 @@ export async function updateLeadSource(
   input: { name?: string; is_active?: boolean }
 ) {
   requireAdmin(ctx);
-  const sourceId = assertUuid(id, "Lead source");
+  const sourceId = assertUuid(id, "Patient source");
   const { data, error } = await db
     .from("lead_sources")
     .update(input)
@@ -55,7 +55,7 @@ export async function updateLeadSource(
     .select("id")
     .maybeSingle();
   if (error) throw error;
-  if (!data) throw new NotFoundError("Lead source");
+  if (!data) throw new NotFoundError("Patient source");
 }
 
 // ---------- Treatment types ----------

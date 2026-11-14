@@ -89,7 +89,7 @@ export async function listLeads(ctx: AuthContext, filters: LeadFilters = {}) {
     query = query.eq("branch_id", branchId);
   }
   if (filters.sourceId) {
-    query = query.eq("source_id", assertUuid(filters.sourceId, "Lead source"));
+    query = query.eq("source_id", assertUuid(filters.sourceId, "Patient source"));
   }
   if (filters.assigneeId) {
     query = query.eq("assignee_id", assertUuid(filters.assigneeId, "Assignee"));
@@ -111,7 +111,7 @@ export async function listLeads(ctx: AuthContext, filters: LeadFilters = {}) {
 
 export const getLead = cache(
   async (ctx: AuthContext, id: string): Promise<LeadWithRefs | null> => {
-    const leadId = assertUuid(id, "Lead");
+    const leadId = assertUuid(id, "Patient");
     const { data, error } = await db
       .from("leads")
       .select(
@@ -152,7 +152,7 @@ export async function createLead(
   }
 ): Promise<Lead> {
   if (ctx.role === "doctor") {
-    throw new AuthorizationError("Doctors cannot create leads");
+    throw new AuthorizationError("Doctors cannot create patient records");
   }
   const branchId = assertUuid(input.branch_id, "Branch");
   assertBranchAccess(ctx, branchId);
@@ -177,7 +177,7 @@ export async function createLead(
     p_notes: input.notes ?? null,
     p_actor: ctx.userId,
   });
-  if (error) throwMappedDatabaseError(error, "Lead");
+  if (error) throwMappedDatabaseError(error, "Patient");
   return data as unknown as Lead;
 }
 
@@ -197,7 +197,7 @@ export async function updateLeadDetails(
     notes?: string | null;
   }
 ) {
-  const leadId = assertUuid(id, "Lead");
+  const leadId = assertUuid(id, "Patient");
   const lookup = await db
     .from("leads")
     .select("branch_id, assignee_id")
@@ -205,7 +205,7 @@ export async function updateLeadDetails(
     .is("deleted_at", null)
     .maybeSingle();
   if (lookup.error) throw lookup.error;
-  if (!lookup.data) throw new NotFoundError("Lead");
+  if (!lookup.data) throw new NotFoundError("Patient");
   assertLeadWriteAccess(ctx, lookup.data);
 
   await Promise.all([
@@ -232,7 +232,7 @@ export async function transitionLead(
   toValue: LeadStatus,
   payload: Record<string, unknown> = {}
 ): Promise<Lead> {
-  const leadId = assertUuid(leadIdValue, "Lead");
+  const leadId = assertUuid(leadIdValue, "Patient");
   const to = assertLeadStatus(toValue);
   if (to === "follow_up") {
     throw new ValidationError("Follow-up scheduling has been retired. Use Book appointment.");
@@ -250,11 +250,11 @@ export async function transitionLead(
     .maybeSingle();
   if (lookup.error) throw lookup.error;
   const lead = lookup.data;
-  if (!lead) throw new NotFoundError("Lead");
+  if (!lead) throw new NotFoundError("Patient");
 
   if (to === "assigned" && lead.status === "open") {
     assertBranchAccess(ctx, lead.branch_id);
-    if (ctx.role === "doctor") throw new AuthorizationError("Doctors cannot manage leads");
+    if (ctx.role === "doctor") throw new AuthorizationError("Doctors cannot manage patient records");
   } else {
     assertLeadWriteAccess(ctx, lead);
   }
@@ -265,11 +265,11 @@ export async function transitionLead(
       p_actor: ctx.userId,
       p_payload: {} as Json,
     });
-    if (replay.error) throwMappedDatabaseError(replay.error, "Lead");
+    if (replay.error) throwMappedDatabaseError(replay.error, "Patient");
     return replay.data as unknown as Lead;
   }
   if (!canTransition(lead.status, to)) {
-    throw new ConflictError(`Lead cannot move from ${lead.status} to ${to}`);
+    throw new ConflictError(`Patient cannot move from ${lead.status} to ${to}`);
   }
 
   const schema = transitionPayloadSchemas[to as keyof typeof transitionPayloadSchemas];
@@ -288,7 +288,7 @@ export async function transitionLead(
       }
       await requireAppointmentForLead(appointmentId, leadId);
       if (!lead.assignee_id) {
-        throw new ConflictError("Lead must have an assignee before cancelling its appointment");
+        throw new ConflictError("Patient must have an assignee before cancelling its appointment");
       }
       // The current SQL RPC always applies assignee_id for an assigned target.
       // Preserve the trusted current assignee rather than accepting it from the client.
@@ -299,7 +299,7 @@ export async function transitionLead(
         throw new ValidationError("Assignee is required");
       }
       if (ctx.role === "front_office" && assigneeId !== ctx.userId) {
-        throw new AuthorizationError("Front Office can only assign leads to themselves");
+        throw new AuthorizationError("Front Office can only assign patients to themselves");
       }
       await requireAssignableUser(assigneeId, lead.branch_id);
     }
@@ -332,12 +332,12 @@ export async function transitionLead(
     p_actor: ctx.userId,
     p_payload: trustedPayload as Json,
   });
-  if (error) throwMappedDatabaseError(error, "Lead");
+  if (error) throwMappedDatabaseError(error, "Patient");
   return data as unknown as Lead;
 }
 
 export async function deleteLead(ctx: AuthContext, id: string) {
-  const leadId = assertUuid(id, "Lead");
+  const leadId = assertUuid(id, "Patient");
   const lookup = await db
     .from("leads")
     .select("branch_id")
@@ -347,7 +347,7 @@ export async function deleteLead(ctx: AuthContext, id: string) {
   if (lookup.error) throw lookup.error;
   if (!lookup.data) return;
   if (!canDelete(ctx.role)) {
-    throw new AuthorizationError("Only Operations or Admin can delete leads");
+    throw new AuthorizationError("Only Operations or Admin can archive patients");
   }
   assertBranchAccess(ctx, lookup.data.branch_id);
   const { error } = await db.rpc("soft_delete_lead", {
@@ -355,11 +355,11 @@ export async function deleteLead(ctx: AuthContext, id: string) {
     p_actor: ctx.userId,
     p_reason: "Deleted by user",
   });
-  if (error) throwMappedDatabaseError(error, "Lead");
+  if (error) throwMappedDatabaseError(error, "Patient");
 }
 
 export async function getLeadActivity(ctx: AuthContext, leadIdValue: string, limit = 200) {
-  const leadId = assertUuid(leadIdValue, "Lead");
+  const leadId = assertUuid(leadIdValue, "Patient");
   const lead = await getLead(ctx, leadId);
   if (!lead) return [];
   const { data, error } = await db
@@ -373,7 +373,7 @@ export async function getLeadActivity(ctx: AuthContext, leadIdValue: string, lim
 }
 
 export async function getLeadRelated(ctx: AuthContext, leadIdValue: string) {
-  const leadId = assertUuid(leadIdValue, "Lead");
+  const leadId = assertUuid(leadIdValue, "Patient");
   const lead = await getLead(ctx, leadId);
   if (!lead) return null;
   const limit = 200;

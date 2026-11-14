@@ -125,7 +125,7 @@ describe("lead transition actions", () => {
     expect(
       screen.getByRole("button", { name: "Book appointment" })
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Drop lead" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Drop patient" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /close lead/i })).toBeNull();
   });
 
@@ -143,7 +143,7 @@ describe("lead transition actions", () => {
     expect(
       screen.getByRole("button", { name: "Book appointment" })
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Drop lead" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Drop patient" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /close lead/i })).toBeNull();
   });
 

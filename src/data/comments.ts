@@ -30,7 +30,7 @@ export async function listComments(
   entity?: { type: CommentEntity; id: string | null },
   limit = 200
 ): Promise<CommentWithAuthor[]> {
-  const leadId = assertUuid(leadIdValue, "Lead");
+  const leadId = assertUuid(leadIdValue, "Patient");
   const leadResult = await db
     .from("leads")
     .select("branch_id, assignee_id")
@@ -68,7 +68,7 @@ export async function addComment(
     entity_id?: string | null;
   }
 ): Promise<Comment> {
-  const leadId = assertUuid(input.lead_id, "Lead");
+  const leadId = assertUuid(input.lead_id, "Patient");
   const body = input.body.trim();
   if (!body || body.length > 4_000) {
     throw new ValidationError("Comment must be between 1 and 4,000 characters");
@@ -82,7 +82,7 @@ export async function addComment(
     .is("deleted_at", null)
     .maybeSingle();
   if (leadResult.error) throw leadResult.error;
-  if (!leadResult.data) throw new NotFoundError("Lead");
+  if (!leadResult.data) throw new NotFoundError("Patient");
   assertLeadWriteAccess(ctx, leadResult.data);
   await requireCommentEntityForLead(entityType, input.entity_id, leadId);
 

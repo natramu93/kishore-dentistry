@@ -26,6 +26,28 @@ function chain(result: { data: unknown; error: unknown; count?: number }) {
 beforeEach(() => vi.resetAllMocks());
 
 describe("patient invoice history", () => {
+  it("searches the linked patient by name without removing Front Office scope or date filters", async () => {
+    const query = chain({ data: [], error: null, count: 0 });
+    mocks.from.mockReturnValue(query);
+    await listInvoices(context(), { search: '  A. "Test"  ', fromDate: "2026-11-14", page: 2, pageSize: 25 });
+    expect(query.select).toHaveBeenCalledWith(expect.stringContaining("lead:leads!inner"), { count: "exact" });
+    expect(query.in).toHaveBeenCalledWith("branch_id", [branchId]);
+    expect(query.or).toHaveBeenNthCalledWith(1, `assignee_id.eq.${userId},assignee_id.is.null`, { referencedTable: "lead" });
+    expect(query.or).toHaveBeenNthCalledWith(2, 'name.ilike."%A. \\"Test\\"%",mobile.ilike."%A. \\"Test\\"%"', { referencedTable: "lead" });
+    expect(query.gte).toHaveBeenCalledWith("billing_date", "2026-11-14");
+    expect(query.range).toHaveBeenCalledWith(25, 49);
+  });
+
+  it("matches a phone number as entered and with its separators removed", async () => {
+    const query = chain({ data: [], error: null, count: 0 });
+    mocks.from.mockReturnValue(query);
+    await listInvoices(context("admin"), { search: "90000-01234" });
+    expect(query.or).toHaveBeenCalledWith(
+      'name.ilike."%90000-01234%",mobile.ilike."%90000-01234%",mobile.ilike."%9000001234%"',
+      { referencedTable: "lead" },
+    );
+  });
+
   it("excludes zero-total invoices from the due-only filter", async () => {
     const query = chain({ data: [], error: null, count: 0 });
     mocks.from.mockReturnValue(query);

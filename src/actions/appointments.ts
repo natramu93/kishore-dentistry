@@ -52,7 +52,7 @@ export async function rescheduleAppointmentAction(
       },
       ids.data.leadId
     );
-    revalidatePath(`/leads/${updated.lead_id}`);
+    revalidatePath(`/patients/${updated.lead_id}`);
     revalidatePath("/appointments");
     revalidatePath("/dashboard");
     return { whatsappUrl };

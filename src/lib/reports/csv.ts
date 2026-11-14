@@ -33,7 +33,7 @@ export function buildReportCsv(data: ReportsData): string {
     [
       "Section",
       "Name",
-      "Leads",
+      "Patients",
       "Appointments",
       "Treatment value (INR)",
       "UPI (INR)", "Cash (INR)", "Card (INR)", "NEFT / Net banking (INR)", "Revenue received (INR)",

@@ -149,7 +149,7 @@ export async function createInvoiceAction(
       mention: parsed.data.mention || null,
       items: parsed.data.items,
     });
-    revalidatePath(`/leads/${parsed.data.lead_id}`);
+    revalidatePath(`/patients/${parsed.data.lead_id}`);
     revalidatePath("/invoices");
     return { id: invoice.id };
   });
@@ -164,7 +164,7 @@ export async function cancelInvoiceAction(id: string, reason: unknown, expectedV
     await invoices.cancelInvoice(ctx, parsed.data.id, parsed.data.reason, parsed.data.expected_version);
     revalidatePath(`/invoices/${parsed.data.id}`);
     revalidatePath("/invoices");
-    revalidatePath("/leads", "layout");
+    revalidatePath("/patients", "layout");
     revalidatePath("/dashboard");
     revalidatePath("/reports");
   });
@@ -187,7 +187,7 @@ export async function createConsultationInvoiceAction(
       referring_doctor_name: parsed.data.referring_doctor_name,
       notes: parsed.data.notes || null,
     });
-    revalidatePath(`/leads/${parsed.data.lead_id}`);
+    revalidatePath(`/patients/${parsed.data.lead_id}`);
     revalidatePath("/invoices");
     return { id: invoice.id };
   });
@@ -233,7 +233,7 @@ export async function recordInvoicePaymentAction(id: string, input: unknown): Pr
     await invoices.recordInvoicePayment(ctx, invoiceId.data, parsed.data);
     revalidatePath(`/invoices/${invoiceId.data}`);
     revalidatePath("/invoices");
-    revalidatePath("/leads", "layout");
+    revalidatePath("/patients", "layout");
   });
 }
 
@@ -247,7 +247,7 @@ export async function recordInvoicePaymentsAction(id: string, input: unknown): P
     await invoices.recordInvoicePayments(ctx, parsed.data.invoice_id, parsed.data.receipts, parsed.data.request_key);
     revalidatePath(`/invoices/${id}`);
     revalidatePath("/invoices");
-    revalidatePath("/leads", "layout");
+    revalidatePath("/patients", "layout");
     revalidatePath("/dashboard");
     revalidatePath("/reports");
   });
@@ -275,7 +275,7 @@ export async function updateInvoicePaymentAction(id: string, paymentId: string, 
     await invoices.updateInvoicePayment(ctx, parsed.data.invoice_id, parsed.data.payment_id, parsed.data);
     revalidatePath(`/invoices/${id}`);
     revalidatePath("/invoices");
-    revalidatePath("/leads", "layout");
+    revalidatePath("/patients", "layout");
     revalidatePath("/dashboard");
     revalidatePath("/reports");
   });
@@ -290,7 +290,7 @@ export async function updateConsultationInvoiceAction(id: string, input: unknown
     await invoices.updateConsultationInvoice(ctx, id, parsed.data);
     revalidatePath(`/invoices/${id}`);
     revalidatePath("/invoices");
-    revalidatePath("/leads", "layout");
+    revalidatePath("/patients", "layout");
     revalidatePath("/reports");
   });
 }

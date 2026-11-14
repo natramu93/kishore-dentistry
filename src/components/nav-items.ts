@@ -24,8 +24,8 @@ export const PRIMARY_NAV: NavItem[] = [
     roles: ["admin", "operations", "front_office", "clinical_head", "doctor"],
   },
   {
-    href: "/leads",
-    label: "Leads",
+    href: "/patients",
+    label: "Patients",
     icon: "Users",
     roles: ["admin", "operations", "front_office", "clinical_head"],
   },
@@ -70,7 +70,7 @@ export const ADMIN_NAV: NavItem[] = [
     icon: "Stethoscope",
     roles: ["admin", "operations", "clinical_head"],
   },
-  { href: "/admin/sources", label: "Lead Sources", icon: "Megaphone", roles: ["admin"] },
+  { href: "/admin/sources", label: "Patient Sources", icon: "Megaphone", roles: ["admin"] },
   {
     href: "/admin/treatments",
     label: "Treatments",

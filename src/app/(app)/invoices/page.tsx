@@ -6,6 +6,7 @@ import { getLead } from "@/data/leads";
 import { listMyBranches } from "@/data/branches";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { PaginationNav } from "@/components/pagination-nav";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -33,7 +34,7 @@ export default async function InvoicesPage({
   const patient = params.lead ? await getLead(ctx, params.lead) : null;
   if (params.lead && !patient) notFound();
 
-  const [branches] = await Promise.all([listMyBranches(ctx)]);
+  const branches = await listMyBranches(ctx);
   const { dates: dateFilter, options } = invoiceListFilters(params);
   const invoiceResult = dateFilter.error ? { invoices: [], total: 0, page: 1, pageSize: 25 } : await listInvoices(ctx, {
     ...options,
@@ -46,6 +47,7 @@ export default async function InvoicesPage({
     to: options.toDate ?? "",
     branch: options.branchId ?? "",
     lead: patient?.id ?? "",
+    q: options.search ?? "",
     status: options.status ?? "",
     balance: options.dueOnly ? "due" : "",
     method: options.paymentMethod ?? "",
@@ -60,7 +62,7 @@ export default async function InvoicesPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Invoices</h1>
-          {patient && <p className="text-sm">For <Link className="underline underline-offset-4" href={`/leads/${patient.id}#patient-invoices`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab">{patient.name}</Link></p>}
+          {patient && <p className="text-sm">For <Link className="underline underline-offset-4" href={`/patients/${patient.id}#patient-invoices`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab">{patient.name}</Link></p>}
           <p className="text-sm text-muted-foreground">
             {total} invoice{total === 1 ? "" : "s"} · {formatINR(paidTotalOnPage)} collected · {formatINR(dueTotalOnPage)} due on this page
           </p>
@@ -72,9 +74,14 @@ export default async function InvoicesPage({
         )}
       </div>
 
-      {/* Per-center + payment filters */}
+      {/* Patient search and invoice filters */}
       <form className="flex flex-wrap gap-2 items-end" action="/invoices" method="get">
         {patient && <input type="hidden" name="lead" value={patient.id} />}
+        <div className="w-full space-y-1 sm:w-64">
+          <label htmlFor="invoice-patient-search" className="text-xs text-muted-foreground">Patient name or mobile number</label>
+          <Input id="invoice-patient-search" name="q" type="search" defaultValue={options.search ?? ""}
+            placeholder="Search patients" maxLength={120} autoComplete="off" />
+        </div>
         <InvoiceDateFilters key={`${dateFilter.mode}:${params.from}:${params.to}`} mode={dateFilter.mode} from={params.from ?? clinicToday()} to={params.to ?? clinicToday()} />
         {(ctx.role === "admin" || branches.length > 1) && (
           <div className="space-y-1">
@@ -165,7 +172,7 @@ export default async function InvoicesPage({
               </TableCell>
               <TableCell className="whitespace-normal">
                 {inv.lead ? (
-                  <Link href={`/leads/${inv.lead.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab" className="hover:underline">
+                  <Link href={`/patients/${inv.lead.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab" className="hover:underline">
                     {inv.lead.name}
                   </Link>
                 ) : "—"}

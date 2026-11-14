@@ -31,7 +31,7 @@ export async function finalizeCaseSheetAction(
       // this with its own clock value so direct RPC calls cannot backdate it.
       visit_at: new Date().toISOString(),
     });
-    revalidatePath(`/leads/${result.lead_id}`);
+    revalidatePath(`/patients/${result.lead_id}`);
     revalidatePath(`/my-patients/${result.lead_id}`);
     revalidatePath("/appointments");
     revalidatePath("/my-patients");
@@ -65,7 +65,7 @@ export async function amendCaseSheetAction(
       windowMs: 5 * 60_000,
     });
     const result = await caseSheets.amendCaseSheet(ctx, parsed.data);
-    revalidatePath(`/leads/${result.lead_id}`);
+    revalidatePath(`/patients/${result.lead_id}`);
     revalidatePath(`/my-patients/${result.lead_id}`);
     revalidatePath(`/case-sheets/${result.id}/edit`);
     revalidatePath("/appointments");

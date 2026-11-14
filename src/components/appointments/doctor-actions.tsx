@@ -60,7 +60,7 @@ export function DoctorAppointmentActions({
           <AlertDialogHeader>
             <AlertDialogTitle>Mark this appointment as a no-show?</AlertDialogTitle>
             <AlertDialogDescription>
-              This updates the appointment and lead workflow. Confirm only after the appointment
+              This updates the appointment and patient status. Confirm only after the appointment
               time has passed.
             </AlertDialogDescription>
           </AlertDialogHeader>

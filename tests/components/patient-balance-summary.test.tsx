@@ -10,7 +10,7 @@ describe("patient-wide invoice dues", () => {
     expect(within(panel).getByText("₹1,300.00")).toBeInTheDocument();
     expect(within(panel).getByText(/not billed again/)).toBeInTheDocument();
     expect(within(panel).queryByText("Newer unpaid bills")).toBeNull();
-    expect(screen.getByRole("link")).toHaveAttribute("href", "/leads/patient-1#patient-invoices");
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/patients/patient-1#patient-invoices");
     expect(screen.getByRole("link")).toHaveAttribute("target", "_blank");
     expect(screen.getByRole("link")).toHaveAttribute("rel", "noopener noreferrer");
   });

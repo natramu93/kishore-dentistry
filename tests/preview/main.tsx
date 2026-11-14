@@ -46,7 +46,7 @@ function Preview() {
         <button className="min-h-11 rounded border bg-background px-3" aria-pressed={view === "case-sheet"} onClick={() => setView("case-sheet")}>Case sheet</button>
         <button className="min-h-11 rounded border bg-background px-3" aria-pressed={view === "invoice"} onClick={() => setView("invoice")}>Invoice</button>
         <button className="min-h-11 rounded border bg-background px-3" aria-pressed={view === "payment"} onClick={() => setView("payment")}>Payment</button>
-        <RowEditDialog title="Edit lead details" triggerLabel="Edit patient" contentClassName="sm:max-w-2xl"
+        <RowEditDialog title="Edit patient details" triggerLabel="Edit patient" contentClassName="sm:max-w-2xl"
           action={async (form) => { setPayload(Object.fromEntries(form)); return { ok: true }; }}>
           <PatientIdentityFields />
           <label className="block">Age (years)<input name="age" type="number" min="0" max="120" step="any" inputMode="decimal" className="block h-11 w-full rounded-md border p-2" /></label>

@@ -10,7 +10,7 @@ export function StatusStepper({ status }: { status: LeadStatus }) {
 
   return (
     <ol
-      aria-label="Lead progress"
+      aria-label="Patient progress"
       className="flex items-center gap-1 overflow-x-auto rounded-lg pb-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       tabIndex={0}
     >

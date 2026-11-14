@@ -25,7 +25,7 @@ import type { CommentWithAuthor } from "@/data/comments";
 import type { CommentEntity } from "@/lib/database.types";
 import { fmt } from "@/lib/tz";
 
-// Reusable comment thread, mounted at the bottom of the lead page and of
+// Reusable comment thread, mounted at the bottom of the patient page and of
 // every stage card (appointment, treatment, follow-up, invoice).
 export function CommentThread({
   leadId,
@@ -235,7 +235,7 @@ export function CommentThread({
         </form>
       ) : (
         <p className="text-xs text-muted-foreground" role="status">
-          Claim this lead before adding or changing comments.
+          Claim this patient record before adding or changing comments.
         </p>
       )}
       <AlertDialog

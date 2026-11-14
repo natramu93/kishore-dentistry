@@ -74,12 +74,12 @@ export function throwMappedDatabaseError(
       }
       if (/lead must have a booked appointment/i.test(databaseMessage)) {
         throw new ConflictError(
-          "This patient no longer has an active booked appointment. Refresh the lead and open the current appointment before saving the case sheet."
+          "This patient no longer has an active booked appointment. Refresh the patient record and open the current appointment before saving the case sheet."
         );
       }
       if (/case sheet requires this patient.?s scheduled appointment/i.test(databaseMessage)) {
         throw new ConflictError(
-          "The selected appointment is no longer scheduled. Refresh the lead and open a current scheduled appointment before saving."
+          "The selected appointment is no longer scheduled. Refresh the patient record and open a current scheduled appointment before saving."
         );
       }
       if (/treatment status, scope, quantity, or cost is invalid|multi-tooth treatments require/i.test(databaseMessage)) {
@@ -99,11 +99,11 @@ export function throwMappedDatabaseError(
       }
       if (/visit time|completed treatment time/i.test(databaseMessage)) {
         throw new ConflictError(
-          "The case-sheet entry time is captured by the server and does not need to match the appointment schedule. Refresh the lead and try again."
+          "The case-sheet entry time is captured by the server and does not need to match the appointment schedule. Refresh the patient record and try again."
         );
       }
       throw new ConflictError(
-        "This case sheet could not be saved because the appointment or clinical record changed. Refresh the lead and try again."
+        "This case sheet could not be saved because the appointment or clinical record changed. Refresh the patient record and try again."
       );
     }
     throw new ConflictError(`${resource} cannot be changed in its current state`);
@@ -167,7 +167,7 @@ export async function requireActiveTreatmentType(treatmentTypeId: string, branch
 }
 
 export async function requireActiveLeadSource(sourceId: string): Promise<void> {
-  assertUuid(sourceId, "Lead source");
+  assertUuid(sourceId, "Patient source");
   const { data, error } = await db
     .from("lead_sources")
     .select("id")
@@ -175,7 +175,7 @@ export async function requireActiveLeadSource(sourceId: string): Promise<void> {
     .eq("is_active", true)
     .maybeSingle();
   if (error) throw error;
-  if (!data) throw new NotFoundError("Lead source");
+  if (!data) throw new NotFoundError("Patient source");
 }
 
 export async function requireAssignableUser(userId: string, branchId: string): Promise<void> {
@@ -199,7 +199,7 @@ export async function requireAssignableUser(userId: string, branchId: string): P
   if (allocationError) throw allocationError;
   if (!profile || !allocation) throw new ValidationError("Assignee is not active at this branch");
   if (!["front_office", "operations", "clinical_head"].includes(profile.role)) {
-    throw new ValidationError("This role cannot be assigned lead work");
+    throw new ValidationError("This role cannot be assigned patient records");
   }
 }
 
@@ -237,7 +237,7 @@ export async function requireTreatmentForLead(
     .eq("branch_id", branchId)
     .maybeSingle();
   if (error) throw error;
-  if (!data) throw new ValidationError("Treatment does not belong to this lead");
+  if (!data) throw new ValidationError("Treatment does not belong to this patient");
 }
 
 export async function requireCommentEntityForLead(
@@ -247,7 +247,7 @@ export async function requireCommentEntityForLead(
 ): Promise<void> {
   if (entityType === "lead") {
     if (entityId && entityId !== leadId) {
-      throw new ValidationError("Comment target does not belong to this lead");
+      throw new ValidationError("Comment target does not belong to this patient");
     }
     return;
   }
@@ -267,5 +267,5 @@ export async function requireCommentEntityForLead(
     .eq("lead_id", leadId)
     .maybeSingle();
   if (error) throw error;
-  if (!data) throw new ValidationError("Comment target does not belong to this lead");
+  if (!data) throw new ValidationError("Comment target does not belong to this patient");
 }

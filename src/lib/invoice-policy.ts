@@ -1,4 +1,4 @@
-import { assertDateOnly } from "@/lib/validation";
+import { assertDateOnly, normalizeSearch } from "@/lib/validation";
 import { clinicToday } from "@/lib/tz";
 import type { InvoicePaymentMethod, InvoiceStatus } from "@/lib/database.types";
 
@@ -13,6 +13,7 @@ export function invoiceListFilters(params: Record<string, string | undefined>) {
       fromDate: dates.from,
       toDate: dates.to,
       leadId: params.lead || undefined,
+      search: normalizeSearch(params.q),
       branchId: params.branch || undefined,
       status: INVOICE_STATUSES.find((status) => status === params.status),
       dueOnly: params.balance === "due",

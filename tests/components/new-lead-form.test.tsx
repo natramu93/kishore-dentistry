@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { NewLeadForm } from "@/app/(app)/leads/new/new-lead-form";
+import { NewLeadForm } from "@/app/(app)/patients/new/new-lead-form";
 
 vi.mock("@/actions/leads", () => ({
   checkDuplicateMobile: vi.fn().mockResolvedValue([]),

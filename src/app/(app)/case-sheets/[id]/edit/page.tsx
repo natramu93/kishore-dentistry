@@ -80,7 +80,7 @@ export default async function EditCaseSheetPage({
               toothAssessments: record.toothAssessments,
               treatments: record.treatments,
             }}
-            successHref={ctx.role === "doctor" ? `/my-patients/${record.lead.id}` : `/leads/${record.lead.id}`}
+            successHref={ctx.role === "doctor" ? `/my-patients/${record.lead.id}` : `/patients/${record.lead.id}`}
           />
         </div>
         <VisitHistory leadId={record.lead.id} completed={progress.completed} />

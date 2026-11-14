@@ -65,12 +65,12 @@ export async function generateMetadata({
   const leadName = related?.lead.name.replace(/\s+/g, " ").trim().slice(0, 80);
   return {
     title: related
-      ? `${leadName || "Lead"} — Lead — Dr. Kishor's Dentistry CRM`
-      : "Lead not found — Dr. Kishor's Dentistry CRM",
+      ? `${leadName || "Patient"} — Patient — Dr. Kishor's Dentistry CRM`
+      : "Patient not found — Dr. Kishor's Dentistry CRM",
   };
 }
 
-export default async function LeadDetailPage({
+export default async function PatientDetailPage({
   params,
   searchParams,
 }: {
@@ -202,7 +202,7 @@ export default async function LeadDetailPage({
             userId={ctx.userId}
           />
           <div className="flex flex-wrap items-center gap-1">
-            <RowEditDialog title="Edit lead details" action={updateLeadAction.bind(null, lead.id)} contentClassName="sm:max-w-2xl">
+            <RowEditDialog title="Edit patient details" action={updateLeadAction.bind(null, lead.id)} contentClassName="sm:max-w-2xl">
               <div className="grid gap-3 sm:grid-cols-2">
                 <PatientIdentityFields initialName={lead.name} initialTitle={lead.title} initialGender={lead.gender} />
                 <div className="space-y-2">
@@ -361,7 +361,7 @@ export default async function LeadDetailPage({
             <CardContent className="space-y-4">
               {appointments.length === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  None yet — book one from the actions above when the lead is assigned.
+                  None yet — book one from the actions above when the patient is assigned.
                 </p>
               )}
               {appointments.map((a) => (
@@ -543,7 +543,7 @@ export default async function LeadDetailPage({
                 );
               })}
               <PaginationNav
-                pathname={`/leads/${id}`}
+                pathname={`/patients/${id}`}
                 searchParams={queryParams}
                 page={caseSheetPage}
                 pageSize={caseSheetPageSize}
@@ -683,7 +683,7 @@ export default async function LeadDetailPage({
             </Card>
           )}
 
-          {/* General comments — bottom of the lead page */}
+          {/* General comments — bottom of the patient page */}
           <Card id="patient-notes" className="scroll-mt-20 border-l-4 border-l-muted-foreground/30">
             <CardHeader>
               <CardTitle className="text-base">Patient notes &amp; comments</CardTitle>

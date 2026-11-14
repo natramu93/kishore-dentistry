@@ -141,7 +141,7 @@ describe("trusted lead transition service", () => {
       })
     ).rejects.toThrow(
       new ConflictError(
-        "Lead must have an assignee before cancelling its appointment"
+        "Patient must have an assignee before cancelling its appointment"
       )
     );
     expect(mocks.rpc).not.toHaveBeenCalled();
@@ -185,7 +185,7 @@ describe("trusted lead transition service", () => {
       })
     ).rejects.toThrow(
       new AuthorizationError(
-        "Front Office can only assign leads to themselves"
+        "Front Office can only assign patients to themselves"
       )
     );
     expect(mocks.requireAssignableUser).not.toHaveBeenCalled();

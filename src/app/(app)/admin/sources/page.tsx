@@ -12,7 +12,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 
-export const metadata = { title: "Lead Sources — Admin" };
+export const metadata = { title: "Patient Sources — Admin" };
 
 export default async function SourcesPage() {
   const ctx = await getAuthContext();
@@ -23,12 +23,12 @@ export default async function SourcesPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Lead sources</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Patient sources</h1>
           <p className="text-sm text-muted-foreground">
-            Where leads come from — Twitter, Facebook, reference, and anything you add here.
+            How patients found the clinic, such as social media or a referral.
           </p>
         </div>
-        <FormDialog triggerLabel="New source" title="Add lead source" action={createLeadSourceAction}>
+        <FormDialog triggerLabel="New source" title="Add patient source" action={createLeadSourceAction}>
           <div className="space-y-2">
             <Label htmlFor="name">Name</Label>
             <Input id="name" name="name" required placeholder="e.g. JustDial" />
@@ -36,7 +36,7 @@ export default async function SourcesPage() {
         </FormDialog>
       </div>
 
-      <Table aria-label="Lead sources">
+      <Table aria-label="Patient sources">
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
@@ -55,7 +55,7 @@ export default async function SourcesPage() {
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-1">
-                  <RowEditDialog title="Edit lead source" action={updateLeadSourceAction.bind(null, s.id)}>
+                  <RowEditDialog title="Edit patient source" action={updateLeadSourceAction.bind(null, s.id)}>
                     <div className="space-y-2">
                       <Label htmlFor={`name-${s.id}`}>Name</Label>
                       <Input id={`name-${s.id}`} name="name" defaultValue={s.name} required />

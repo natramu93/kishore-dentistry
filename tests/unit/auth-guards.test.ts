@@ -146,10 +146,10 @@ describe("authorization policy matrix", () => {
     ).not.toThrow();
     expect(() =>
       assertLeadWriteAccess(context("front_office"), unassignedLead)
-    ).toThrow("This lead is not assigned to you");
+    ).toThrow("This patient is not assigned to you");
     expect(() =>
       assertLeadWriteAccess(context("front_office"), otherLead)
-    ).toThrow("This lead is not assigned to you");
+    ).toThrow("This patient is not assigned to you");
     expect(() => assertLeadWriteAccess(context("doctor"), ownLead)).toThrow(
       "Doctors work through appointments"
     );
@@ -185,7 +185,7 @@ describe("authorization policy matrix", () => {
     expect(canReadInvoice(frontOffice, other)).toBe(false);
     expect(() => assertInvoiceWriteAccess(frontOffice, own)).not.toThrow();
     expect(() => assertInvoiceWriteAccess(frontOffice, unassigned)).toThrow(
-      "This lead must be assigned to you before invoicing"
+      "This patient must be assigned to you before invoicing"
     );
     expect(() => assertInvoiceWriteAccess(frontOffice, other)).toThrow(
       "No access to this invoice"

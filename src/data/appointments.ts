@@ -127,9 +127,9 @@ export async function updateAppointment(
   if (!appointment) throw new NotFoundError("Appointment");
   if (
     expectedLeadId &&
-    appointment.lead_id !== assertUuid(expectedLeadId, "Lead")
+    appointment.lead_id !== assertUuid(expectedLeadId, "Patient")
   ) {
-    throw new ValidationError("Appointment does not belong to this lead");
+    throw new ValidationError("Appointment does not belong to this patient");
   }
   if (ctx.role === "doctor") {
     throw new AuthorizationError("Ask Front Office or Operations to reschedule an appointment");
@@ -201,7 +201,7 @@ export async function createAdditionalAppointment(
     notes?: string | null;
   }
 ): Promise<{ lead_id: string; scheduled_at: string }> {
-  const leadId = assertUuid(leadIdValue, "Lead");
+  const leadId = assertUuid(leadIdValue, "Patient");
   const { data: lead, error: leadError } = await db
     .from("leads")
     .select("id, branch_id, assignee_id, status")
@@ -209,10 +209,10 @@ export async function createAdditionalAppointment(
     .is("deleted_at", null)
     .maybeSingle();
   if (leadError) throw leadError;
-  if (!lead) throw new NotFoundError("Lead");
+  if (!lead) throw new NotFoundError("Patient");
   assertLeadWriteAccess(ctx, lead);
   if (lead.status !== "appointment_booked") {
-    throw new ConflictError("The lead no longer has a booked appointment. Refresh and try again.");
+    throw new ConflictError("The patient no longer has a booked appointment. Refresh and try again.");
   }
 
   const scheduledAt = assertIsoDateTime(input.scheduled_at, "Appointment date");
@@ -251,7 +251,7 @@ export async function appointmentWhatsAppUrl(
   leadIdValue: string,
   scheduledAt: string
 ): Promise<string | undefined> {
-  const leadId = assertUuid(leadIdValue, "Lead");
+  const leadId = assertUuid(leadIdValue, "Patient");
   const { data: lead, error: leadError } = await db
     .from("leads")
     .select("id, branch_id, assignee_id, name, title, mobile")
@@ -259,7 +259,7 @@ export async function appointmentWhatsAppUrl(
     .is("deleted_at", null)
     .maybeSingle();
   if (leadError) throw leadError;
-  if (!lead) throw new NotFoundError("Lead");
+  if (!lead) throw new NotFoundError("Patient");
   assertLeadWriteAccess(ctx, lead);
 
   const { data: branch, error: branchError } = await db

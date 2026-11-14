@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
   experimental: {
     taint: true,
   },
+  async redirects() {
+    return [{ source: "/leads/:path*", destination: "/patients/:path*", permanent: false }];
+  },
   async headers() {
     return [
       {

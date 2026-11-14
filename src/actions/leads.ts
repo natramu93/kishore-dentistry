@@ -95,7 +95,7 @@ export async function createLeadAction(
       dob: value.dob || null,
       notes: value.notes || null,
     });
-    revalidatePath("/leads");
+    revalidatePath("/patients");
     return { id: lead.id };
   });
 }
@@ -110,7 +110,7 @@ export async function updateLeadAction(
     .omit({ branch_id: true })
     .partial()
     .safeParse(Object.fromEntries(formData));
-  if (!id.success) return { ok: false, error: "Lead is invalid" };
+  if (!id.success) return { ok: false, error: "Patient is invalid" };
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
@@ -131,8 +131,8 @@ export async function updateLeadAction(
       ...(value.dob !== undefined && { dob: value.dob || null }),
       ...(value.notes !== undefined && { notes: value.notes || null }),
     });
-    revalidatePath(`/leads/${id.data}`);
-    revalidatePath("/leads");
+    revalidatePath(`/patients/${id.data}`);
+    revalidatePath("/patients");
   });
 }
 
@@ -182,7 +182,7 @@ export async function transitionLeadAction(
       const payload = preparePayload();
       const scheduledAt = payload.scheduled_at as string;
       const currentLead = await leads.getLead(ctx, id.data);
-      if (!currentLead) throw new NotFoundError("Lead");
+      if (!currentLead) throw new NotFoundError("Patient");
       const whatsappUrl = await appointments.appointmentWhatsAppUrl(ctx, id.data, scheduledAt);
 
       if (currentLead.status === "appointment_booked") {
@@ -195,8 +195,8 @@ export async function transitionLeadAction(
         await leads.transitionLead(ctx, id.data, target.data, payload);
       }
 
-      revalidatePath(`/leads/${id.data}`);
-      revalidatePath("/leads");
+      revalidatePath(`/patients/${id.data}`);
+      revalidatePath("/patients");
       revalidatePath("/dashboard");
       revalidatePath("/appointments");
       return { whatsappUrl };
@@ -207,8 +207,8 @@ export async function transitionLeadAction(
     await leadMutationLimit(ctx.userId);
     const payload = preparePayload();
     await leads.transitionLead(ctx, id.data, target.data, payload);
-    revalidatePath(`/leads/${id.data}`);
-    revalidatePath("/leads");
+    revalidatePath(`/patients/${id.data}`);
+    revalidatePath("/patients");
     revalidatePath("/dashboard");
     revalidatePath("/appointments");
   });
@@ -217,14 +217,14 @@ export async function transitionLeadAction(
 export async function deleteLeadAction(leadId: string): Promise<ActionResult> {
   const ctx = await getAuthContext();
   const id = uuidSchema.safeParse(leadId);
-  if (!id.success) return { ok: false, error: "Lead is invalid" };
+  if (!id.success) return { ok: false, error: "Patient is invalid" };
   return runAction(async () => {
     await assertActionRateLimit(ctx.userId, "lead:delete", {
       limit: 10,
       windowMs: 10 * 60_000,
     });
     await leads.deleteLead(ctx, id.data);
-    revalidatePath("/leads");
+    revalidatePath("/patients");
     revalidatePath("/dashboard");
   });
 }
@@ -273,7 +273,7 @@ export async function addCommentAction(formData: FormData): Promise<ActionResult
       entity_type: parsed.data.entity_type,
       entity_id: parsed.data.entity_id || null,
     });
-    revalidatePath(`/leads/${parsed.data.lead_id}`);
+    revalidatePath(`/patients/${parsed.data.lead_id}`);
   });
 }
 
@@ -304,7 +304,7 @@ export async function updateCommentAction(
       parsed.data.body,
       parsed.data.expectedVersion
     );
-    revalidatePath(`/leads/${updated.lead_id}`);
+    revalidatePath(`/patients/${updated.lead_id}`);
   });
 }
 
@@ -338,12 +338,12 @@ export async function archiveCommentAction(
       parsed.data.reason,
       parsed.data.expectedVersion
     );
-    revalidatePath(`/leads/${archived.lead_id}`);
+    revalidatePath(`/patients/${archived.lead_id}`);
   });
 }
 
 export async function createLeadAndRedirect(formData: FormData) {
   const result = await createLeadAction(formData);
-  if (result.ok && result.id) redirect(`/leads/${result.id}`);
+  if (result.ok && result.id) redirect(`/patients/${result.id}`);
   return result;
 }

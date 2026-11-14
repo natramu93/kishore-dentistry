@@ -76,9 +76,9 @@ export default async function DashboardPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button asChild size="sm">
-            <Link href="/leads/new">
+            <Link href="/patients/new">
               <Plus aria-hidden="true" />
-              Add lead
+              Add patient
             </Link>
           </Button>
           {canViewReports(ctx.role) && (
@@ -95,7 +95,7 @@ export default async function DashboardPage() {
 
       {/* KPI cards */}
       <div className="grid gap-3 sm:grid-cols-3">
-        <KpiCard icon={Users} label="Total leads" value={data.totalLeads} href="/leads" accent="blue" />
+        <KpiCard icon={Users} label="Total patients" value={data.totalLeads} href="/patients" accent="blue" />
         <KpiCard
           icon={CalendarDays}
           label="Today's appointments"
@@ -107,7 +107,7 @@ export default async function DashboardPage() {
           icon={TrendingUp}
           label="Treated / Closed"
           value={(data.statusCounts["visited_treated"] ?? 0) + (data.statusCounts["closed"] ?? 0)}
-          href="/leads?status=visited_treated"
+          href="/patients?status=visited_treated"
           accent="emerald"
         />
       </div>
@@ -127,14 +127,14 @@ export default async function DashboardPage() {
       {/* Pipeline funnel */}
       <Card className="border-l-4 border-l-blue-400">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Lead pipeline</CardTitle>
+          <CardTitle className="text-base">Patient pipeline</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-2.5 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
             {PIPELINE_ORDER.map((status) => (
               <Link
                 key={status}
-                href={`/leads?status=${status}`}
+                href={`/patients?status=${status}`}
                 className="rounded-lg border p-2.5 hover:bg-accent transition-colors"
               >
                 <div className="text-2xl font-bold">{data.statusCounts[status] ?? 0}</div>
@@ -146,7 +146,7 @@ export default async function DashboardPage() {
             {terminalStatuses.map((status) => (
               <Link
                 key={status}
-                href={`/leads?status=${status}`}
+                href={`/patients?status=${status}`}
                 className="flex items-center gap-2 rounded-lg border border-dashed px-2.5 py-1.5 text-sm hover:bg-accent"
               >
                 <LeadStatusBadge status={status} />
@@ -161,11 +161,11 @@ export default async function DashboardPage() {
         {/* Leads by branch */}
         <Card className="border-l-4 border-l-violet-400">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Leads by branch</CardTitle>
+            <CardTitle className="text-base">Patients by center</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {data.branchCounts.length === 0 && (
-              <p className="text-sm text-muted-foreground">No leads yet</p>
+              <p className="text-sm text-muted-foreground">No patients yet</p>
             )}
             {data.branchCounts.map((b) => (
               <BarRow key={b.branch} label={b.branch} count={b.count} max={data.branchCounts[0]?.count ?? 1} />
@@ -176,11 +176,11 @@ export default async function DashboardPage() {
         {/* Leads by source */}
         <Card className="border-l-4 border-l-amber-400">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Leads by source</CardTitle>
+            <CardTitle className="text-base">Patients by source</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {data.sourceCounts.length === 0 && (
-              <p className="text-sm text-muted-foreground">No leads yet</p>
+              <p className="text-sm text-muted-foreground">No patients yet</p>
             )}
             {data.sourceCounts.map((s) => (
               <BarRow key={s.source} label={s.source} count={s.count} max={data.sourceCounts[0]?.count ?? 1} />
@@ -223,8 +223,8 @@ export default async function DashboardPage() {
                 const actor = a.actor as { full_name: string } | null;
                 return (
                   <li key={a.id} className="text-sm">
-                    <Link href={`/leads/${a.lead_id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab" className="font-medium hover:underline">
-                      {lead?.name ?? "Lead"}
+                    <Link href={`/patients/${a.lead_id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab" className="font-medium hover:underline">
+                      {lead?.name ?? "Patient"}
                     </Link>{" "}
                     <span className="text-muted-foreground">
                       {a.type === "status_change" && a.to_status

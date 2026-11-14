@@ -27,8 +27,8 @@ function RoleSelect({ id, defaultValue, disabled, centerAdmin = false }: { id: s
       disabled={disabled}
       className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm disabled:opacity-60"
     >
-      <option value="front_office">Front Office — reception: intake, booking, own leads</option>
-      {!centerAdmin && <option value="operations">Operations — runs the branch: full lead/appt/invoice access</option>}
+      <option value="front_office">Front Office — reception: intake, booking, assigned patients</option>
+      {!centerAdmin && <option value="operations">Operations — runs the branch: full patient, appointment, and invoice access</option>}
       {!centerAdmin && <option value="clinical_head">Clinical Head — treatment catalog, doctor roster, clinical oversight</option>}
       <option value="doctor">Doctor — sees only their own schedule and patients</option>
       {!centerAdmin && <option value="admin">Admin — everything, all branches</option>}
