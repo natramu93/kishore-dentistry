@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ToothSelector } from "@/components/clinical/tooth-selector";
 import { INDIAN_PERMANENT_TEETH, INDIAN_PRIMARY_TEETH } from "@/lib/clinical";
@@ -14,18 +14,16 @@ function Harness({ multiple = true }: { multiple?: boolean }) {
 describe("ToothSelector", () => {
   it("selects all displayed teeth and allows individual deselection and clearing", () => {
     render(<Harness />);
+    const selectedTeeth = () => within(screen.getByRole("group", { name: /Indian Standard dental chart/ }))
+      .getAllByRole("button", { pressed: true, name: /^\d+,/ });
     fireEvent.click(screen.getByRole("button", { name: "Select all" }));
-    for (const tooth of INDIAN_PERMANENT_TEETH) {
-      expect(screen.getByRole("button", { name: new RegExp(`^${tooth},`) })).toHaveAttribute("aria-pressed", "true");
-    }
+    expect(selectedTeeth()).toHaveLength(INDIAN_PERMANENT_TEETH.length);
     expect(screen.getByRole("button", { name: "Select all" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: /^11,/ }));
     expect(screen.getByRole("button", { name: "Select all" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Primary (milk) teeth" }));
     fireEvent.click(screen.getByRole("button", { name: "Select all" }));
-    for (const tooth of INDIAN_PRIMARY_TEETH) {
-      expect(screen.getByRole("button", { name: new RegExp(`^${tooth},`) })).toHaveAttribute("aria-pressed", "true");
-    }
+    expect(selectedTeeth()).toHaveLength(INDIAN_PRIMARY_TEETH.length);
     fireEvent.click(screen.getByRole("button", { name: "Permanent teeth" }));
     expect(screen.getByRole("button", { name: /^12,/ })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: /^11,/ })).toHaveAttribute("aria-pressed", "false");

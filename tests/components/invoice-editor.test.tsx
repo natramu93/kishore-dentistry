@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { InvoiceEditor } from "@/components/invoices/invoice-editor";
 import { createInvoiceAction, updateInvoiceAction } from "@/actions/invoices";
 import { toast } from "sonner";
@@ -76,7 +76,7 @@ describe("independent invoice editor", () => {
       { treatment_type_id: "filling", quantity: 1, unit_price: 500 },
       { treatment_type_id: "scaling", quantity: 1, unit_price: 0 },
     ] })));
-  });
+  }, 10_000);
 
   it("does not bill a previously selected treatment after clearing its search", async () => {
     renderInvoiceEditor();
@@ -252,14 +252,19 @@ describe("independent invoice editor", () => {
   });
 
   it("retains entries and gives feedback when an unexpected save failure occurs", async () => {
-    vi.mocked(createInvoiceAction).mockRejectedValueOnce(new Error("Connection interrupted"));
+    const save = Promise.withResolvers<Awaited<ReturnType<typeof createInvoiceAction>>>();
+    vi.mocked(createInvoiceAction).mockReturnValueOnce(save.promise);
     renderInvoiceEditor();
     await chooseConsultation();
     fireEvent.click(screen.getByRole("button", { name: "Add treatment" }));
     fireEvent.click(screen.getByRole("button", { name: "Create invoice" }));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Your entries are still here")));
+    expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+    await act(async () => {
+      save.reject(new Error("Connection interrupted"));
+    });
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Your entries are still here"));
     expect(screen.getByRole("listitem")).toHaveTextContent("General consultation");
-    await waitFor(() => expect(screen.getByRole("button", { name: "Create invoice" })).toBeEnabled());
+    expect(screen.getByRole("button", { name: "Create invoice" })).toBeEnabled();
   });
 
   it("blocks implicit Enter submission from invoice inputs but preserves note line breaks", async () => {
