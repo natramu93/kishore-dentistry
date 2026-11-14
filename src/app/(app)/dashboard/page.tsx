@@ -9,7 +9,7 @@ import { STATUS_LABELS, PIPELINE_ORDER } from "@/lib/leads/transitions";
 import type { LeadStatus } from "@/lib/database.types";
 import { fmt, formatINR } from "@/lib/tz";
 import {
-  CalendarDays, Users, TrendingUp, Stethoscope, IndianRupee, BarChart3, Plus,
+  CalendarDays, Users, TrendingUp, Stethoscope, BarChart3, Plus,
 } from "lucide-react";
 
 export const metadata = { title: "Dashboard — Dr. Kishor's Dentistry CRM" };
@@ -25,11 +25,10 @@ export default async function DashboardPage() {
           <h1 className="text-2xl font-bold tracking-tight">My Dashboard</h1>
           <p className="text-sm text-muted-foreground">Your schedule and clinical activity</p>
         </div>
-        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-3">
           <KpiCard icon={CalendarDays} label="Today's appointments" value={doc.todaysAppointments} href="/appointments" accent="violet" />
           <KpiCard icon={CalendarDays} label="This week" value={doc.weekAppointments} href="/appointments?view=week" accent="blue" />
           <KpiCard icon={Stethoscope} label="Patients treated" value={doc.patientsTreated} href="/my-patients" accent="emerald" />
-          <KpiCard icon={IndianRupee} label="Revenue generated" value={formatINR(doc.revenueGenerated)} accent="gold" />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <Card className="border-l-4 border-l-violet-400">
@@ -224,7 +223,7 @@ export default async function DashboardPage() {
                 const actor = a.actor as { full_name: string } | null;
                 return (
                   <li key={a.id} className="text-sm">
-                    <Link href={`/leads/${a.lead_id}`} className="font-medium hover:underline">
+                    <Link href={`/leads/${a.lead_id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab" className="font-medium hover:underline">
                       {lead?.name ?? "Lead"}
                     </Link>{" "}
                     <span className="text-muted-foreground">

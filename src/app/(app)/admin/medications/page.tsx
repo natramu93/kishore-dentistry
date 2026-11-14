@@ -24,7 +24,7 @@ export default async function MedicationSuggestionsPage({ searchParams }: { sear
   const entries = await listMedicationSuggestions(ctx, branch.id, { includeInactive: true });
   return <div className="space-y-4">
     <div className="flex flex-wrap items-end justify-between gap-3">
-      <div><h1 className="text-2xl font-bold tracking-tight">Medication suggestions</h1><p className="text-sm text-muted-foreground">Center-specific picker for prescriptions. Doctors can also type medicines not listed here.</p></div>
+      <div><h1 className="text-2xl font-bold tracking-tight">Medication suggestions</h1><p className="text-sm text-muted-foreground">Center-specific picker for prescriptions. Case-sheet editors can also enter medicines not listed here.</p></div>
       <form method="get" className="flex items-end gap-2"><div className="min-w-48 space-y-1"><label htmlFor="branch" className="text-sm font-medium">Center</label><select id="branch" name="branch" defaultValue={branch.id} className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm">{branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div><Button type="submit" variant="outline">View</Button></form>
       <FormDialog triggerLabel="Add medicine" title="Add medication suggestion" action={createMedicationSuggestionAction}>
         <input type="hidden" name="branch_id" value={branch.id} />

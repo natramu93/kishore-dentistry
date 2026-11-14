@@ -7,6 +7,7 @@ import {
 } from "@/data/case-sheets";
 import { listDoctors, listMedicationSuggestions } from "@/data/catalogs";
 import { CaseSheetEditor } from "@/components/clinical/case-sheet-editor";
+import { VisitHistory } from "@/components/clinical/visit-history";
 import { getPatientTreatmentProgress } from "@/data/treatment-progress";
 
 export const metadata: Metadata = {
@@ -44,7 +45,7 @@ export default async function NewCaseSheetPage({
           .map((doctor) => ({ id: doctor.id, label: doctor.full_name }));
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto max-w-7xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Digital case sheet</h1>
         <p className="text-sm text-muted-foreground">
@@ -56,19 +57,23 @@ export default async function NewCaseSheetPage({
           for one treatment, and pricing is entered only when the invoice is generated.
         </p>
       </div>
-      <CaseSheetEditor
-        key={scope.appointment?.id ?? scope.lead.id}
-        leadId={scope.lead.id}
-        appointmentId={scope.appointment?.id ?? null}
-        doctors={doctors}
-        doctorLocked={Boolean(scope.appointment?.doctor_id)}
-        treatmentCodes={treatmentCodes}
-        pendingPlans={progress.planned}
-        canPrescribe={ctx.role === "doctor"}
-        medicationSuggestions={medicationSuggestions}
-        initialMedicalHistory={scope.medicalHistory}
-        successHref={ctx.role === "doctor" ? `/my-patients/${scope.lead.id}` : `/leads/${scope.lead.id}`}
-      />
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(17rem,22rem)]">
+        <div className="min-w-0">
+          <CaseSheetEditor
+            key={scope.appointment?.id ?? scope.lead.id}
+            leadId={scope.lead.id}
+            appointmentId={scope.appointment?.id ?? null}
+            doctors={doctors}
+            doctorLocked={Boolean(scope.appointment?.doctor_id)}
+            treatmentCodes={treatmentCodes}
+            pendingPlans={progress.planned}
+            medicationSuggestions={medicationSuggestions}
+            initialMedicalHistory={scope.medicalHistory}
+            successHref={ctx.role === "doctor" ? `/my-patients/${scope.lead.id}` : `/leads/${scope.lead.id}`}
+          />
+        </div>
+        <VisitHistory leadId={scope.lead.id} completed={progress.completed} />
+      </div>
     </div>
   );
 }

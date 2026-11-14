@@ -10,10 +10,9 @@ import { PaginationNav } from "@/components/pagination-nav";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { invoiceDateFilter, invoiceStatusLabel } from "@/lib/invoice-policy";
+import { invoiceListFilters, invoiceStatusLabel, INVOICE_STATUSES } from "@/lib/invoice-policy";
 import { InvoiceDateFilters } from "@/components/invoices/invoice-date-filters";
 import { clinicToday, fmtDate, formatINR } from "@/lib/tz";
-import type { InvoicePaymentMethod, InvoiceStatus } from "@/lib/database.types";
 
 export const metadata = { title: "Invoices — Dr. Kishor's Dentistry CRM" };
 
@@ -23,8 +22,6 @@ const STATUS_VARIANT = {
   paid: "default",
   cancelled: "destructive",
 } as const;
-
-const STATUSES: InvoiceStatus[] = ["draft", "sent", "paid", "cancelled"];
 
 export default async function InvoicesPage({
   searchParams,
@@ -37,20 +34,21 @@ export default async function InvoicesPage({
   if (params.lead && !patient) notFound();
 
   const [branches] = await Promise.all([listMyBranches(ctx)]);
-  const status = STATUSES.includes(params.status as InvoiceStatus)
-    ? (params.status as InvoiceStatus)
-    : undefined;
-
-  const dateFilter = invoiceDateFilter(params);
+  const { dates: dateFilter, options } = invoiceListFilters(params);
   const invoiceResult = dateFilter.error ? { invoices: [], total: 0, page: 1, pageSize: 25 } : await listInvoices(ctx, {
-    fromDate: dateFilter.from,
-    toDate: dateFilter.to,
+    ...options,
     leadId: patient?.id,
-    branchId: params.branch || undefined,
-    status,
-    dueOnly: params.balance === "due",
-    paymentMethod: (["cash", "upi", "card", "neft"] as string[]).includes(params.method ?? "") ? params.method as InvoicePaymentMethod : undefined,
     page: Number(params.page),
+  });
+  const exportParams = new URLSearchParams({
+    dates: dateFilter.mode === "all" ? "all" : "range",
+    from: options.fromDate ?? "",
+    to: options.toDate ?? "",
+    branch: options.branchId ?? "",
+    lead: patient?.id ?? "",
+    status: options.status ?? "",
+    balance: options.dueOnly ? "due" : "",
+    method: options.paymentMethod ?? "",
   });
   const { invoices, total, page, pageSize } = invoiceResult;
 
@@ -62,7 +60,7 @@ export default async function InvoicesPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Invoices</h1>
-          {patient && <p className="text-sm">For <Link className="underline underline-offset-4" href={`/leads/${patient.id}#patient-invoices`}>{patient.name}</Link></p>}
+          {patient && <p className="text-sm">For <Link className="underline underline-offset-4" href={`/leads/${patient.id}#patient-invoices`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab">{patient.name}</Link></p>}
           <p className="text-sm text-muted-foreground">
             {total} invoice{total === 1 ? "" : "s"} · {formatINR(paidTotalOnPage)} collected · {formatINR(dueTotalOnPage)} due on this page
           </p>
@@ -103,7 +101,7 @@ export default async function InvoicesPage({
             className="h-11 rounded-md border border-input bg-transparent px-3 text-sm"
           >
             <option value="">All statuses</option>
-            {STATUSES.map((s) => (
+              {INVOICE_STATUSES.map((s) => (
               <option key={s} value={s} className="capitalize">{invoiceStatusLabel(s)}</option>
             ))}
           </select>
@@ -121,6 +119,11 @@ export default async function InvoicesPage({
           </select>
         </div>
         <Button type="submit" variant="secondary" size="sm">Filter</Button>
+        {!dateFilter.error && total > 0 && ctx.role !== "doctor" && (
+          <Button asChild variant="outline" size="sm">
+            <a href={`/invoices/export?${exportParams}`} download>Download filtered invoices (CSV)</a>
+          </Button>
+        )}
         <Button asChild variant="ghost" size="sm">
           <Link href={patient ? `/invoices?lead=${patient.id}` : "/invoices"}>Reset filters</Link>
         </Button>
@@ -151,7 +154,7 @@ export default async function InvoicesPage({
           {invoices.map((inv) => (
             <TableRow key={inv.id}>
               <TableCell className="whitespace-normal">
-                <Link href={`/invoices/${inv.id}`} className="font-medium hover:underline">
+                <Link href={`/invoices/${inv.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab" className="font-medium hover:underline">
                   {inv.invoice_number}
                 </Link>
                 <div className="mt-1 sm:hidden">
@@ -162,7 +165,7 @@ export default async function InvoicesPage({
               </TableCell>
               <TableCell className="whitespace-normal">
                 {inv.lead ? (
-                  <Link href={`/leads/${inv.lead.id}`} className="hover:underline">
+                  <Link href={`/leads/${inv.lead.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab" className="hover:underline">
                     {inv.lead.name}
                   </Link>
                 ) : "—"}

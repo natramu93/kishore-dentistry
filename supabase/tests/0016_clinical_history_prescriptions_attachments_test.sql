@@ -8,6 +8,7 @@ do $test$
 declare
   v_admin constant uuid := 'c1600000-0000-4000-8000-000000000001';
   v_doctor_profile constant uuid := 'c1600000-0000-4000-8000-000000000002';
+  v_unauthorized_profile constant uuid := 'c1600000-0000-4000-8000-000000000003';
   v_branch uuid;
   v_doctor uuid;
   v_lead uuid;
@@ -85,9 +86,11 @@ begin
 
   insert into auth.users(id,email,raw_user_meta_data) values
     (v_admin,'clinical-admin@example.test','{"full_name":"Clinical Admin"}'),
-    (v_doctor_profile,'clinical-doctor@example.test','{"full_name":"Clinical Doctor"}');
+    (v_doctor_profile,'clinical-doctor@example.test','{"full_name":"Clinical Doctor"}'),
+    (v_unauthorized_profile,'unallocated-ops@example.test','{"full_name":"Unallocated Operations"}');
   update crm.profiles set role='admin',is_active=true where id=v_admin;
   update crm.profiles set role='doctor',is_active=true where id=v_doctor_profile;
+  update crm.profiles set role='operations',is_active=true where id=v_unauthorized_profile;
 
   insert into crm.branches(name,code)
   values('Clinical Details Test Branch','H16')
@@ -133,14 +136,14 @@ begin
         'medicine_name','Amoxicillin','morning',true,'noon',false,'night',false,
         'food_timing','after_food'
       )),
-      v_admin
+      v_unauthorized_profile
     );
   exception when insufficient_privilege then
     v_rejected := true;
   end;
   if not v_rejected then
     execute 'reset role';
-    raise exception 'a non-treating account signed prescription lines';
+    raise exception 'an unallocated account signed prescription lines';
   end if;
 
   begin
@@ -158,7 +161,7 @@ begin
         'future_plan','Root canal treatment'
       )),
       jsonb_build_array(jsonb_build_object(
-        'treatment_code','TMT_108','status','planned','site_scope','tooth',
+        'treatment_code','K04.0','status','planned','site_scope','tooth',
         'tooth_number','36','surfaces',jsonb_build_array('occlusal'),
         'quantity',1,'unit_price',2500,'notes','Discussed with patient'
       )),

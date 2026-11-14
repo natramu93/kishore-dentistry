@@ -11,8 +11,8 @@ import { formatClinicalSite } from "@/lib/clinical";
 import { fmt } from "@/lib/tz";
 import { treatmentProgressLabel, type TreatmentDetails } from "@/lib/treatment-progress";
 
-export function TreatmentDetailsDialog({ leadId, treatmentId, name, children }: {
-  leadId: string; treatmentId: string; name: string; children: ReactNode;
+export function TreatmentDetailsDialog({ leadId, treatmentId, name, triggerLabel, children }: {
+  leadId: string; treatmentId: string; name: string; triggerLabel?: string; children: ReactNode;
 }) {
   const [details, setDetails] = useState<TreatmentDetails | null>(null);
   const [loading, setLoading] = useState(false);
@@ -39,7 +39,7 @@ export function TreatmentDetailsDialog({ leadId, treatmentId, name, children }: 
     if (open) void load();
     else { request.current++; setDetails(null); setLoading(false); setError(null); }
   }}>
-    <DialogTrigger render={<button type="button" aria-label={`View treatment details: ${name}`}
+    <DialogTrigger render={<button type="button" aria-label={triggerLabel ?? `View treatment details: ${name}`}
       className="w-full min-w-0 rounded-md border bg-background p-3 text-left text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />}>
       {children}
     </DialogTrigger>

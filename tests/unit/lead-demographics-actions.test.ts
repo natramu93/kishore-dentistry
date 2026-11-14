@@ -32,7 +32,16 @@ describe("validated patient identity actions", () => {
     expect(createLead).not.toHaveBeenCalled();
   });
 
-  it.each(["0", "0.2", "2.5", "4.3", "4.99", "5", "25", "120"])("preserves age %s on creation and edit", async (age) => {
+  it("accepts Baby as a standalone patient name, with or without the Baby title", async () => {
+    const form = input(); form.set("name", " bABY "); form.set("title", "Baby"); form.set("gender", "");
+    expect(await createLeadAction(form)).toMatchObject({ ok: true });
+    expect(createLead).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ name: "Baby", title: "Baby", gender: null }));
+    form.delete("branch_id"); form.set("title", "");
+    expect(await updateLeadAction(leadId, form)).toMatchObject({ ok: true });
+    expect(updateLeadDetails).toHaveBeenCalledWith(expect.anything(), leadId, expect.objectContaining({ name: "Baby", title: null }));
+  });
+
+  it.each(["0", "0.2", "2.5", "4.3", "4.99", "5", "5.1", "25.5", "119.99", "120"])("preserves age %s on creation and edit", async (age) => {
     const form = input(); form.set("age", age);
     expect(await createLeadAction(form)).toMatchObject({ ok: true });
     expect(createLead).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ age: Number(age) }));
@@ -41,7 +50,7 @@ describe("validated patient identity actions", () => {
     expect(updateLeadDetails).toHaveBeenCalledWith(expect.anything(), leadId, expect.objectContaining({ age: Number(age) }));
   });
 
-  it.each(["5.1", "25.5", "-0.2", "120.1", "121", "NaN", "Infinity", "not an age"])("rejects invalid age %s without writing", async (age) => {
+  it.each(["-0.2", "120.1", "121", "NaN", "Infinity", "not an age"])("rejects invalid age %s without writing", async (age) => {
     const form = input(); form.set("age", age);
     expect(await createLeadAction(form)).toMatchObject({ ok: false });
     form.delete("branch_id");

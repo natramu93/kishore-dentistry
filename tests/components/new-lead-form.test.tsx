@@ -51,8 +51,8 @@ describe("new lead form", () => {
     const age = screen.getByRole("spinbutton", { name: "Age (years)" });
     expect(age).toHaveAttribute("step", "any");
     expect(age).toHaveAttribute("inputmode", "decimal");
-    expect(age).toHaveAccessibleDescription("Decimals are allowed below 5 years.");
-    for (const value of ["0.2", "2.5", "4.3"]) {
+    expect(age).toHaveAccessibleDescription(/Enter years, including decimals/);
+    for (const value of ["0.2", "2.5", "4.3", "25.5", "119.99"]) {
       fireEvent.change(age, { target: { value } });
       expect(age).toHaveValue(Number(value));
       expect((age as HTMLInputElement).checkValidity()).toBe(true);

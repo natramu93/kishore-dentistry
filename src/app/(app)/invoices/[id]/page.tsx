@@ -69,7 +69,7 @@ export default async function InvoiceDetailPage({
           </div>
           <p className="text-sm text-muted-foreground mt-1">
             {invoice.lead ? (
-              <Link href={`/leads/${invoice.lead.id}`} className="hover:underline">
+              <Link href={`/leads/${invoice.lead.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab" className="hover:underline">
                 {invoice.lead.name}
               </Link>
             ) : "—"}{" "}

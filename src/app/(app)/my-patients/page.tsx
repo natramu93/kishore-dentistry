@@ -10,7 +10,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { clinicDateFilterDefaults } from "@/lib/date-filter-defaults";
-import { fmt, formatINR } from "@/lib/tz";
+import { fmt } from "@/lib/tz";
 
 export const metadata = { title: "My Patients — Dr. Kishor's Dentistry CRM" };
 
@@ -47,10 +47,6 @@ export default async function MyPatientsPage({
     }),
   ]);
   const { records, total, page, pageSize } = result;
-  const totalRevenue = records.reduce(
-    (sum, r) => sum + (r.cost ?? 0) * (r.quantity ?? 1),
-    0,
-  );
 
   return (
     <div className="space-y-4">
@@ -132,7 +128,7 @@ export default async function MyPatientsPage({
               {clinicalFiles.records.map((sheet) => (
                 <li key={sheet.id}>
                   <Link
-                    href={`/my-patients/${sheet.lead_id}`}
+                    href={`/my-patients/${sheet.lead_id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab"
                     className="block h-full rounded-lg border p-3 outline-none transition-colors hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                   >
                     <span className="block font-medium">{sheet.lead?.name ?? "Patient"}</span>
@@ -166,13 +162,12 @@ export default async function MyPatientsPage({
             <TableHead>Patient</TableHead>
             <TableHead>Treatment</TableHead>
             <TableHead className="hidden md:table-cell">Center</TableHead>
-            <TableHead className="text-right">Amount</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {records.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                 No treatment records match these filters
               </TableCell>
             </TableRow>
@@ -182,7 +177,7 @@ export default async function MyPatientsPage({
               <TableCell className="whitespace-nowrap font-medium">{fmt(r.treated_at)}</TableCell>
               <TableCell className="whitespace-normal">
                 {r.lead ? (
-                  <Link href={`/my-patients/${r.lead.id}`} className="font-medium underline-offset-2 hover:underline">
+                  <Link href={`/my-patients/${r.lead.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab" className="font-medium underline-offset-2 hover:underline">
                     {r.lead.name}
                   </Link>
                 ) : (
@@ -223,26 +218,8 @@ export default async function MyPatientsPage({
               <TableCell className="hidden md:table-cell text-muted-foreground">
                 {r.branch?.name ?? "—"}
               </TableCell>
-              <TableCell className="text-right font-semibold whitespace-nowrap">
-                {r.cost != null ? formatINR(r.cost * (r.quantity ?? 1)) : "—"}
-                {r.cost != null && (r.quantity ?? 1) !== 1 && (
-                  <span className="block text-xs font-normal text-muted-foreground">
-                    {r.quantity} × {formatINR(r.cost)}
-                  </span>
-                )}
-              </TableCell>
             </TableRow>
           ))}
-          {records.length > 0 && (
-            <TableRow className="bg-muted/40">
-              <TableCell colSpan={4} className="font-semibold">
-                Page total
-              </TableCell>
-              <TableCell className="text-right font-semibold whitespace-nowrap">
-                {formatINR(totalRevenue)}
-              </TableCell>
-            </TableRow>
-          )}
         </TableBody>
       </Table>
       <PaginationNav

@@ -24,4 +24,10 @@ describe("patient identity", () => {
     expect(patientDisplayName({ title:"Mr",name:"Mr.TEST PATIENT" })).toBe("Mr. Test Patient");
     expect(patientDisplayName({ name:"Test Patient",title:null })).toBe("Test Patient");
   });
+  it("keeps a standalone Baby name and does not duplicate its matching title", () => {
+    expect(patientDisplayName({ name: "baby" })).toBe("Baby");
+    expect(patientDisplayName({ name: "Baby", title: "Baby" })).toBe("Baby");
+    expect(patientDisplayName({ name: "Baby", title: "Ms" })).toBe("Ms. Baby");
+    expect(patientDisplayName({ name: "Baby AMARA", title: "Baby" })).toBe("Baby Amara");
+  });
 });

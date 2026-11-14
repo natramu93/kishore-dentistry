@@ -244,13 +244,13 @@ export default async function AppointmentsPage({
                 {a.lead ? (
                   isDoctor ? (
                     <Link
-                      href={`/my-patients/${a.lead.id}`}
+                      href={`/my-patients/${a.lead.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab"
                       className="font-medium underline-offset-2 hover:underline"
                     >
                       {a.lead.name}
                     </Link>
                   ) : (
-                    <Link href={`/leads/${a.lead.id}`} className="font-medium hover:underline">
+                    <Link href={`/leads/${a.lead.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab" className="font-medium hover:underline">
                       {a.lead.name}
                     </Link>
                   )

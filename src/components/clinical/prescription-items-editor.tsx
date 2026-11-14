@@ -74,7 +74,7 @@ export function PrescriptionItemsEditor({
         <div>
           <h2 className="text-base font-semibold" aria-hidden="true">{legend}</h2>
           <p className="text-sm text-muted-foreground">
-            Add medicines for this visit and clearly mark when each dose should be taken.
+            Record the medicines and dosing instructions provided by the treating doctor.
           </p>
         </div>
         <Button

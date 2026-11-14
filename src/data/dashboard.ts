@@ -125,7 +125,6 @@ export type DoctorDashboardData = {
   todaysAppointments: number;
   weekAppointments: number;
   patientsTreated: number;
-  revenueGenerated: number;
 };
 
 /** Summary for the doctor role, derived from their linked doctor record. */
@@ -140,7 +139,6 @@ export async function getDoctorDashboardData(
       todaysAppointments: 0,
       weekAppointments: 0,
       patientsTreated: 0,
-      revenueGenerated: 0,
     };
   }
 
@@ -161,6 +159,5 @@ export async function getDoctorDashboardData(
     todaysAppointments: Number(row.todays_appointments),
     weekAppointments: Number(row.week_appointments),
     patientsTreated: Number(row.patients_treated),
-    revenueGenerated: Number(row.revenue_generated),
   };
 }

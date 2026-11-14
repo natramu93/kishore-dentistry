@@ -1,5 +1,25 @@
 import { assertDateOnly } from "@/lib/validation";
 import { clinicToday } from "@/lib/tz";
+import type { InvoicePaymentMethod, InvoiceStatus } from "@/lib/database.types";
+
+export const INVOICE_STATUSES: readonly InvoiceStatus[] = ["draft", "sent", "paid", "cancelled"];
+const METHODS: readonly InvoicePaymentMethod[] = ["cash", "upi", "card", "neft"];
+
+export function invoiceListFilters(params: Record<string, string | undefined>) {
+  const dates = invoiceDateFilter(params);
+  return {
+    dates,
+    options: {
+      fromDate: dates.from,
+      toDate: dates.to,
+      leadId: params.lead || undefined,
+      branchId: params.branch || undefined,
+      status: INVOICE_STATUSES.find((status) => status === params.status),
+      dueOnly: params.balance === "due",
+      paymentMethod: METHODS.find((method) => method === params.method),
+    },
+  };
+}
 
 export const INVOICE_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 

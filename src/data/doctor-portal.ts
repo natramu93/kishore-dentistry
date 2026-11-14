@@ -15,7 +15,7 @@ import {
 import { isTreatmentAttachmentSchemaUnavailable } from "@/lib/clinical-files";
 import type { ToothAssessment, Treatment } from "@/lib/database.types";
 
-export type DoctorTreatmentRecord = Treatment & {
+export type DoctorTreatmentRecord = Pick<Treatment, "id" | "treated_at" | "treatment_code" | "treatment_name" | "treatment_category" | "tooth_number" | "tooth_numbers" | "surfaces" | "notes"> & {
   lead: { id: string; name: string } | null;
   treatment_type: { name: string; category: string | null } | null;
   branch: { name: string } | null;
@@ -145,7 +145,7 @@ export async function listMyTreatments(
   let query = db
     .from("treatments")
     .select(
-      "*, lead:leads!inner(id, name), treatment_type:treatment_types(name, category), branch:branches(name)",
+      "id, treated_at, treatment_code, treatment_name, treatment_category, tooth_number, tooth_numbers, surfaces, notes, lead:leads!inner(id, name), treatment_type:treatment_types(name, category), branch:branches(name)",
       { count: "exact" }
     )
     .eq("doctor_id", doctorId)
@@ -292,7 +292,7 @@ export async function getMyPatientHistory(
   const from = (page - 1) * pageSize;
   const sheetsQuery = db
     .from("case_sheets")
-    .select("*, doctor:doctors(full_name), tooth_assessments(*), treatments(*), medical_history:case_sheet_medical_history(*, history:patient_medical_history_versions(*)), prescription_items(*), amendments:case_sheet_amendments(id, revision, reason, changed_by, changed_by_name, changed_at)", { count: "exact" })
+    .select("*, doctor:doctors(full_name), tooth_assessments(*), treatments(id), medical_history:case_sheet_medical_history(*, history:patient_medical_history_versions(*)), prescription_items(*), amendments:case_sheet_amendments(id, revision, reason, changed_by, changed_by_name, changed_at)", { count: "exact" })
     .eq("lead_id", leadId)
     .eq("branch_id", relationship.branch_id)
     .order("visit_at", { ascending: false })
@@ -309,7 +309,7 @@ export async function getMyPatientHistory(
     sheetsQuery.range(from, from + pageSize - 1),
     db
       .from("treatments")
-      .select("*, doctor:doctors(full_name), treatment_type:treatment_types(name, category)")
+      .select("id, treated_at, doctor:doctors(full_name), treatment_type:treatment_types(name, category)")
       .eq("lead_id", leadId)
       .eq("branch_id", relationship.branch_id)
       .is("case_sheet_id", null)

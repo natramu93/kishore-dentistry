@@ -318,7 +318,8 @@ export async function listInvoices(
       { count: "exact" }
     )
     .is("deleted_at", null)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
   if (ctx.role !== "admin") {
     query = query.in(
       "branch_id",

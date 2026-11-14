@@ -11,11 +11,12 @@ function matchesTreatment(option: TreatmentSearchOption, query: string) {
 }
 
 /** A searchable catalog selection, never a free-text invoice charge. */
-export function TreatmentSearch({ id, value, options, onChange, required = false, disabled = false, placeholder = "Search treatments…" }: {
+export function TreatmentSearch({ id, value, options, onChange, onSearchChange, required = false, disabled = false, placeholder = "Search treatments…" }: {
   id: string;
   value: string;
   options: TreatmentSearchOption[];
   onChange: (value: string) => void;
+  onSearchChange?: (value: string) => void;
   required?: boolean;
   disabled?: boolean;
   placeholder?: string;
@@ -24,6 +25,11 @@ export function TreatmentSearch({ id, value, options, onChange, required = false
     items={options}
     value={options.find((option) => option.value === value) ?? null}
     onValueChange={(option) => onChange(option?.value ?? "")}
+    itemToStringLabel={(option) => option.label}
+    itemToStringValue={(option) => option.value}
+    onInputValueChange={(input, details) => {
+      if (details.reason === "input-change") onSearchChange?.(input);
+    }}
     isItemEqualToValue={(option, selected) => option.value === selected.value}
     filter={matchesTreatment}
     autoHighlight

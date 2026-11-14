@@ -1,12 +1,17 @@
 import { z } from "zod";
 import { INDIAN_STANDARD_TEETH } from "@/lib/clinical";
 
+const roundCurrency = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+
+export function invoiceLineAmount(item: { quantity: number; unit_price: number }) {
+  return roundCurrency(item.quantity * item.unit_price);
+}
+
 export function invoiceDisplayTotals(items: readonly { quantity: number; unit_price: number }[], taxRate: number, discount: number) {
-  const round = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
-  const subtotal = round(items.reduce((sum, item) => sum + round(item.quantity * item.unit_price), 0));
+  const subtotal = roundCurrency(items.reduce((sum, item) => sum + invoiceLineAmount(item), 0));
   const safeDiscount = Math.min(Math.max(0, discount), subtotal);
-  const tax = round((subtotal - safeDiscount) * taxRate / 100);
-  return { subtotal, safeDiscount, tax, total: round(subtotal - safeDiscount + tax) };
+  const tax = roundCurrency((subtotal - safeDiscount) * taxRate / 100);
+  return { subtotal, safeDiscount, tax, total: roundCurrency(subtotal - safeDiscount + tax) };
 }
 
 /** The quick consultation shortcut uses the same center catalog and editor as other invoices. */

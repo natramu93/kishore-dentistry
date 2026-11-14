@@ -6,6 +6,7 @@ import { getAuthContext } from "@/lib/auth/context";
 import { getMyPatientHistory } from "@/data/doctor-portal";
 import { getPatientTreatmentProgress } from "@/data/treatment-progress";
 import { TreatmentProgressSummary } from "@/components/clinical/treatment-progress-summary";
+import { VisitHistory } from "@/components/clinical/visit-history";
 import { CaseSheetEditLink } from "@/components/clinical/case-sheet-edit-link";
 import { PatientSectionNav } from "@/components/patients/patient-section-nav";
 import { NotFoundError } from "@/lib/errors";
@@ -67,7 +68,7 @@ export default async function MyPatientHistoryPage({
   const pageRenderedAt = Date.now();
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
+    <div className="mx-auto max-w-7xl space-y-5">
       <Button asChild variant="ghost" size="sm">
         <Link href="/my-patients">
           <ArrowLeft aria-hidden="true" /> Back to my patients
@@ -94,6 +95,7 @@ export default async function MyPatientHistoryPage({
         { id: "patient-overview", label: "Overview" },
         { id: "patient-medical-history", label: "Medical history" },
         { id: "patient-clinical", label: "Treatment progress" },
+        { id: "visit-history", label: "Visit History" },
         ...(currentToothAssessments.length > 0 ? [{ id: "patient-teeth", label: "Tooth chart" }] : []),
         { id: "patient-visit-history", label: "Visits & files" },
       ]} />
@@ -130,8 +132,11 @@ export default async function MyPatientHistoryPage({
         </CardContent>
       </Card>
 
-      <div id="patient-clinical" className="scroll-mt-20">
-        <TreatmentProgressSummary leadId={id} progress={treatmentProgress} />
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(17rem,22rem)]">
+        <div id="patient-clinical" className="min-w-0 scroll-mt-20">
+          <TreatmentProgressSummary leadId={id} planned={treatmentProgress.planned} />
+        </div>
+        <VisitHistory leadId={id} completed={treatmentProgress.completed} />
       </div>
 
       {currentToothAssessments.length > 0 && (

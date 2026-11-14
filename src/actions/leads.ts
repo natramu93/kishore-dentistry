@@ -57,8 +57,7 @@ const leadSchema = z.object({
     (value) => typeof value === "string" ? value.trim() : value,
     z.union([
       z.literal(""),
-      z.coerce.number().min(0, "Age must be between 0 and 120").max(120, "Age must be between 0 and 120")
-        .refine((value) => value < 5 || Number.isInteger(value), "Use a whole number for ages 5 and above"),
+      z.coerce.number().min(0, "Age must be between 0 and 120").max(120, "Age must be between 0 and 120"),
     ]).optional(),
   ),
   dob: optionalDate,

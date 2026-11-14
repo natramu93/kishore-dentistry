@@ -20,7 +20,14 @@ export function PatientIdentityFields({
   const [name, setName] = useState(patientNameTitleCase(initialName));
   const [title, setTitle] = useState(initialTitle ?? "");
   const [gender, setGender] = useState(initialGender ?? genderForTitle(initialTitle) ?? "");
-  return <div className="grid gap-3 sm:col-span-2 sm:grid-cols-[8rem_minmax(0,1fr)_10rem]">
+  return <div className="grid min-w-0 gap-3 sm:col-span-2 sm:grid-cols-2">
+    <div className="min-w-0 space-y-2 sm:col-span-2">
+      <Label htmlFor={`${id}-name`}>Name *</Label>
+      <Input id={`${id}-name`} name="name" autoComplete="name" autoCapitalize="words"
+        maxLength={200} required value={name}
+        onChange={(event) => setName(event.target.value)}
+        onBlur={() => setName(patientNameTitleCase(name))} />
+    </div>
     <div className="space-y-2">
       <Label htmlFor={`${id}-title`}>Title</Label>
       <select id={`${id}-title`} name="title" value={title}
@@ -29,17 +36,11 @@ export function PatientIdentityFields({
           const next = event.target.value as PatientTitle | "";
           setTitle(next);
           setGender(genderForTitle(next) ?? "");
+          if (next === "Baby" && !name.trim()) setName("Baby");
         }}>
         <option value="">Not specified</option>
         {PATIENT_TITLES.map((value) => <option key={value} value={value}>{patientTitleLabel(value)}</option>)}
       </select>
-    </div>
-    <div className="space-y-2">
-      <Label htmlFor={`${id}-name`}>Name *</Label>
-      <Input id={`${id}-name`} name="name" autoComplete="name" autoCapitalize="words"
-        maxLength={200} required value={name}
-        onChange={(event) => setName(event.target.value)}
-        onBlur={() => setName(patientNameTitleCase(name))} />
     </div>
     <div className="space-y-2">
       <Label htmlFor={`${id}-gender`}>Gender</Label>
@@ -50,7 +51,7 @@ export function PatientIdentityFields({
         <option value="">Not specified</option>
         {PATIENT_GENDERS.map((value) => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}
       </select>
-      <p id={`${id}-gender-help`} className="text-xs text-muted-foreground">Suggested from title; you can change it. Choose gender for Baby.</p>
+      <p id={`${id}-gender-help`} className="text-xs text-muted-foreground">Suggested for some titles. You can change it or leave it unspecified.</p>
     </div>
   </div>;
 }

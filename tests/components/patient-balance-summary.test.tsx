@@ -11,6 +11,8 @@ describe("patient-wide invoice dues", () => {
     expect(within(panel).getByText(/not billed again/)).toBeInTheDocument();
     expect(within(panel).queryByText("Newer unpaid bills")).toBeNull();
     expect(screen.getByRole("link")).toHaveAttribute("href", "/leads/patient-1#patient-invoices");
+    expect(screen.getByRole("link")).toHaveAttribute("target", "_blank");
+    expect(screen.getByRole("link")).toHaveAttribute("rel", "noopener noreferrer");
   });
   it("explains later debt when reviewing an older invoice", () => {
     render(<PatientBalanceSummary leadId="patient-1" balance={{ amount_paid: 500, invoice_due: 0, earlier_due: 0, later_due: 500, overall_due: 500, earlier_invoice_count: 0 }} />);

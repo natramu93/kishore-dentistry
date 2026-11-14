@@ -179,8 +179,8 @@ export async function getCaseSheetFormContext(
   if (input.appointmentId) {
     const appointmentId = assertUuid(input.appointmentId, "Appointment");
     const leadProjection = ctx.role === "doctor"
-      ? "id, name, branch_id, deleted_at, branch:branches(name)"
-      : "id, name, mobile, branch_id, deleted_at, branch:branches(name)";
+      ? "id, name, branch_id, assignee_id, deleted_at, branch:branches(name)"
+      : "id, name, mobile, branch_id, assignee_id, deleted_at, branch:branches(name)";
     const { data, error } = await db
       .from("appointments")
       .select(
@@ -190,15 +190,16 @@ export async function getCaseSheetFormContext(
       .maybeSingle();
     if (error) throw error;
     if (!data || !data.lead || data.lead.deleted_at) throw new NotFoundError("Appointment");
-    if (data.status !== "scheduled") {
-      throw new ValidationError("Only a scheduled appointment can receive a new case sheet");
-    }
     if (ctx.role === "doctor") {
       if (!ctx.doctorId || data.doctor_id !== ctx.doctorId) {
         throw new AuthorizationError("This appointment is not on your schedule");
       }
     } else {
       assertBranchAccess(ctx, data.branch_id);
+      if (!canReadLead(ctx, data.lead)) throw new NotFoundError("Appointment");
+    }
+    if (data.status !== "scheduled") {
+      throw new ValidationError("Only a scheduled appointment can receive a new case sheet");
     }
     return {
       lead: data.lead as CaseSheetFormContext["lead"],
@@ -219,12 +220,11 @@ export async function getCaseSheetFormContext(
   const leadId = assertUuid(input.leadId, "Patient");
   const { data, error } = await db
     .from("leads")
-    .select("id, name, mobile, branch_id, deleted_at, branch:branches(name)")
+    .select("id, name, mobile, branch_id, assignee_id, deleted_at, branch:branches(name)")
     .eq("id", leadId)
     .maybeSingle();
   if (error) throw error;
-  if (!data || data.deleted_at) throw new NotFoundError("Patient");
-  assertBranchAccess(ctx, data.branch_id);
+  if (!data || data.deleted_at || !canReadLead(ctx, data)) throw new NotFoundError("Patient");
   return {
     lead: data as CaseSheetFormContext["lead"],
     appointment: null,
@@ -314,12 +314,13 @@ export async function getCaseSheetForEdit(
       *,
       lead:leads!inner(id, name, branch_id, assignee_id, deleted_at, branch:branches(name)),
       doctor:doctors(full_name),
-      treatments(*, invoice_items(id, active_billing), treatment_attachments:case_sheet_attachments!case_sheet_attachments_treatment_id_fkey(id)),
+      treatments(id, treatment_code, planned_treatment_id, treatment_name, clinical_status, site_scope, site_detail, tooth_number, tooth_numbers, surfaces, notes, invoice_items(id), treatment_attachments:case_sheet_attachments!case_sheet_attachments_treatment_id_fkey(id)),
       tooth_assessments(*),
       medical_history:case_sheet_medical_history(*, history:patient_medical_history_versions(*)),
       prescription_items(*)
     `)
     .eq("id", id)
+    .order("line_number", { referencedTable: "prescription_items" })
     .maybeSingle();
   if (error) throw error;
   if (!data) throw new NotFoundError("Case sheet");
@@ -347,7 +348,7 @@ export async function getCaseSheetForEdit(
       tooth_numbers: string[] | null;
     surfaces: string[] | null;
     notes: string | null;
-    invoice_items: Array<{ id: string; active_billing: boolean }>;
+    invoice_items: Array<{ id: string }>;
     treatment_attachments: Array<{ id: string }>;
     }>;
     tooth_assessments: Array<{
@@ -561,7 +562,7 @@ export async function listCaseSheetsForLead(
   const legacyClinicalProjection =
     "*, doctor:doctors(full_name), tooth_assessments(*), treatments(*, treatment_code_ref:treatment_codes!treatments_treatment_code_fkey(name, category), invoice_items(id, invoice_id, active_billing)), medical_history:case_sheet_medical_history(*, history:patient_medical_history_versions(*)), prescription_items(*), amendments:case_sheet_amendments(id, revision, reason, changed_by, changed_by_name, changed_at), case_sheet_attachments(id, case_sheet_id, lead_id, branch_id, category, bucket_id, original_name, mime_type, size_bytes, status, uploaded_at, created_at)";
   const businessProjection =
-    "id, lead_id, branch_id, appointment_id, doctor_id, visit_at, finalized_at, created_at, version, doctor:doctors(full_name), amendments:case_sheet_amendments(id, revision, reason, changed_by, changed_by_name, changed_at), treatments(id, treatment_code, treatment_name, treatment_category, clinical_status, site_scope, site_detail, tooth_number, tooth_numbers, surfaces, quantity, cost, invoice_items(id, invoice_id, active_billing))";
+    "id, lead_id, branch_id, appointment_id, doctor_id, visit_at, finalized_at, created_at, version, doctor:doctors(full_name), amendments:case_sheet_amendments(id, revision, reason, changed_by, changed_by_name, changed_at), treatments(id, treatment_code, treatment_name, treatment_category, clinical_status, site_scope, site_detail, tooth_number, tooth_numbers, surfaces, quantity)";
   const buildQuery = (projection: string) => {
     let query = db
       .from("case_sheets")

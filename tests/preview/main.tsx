@@ -6,6 +6,9 @@ import { InvoiceEditor } from "@/components/invoices/invoice-editor";
 import { RecordPaymentForm } from "@/components/invoices/record-payment-form";
 import { PatientSectionNav } from "@/components/patients/patient-section-nav";
 import { TreatmentProgressSummary } from "@/components/clinical/treatment-progress-summary";
+import { VisitHistory } from "@/components/clinical/visit-history";
+import { PatientIdentityFields } from "@/components/leads/patient-identity-fields";
+import { RowEditDialog } from "@/components/admin/row-edit-dialog";
 import type { TreatmentProgressRecord } from "@/lib/treatment-progress";
 import "@/app/globals.css";
 
@@ -17,6 +20,14 @@ const pendingPlan: TreatmentProgressRecord = {
   tooth_number: null, tooth_numbers: ["16", "26", "36"], remaining_tooth_numbers: ["26", "36"],
   surfaces: [], notes: "Synthetic earlier plan: review the remaining teeth at the next visit.",
   treated_at: "2026-09-01T04:30:00.000Z", performed_at: null, doctor: { full_name: "Preview doctor" },
+};
+const completedVisit: TreatmentProgressRecord = {
+  ...pendingPlan,
+  id: "00000000-0000-4000-8000-000000000008",
+  clinical_status: "completed",
+  treatment_name: "Restoration",
+  treated_at: "2026-09-10T04:30:00.000Z",
+  performed_at: "2026-09-10T04:30:00.000Z",
 };
 
 function Preview() {
@@ -31,10 +42,15 @@ function Preview() {
     <header className="space-y-3 rounded-lg border bg-muted p-3">
       <h1 className="font-bold">Dental workflow preview</h1>
       <p className="text-sm">Synthetic examples only. No database connection; Save only previews the submitted values in memory.</p>
-      <nav aria-label="Preview workflow" className="flex gap-3">
+      <nav aria-label="Preview workflow" className="flex flex-wrap gap-3">
         <button className="min-h-11 rounded border bg-background px-3" aria-pressed={view === "case-sheet"} onClick={() => setView("case-sheet")}>Case sheet</button>
         <button className="min-h-11 rounded border bg-background px-3" aria-pressed={view === "invoice"} onClick={() => setView("invoice")}>Invoice</button>
         <button className="min-h-11 rounded border bg-background px-3" aria-pressed={view === "payment"} onClick={() => setView("payment")}>Payment</button>
+        <RowEditDialog title="Edit lead details" triggerLabel="Edit patient" contentClassName="sm:max-w-2xl"
+          action={async (form) => { setPayload(Object.fromEntries(form)); return { ok: true }; }}>
+          <PatientIdentityFields />
+          <label className="block">Age (years)<input name="age" type="number" min="0" max="120" step="any" inputMode="decimal" className="block h-11 w-full rounded-md border p-2" /></label>
+        </RowEditDialog>
       </nav>
     </header>
     <PatientSectionNav sections={[{ id: "preview-entry", label: "Visit entry" }, { id: "preview-progress", label: "Treatment progress" }, { id: "preview-output", label: "Submitted values" }]} />
@@ -45,7 +61,6 @@ function Preview() {
       doctors={[{ id: "00000000-0000-4000-8000-000000000003", label: "Preview doctor" }]}
       doctorLocked
       treatmentCodes={[{ code: "K02.9", name: "Dental caries, unspecified", code_system: "ICD10_IN", code_level: "detail", billable: true }]}
-      canPrescribe
       pendingPlans={{ records: [pendingPlan], total: 1 }}
     /> : view === "payment" ? <RecordPaymentForm invoiceId="00000000-0000-4000-8000-000000000009" balanceDue={800} /> : <InvoiceEditor
       mode="create"
@@ -59,8 +74,12 @@ function Preview() {
       existingBalanceDue={200}
     />}
     </section>
-    <section id="preview-progress" className="scroll-mt-20">
-      <TreatmentProgressSummary leadId="00000000-0000-4000-8000-000000000001" progress={{ planned: { records: [pendingPlan], total: 1 }, completed: { records: [{ ...pendingPlan, id: "00000000-0000-4000-8000-000000000008", clinical_status: "completed", site_scope: "tooth", tooth_number: "16", tooth_numbers: ["16"], remaining_tooth_numbers: ["16"], planned_treatment_id: pendingPlan.id, performed_at: "2026-09-10T04:30:00.000Z", notes: "Synthetic completed work on one tooth." }], total: 1 } }} />
+    <section id="preview-progress" className="grid scroll-mt-20 items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)]">
+      <TreatmentProgressSummary leadId="00000000-0000-4000-8000-000000000001" planned={{ records: [pendingPlan], total: 1 }} />
+      <aside className="min-w-0 space-y-4" aria-label="Visit history and activity">
+        <VisitHistory leadId="00000000-0000-4000-8000-000000000001" completed={{ records: [completedVisit], total: 1 }} />
+        <div className="rounded-lg border p-3"><h2 className="font-medium">Activity</h2><p className="text-sm">Synthetic activity item.</p></div>
+      </aside>
     </section>
     <section id="preview-output" className="scroll-mt-20">
     {payload !== null && <section aria-label="Preview submitted values" className="rounded border p-3">

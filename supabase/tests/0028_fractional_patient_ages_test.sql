@@ -41,7 +41,7 @@ begin
   insert into crm.user_branches(user_id,branch_id) values(v_ops,v_branch),(v_front,v_branch),(v_doctor,v_branch);
   execute 'set local role service_role';
 
-  foreach v_age in array array[0,0.2,2.5,4.3,4.99,5,37,120]::numeric[] loop
+  foreach v_age in array array[0,0.2,2.5,4.3,4.99,5,5.1,25.5,37,119.99,120]::numeric[] loop
     select * into v_lead from crm.create_lead(v_branch,'  CHILD   PATIENT ','9000000028',null,null,null,v_age,null,null,v_ops,'Master',null);
     if v_lead.age is distinct from v_age or v_lead.assignee_id<>v_ops or v_lead.title<>'Master'
        or v_lead.gender<>'male' or v_lead.name<>'Child Patient' then
@@ -52,12 +52,21 @@ begin
   if v_lead.age<>0.2 then raise exception 'decimal age rounded during edit'; end if;
   update crm.leads set age=4.3 where id=v_lead.id returning * into v_lead;
   if v_lead.age<>4.3 then raise exception 'decimal age lost during edit'; end if;
+  update crm.leads set age=25.5, name=' baby ', title='Baby', gender=null where id=v_lead.id returning * into v_lead;
+  if v_lead.age<>25.5 or v_lead.name<>'Baby' or v_lead.title<>'Baby' or v_lead.gender is not null then
+    raise exception 'adult decimal age or Baby name was not preserved during edit';
+  end if;
   update crm.leads set age=null where id=v_lead.id returning * into v_lead;
   if v_lead.age is not null then raise exception 'age could not be cleared'; end if;
   select * into v_lead from crm.create_lead(v_branch,'Unknown Age','9000000028',null,null,null,null,null,null,v_front);
   if v_lead.age is not null or v_lead.assignee_id<>v_front then raise exception 'optional age or legacy ten-argument intake failed'; end if;
 
-  foreach v_age in array array[5.1,25.5,-0.2,120.1,121,'NaN'::numeric,'Infinity'::numeric,'-Infinity'::numeric] loop
+  select * into v_lead from crm.create_lead(v_branch,'Baby','9000000028',null,null,null,0.2,null,null,v_front,'Baby',null);
+  if v_lead.name<>'Baby' or v_lead.age<>0.2 or v_lead.title<>'Baby' or v_lead.gender is not null then
+    raise exception 'Baby is not accepted as a standalone name';
+  end if;
+
+  foreach v_age in array array[-0.2,120.1,121,'NaN'::numeric,'Infinity'::numeric,'-Infinity'::numeric] loop
     v_rejected := false;
     begin
       perform crm.create_lead(v_branch,'Invalid Age','9000000028',null,null,null,v_age,null,null,v_ops);
@@ -86,5 +95,5 @@ begin
   if not v_rejected then raise exception 'doctor intake permissions changed'; end if;
 end
 $test$;
-select 'ok - decimal ages below 5, whole ages, nulls, intake, edits and access controls';
+select 'ok - decimal ages across the full range, Baby name, intake, edits and access controls';
 rollback;

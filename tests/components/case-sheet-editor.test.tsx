@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CaseSheetEditor, type CaseSheetEditorInitialValues } from "@/components/clinical/case-sheet-editor";
 import type { MedicalHistoryDraft } from "@/lib/medical-history";
+import { createPrescriptionItemDraft } from "@/lib/prescriptions";
 
 const mocks = vi.hoisted(() => ({
   finalize: vi.fn(),
@@ -120,6 +121,39 @@ describe("simplified CaseSheetEditor", () => {
     await waitFor(() => expect(mocks.finalize).toHaveBeenCalledWith(expect.objectContaining({
       findings: "Examined teeth; discussed observation and restoration options.",
       diagnosis: "", plan: "", treatments: [],
+    })));
+  });
+
+  it("includes a new prescription when any authorized editor saves a visit", async () => {
+    render(<CaseSheetEditor {...props} />);
+    fillVisit();
+    const prescription = within(screen.getByRole("group", { name: "Prescription for this visit" }));
+    fireEvent.click(prescription.getByRole("button", { name: "Add medicine" }));
+    fireEvent.change(prescription.getByLabelText("Medicine name"), { target: { value: "Visit medicine" } });
+    fireEvent.click(prescription.getByLabelText("Morning"));
+    fireEvent.click(screen.getByRole("button", { name: "Save case sheet" }));
+    await waitFor(() => expect(mocks.finalize).toHaveBeenCalledWith(expect.objectContaining({
+      doctor_id: props.doctors[0].id,
+      prescriptions: [expect.objectContaining({ medicine_name: "Visit medicine", morning: true })],
+    })));
+  });
+
+  it("loads and saves existing prescription lines with the amendment reason and version", async () => {
+    render(<CaseSheetEditor {...props} doctorLocked caseSheetId="00000000-0000-4000-8000-000000000004" expectedVersion={2} initialValues={{
+      doctorId: props.doctors[0].id, visitAt: "2026-09-29T04:30:00Z", chiefComplaint: "Review",
+      findings: "Visit recorded", diagnosis: "", plan: "",
+      medicalHistory: { reviewStatus: "reviewed_none", reviewedToday: true, conditions: [], description: "" },
+      prescriptions: [{ ...createPrescriptionItemDraft("recorded-line"), medicine_name: "Visit medicine", morning: true }],
+      toothAssessments: [], treatments: [],
+    }} />);
+    expect(screen.getByLabelText("Medicine name")).toHaveValue("Visit medicine");
+    fireEvent.change(screen.getByLabelText("Additional instructions"), { target: { value: "Corrected visit instructions" } });
+    fireEvent.change(screen.getByLabelText("Reason for amendment"), { target: { value: "Record the corrected instructions" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save case sheet" }));
+    await waitFor(() => expect(mocks.amend).toHaveBeenCalledWith(expect.objectContaining({
+      amendment_reason: "Record the corrected instructions", expected_version: 2,
+      doctor_id: props.doctors[0].id,
+      prescriptions: [expect.objectContaining({ client_id: "recorded-line", instructions: "Corrected visit instructions" })],
     })));
   });
 

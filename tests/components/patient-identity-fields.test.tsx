@@ -15,9 +15,15 @@ describe("patient title and gender inputs", () => {
     expect(gender).toHaveValue("female");
     fireEvent.change(title, { target: { value: "Baby" } });
     expect(gender).toHaveValue("");
+    expect(screen.getByRole("textbox", { name: "Name *" })).toHaveValue("Baby");
     fireEvent.change(gender, { target: { value: "female" } });
     expect(gender).toHaveValue("female");
     expect(gender).toBeEnabled();
+  });
+  it("does not overwrite a name already entered when choosing the Baby title", () => {
+    render(<PatientIdentityFields initialName="Amara Kumari" />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Title" }), { target: { value: "Baby" } });
+    expect(screen.getByRole("textbox", { name: "Name *" })).toHaveValue("Amara Kumari");
   });
   it("formats names on blur while preserving spaces during typing", () => {
     render(<PatientIdentityFields />);

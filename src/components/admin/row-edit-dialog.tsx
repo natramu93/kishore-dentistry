@@ -19,11 +19,13 @@ export function RowEditDialog({
   action,
   children,
   triggerLabel = "Edit",
+  contentClassName,
 }: {
   title: string;
   action: (formData: FormData) => Promise<ActionResult>;
   children: React.ReactNode;
   triggerLabel?: string;
+  contentClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -65,7 +67,7 @@ export function RowEditDialog({
           </Button>
         }
       />
-      <DialogContent>
+      <DialogContent className={contentClassName}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>

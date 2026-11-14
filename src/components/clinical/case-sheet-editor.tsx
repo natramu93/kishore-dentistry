@@ -62,7 +62,6 @@ export type CaseSheetEditorProps = {
   doctors: ClinicalDoctorOption[];
   doctorLocked?: boolean;
   treatmentCodes: TreatmentCodeOption[];
-  canPrescribe?: boolean;
   medicationSuggestions?: MedicationSuggestion[];
   initialMedicalHistory?: MedicalHistoryDraft;
   initialValues?: CaseSheetEditorInitialValues;
@@ -162,7 +161,6 @@ export function CaseSheetEditor({
   doctors,
   doctorLocked = false,
   treatmentCodes,
-  canPrescribe = false,
   medicationSuggestions = [],
   initialMedicalHistory,
   initialValues,
@@ -582,28 +580,16 @@ export function CaseSheetEditor({
             </div>
           </section>
 
-          {canPrescribe ? (
-            <section aria-labelledby={`${idPrefix}-prescription-heading`} className="space-y-4">
-              <h2 id={`${idPrefix}-prescription-heading`} className="sr-only">Prescription for this visit</h2>
-              <PrescriptionItemsEditor
-                value={prescriptions}
-                errors={errors}
-                legend="Prescription for this visit"
-                suggestions={medicationSuggestions}
-                onChange={(next) => {
-                  setDirty(true);
-                  setPrescriptions(next);
-                }}
-              />
-            </section>
-          ) : (
-            <section className="rounded-xl border border-dashed p-4" aria-label="Prescription for this visit">
-              <h2 className="text-base font-semibold">Prescription for this visit</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Prescription lines can be signed only by the treating doctor from their own account.
-              </p>
-            </section>
-          )}
+          <PrescriptionItemsEditor
+            value={prescriptions}
+            errors={errors}
+            legend="Prescription for this visit"
+            suggestions={medicationSuggestions}
+            onChange={(next) => {
+              setDirty(true);
+              setPrescriptions(next);
+            }}
+          />
 
           <div className="sticky bottom-0 z-10 flex flex-col-reverse gap-2 border-t bg-background py-4 sm:flex-row sm:justify-end">
             <Button type="submit" disabled={pending} className="sm:min-w-44">

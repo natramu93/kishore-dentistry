@@ -10,11 +10,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ToothSelector } from "@/components/clinical/tooth-selector";
-import { invoiceDisplayTotals } from "@/lib/invoice-lines";
+import { invoiceDisplayTotals, invoiceLineAmount } from "@/lib/invoice-lines";
 import { TreatmentSearch } from "@/components/invoices/treatment-search";
 import { preventImplicitInvoiceSubmit } from "./invoice-form-keyboard";
 import { clinicToday, formatINR } from "@/lib/tz";
-import { LockKeyhole, Plus, Trash2 } from "lucide-react";
+import { LockKeyhole, Pencil, Plus, Trash2 } from "lucide-react";
 
 export type CodedInvoiceItem = {
   invoice_item_id?: string;
@@ -47,6 +47,20 @@ export type InvoiceCatalogTreatment = {
 };
 
 type EditableItem = CodedInvoiceItem & { rowKey: string };
+type LineDraft = Omit<CodedInvoiceItem, "quantity" | "unit_price"> & { quantity: string; unit_price: string };
+const emptyDraft = (): LineDraft => ({ description: "", site_label: "", quantity: "1", unit_price: "0" });
+const MAX_LINES = 100;
+
+function lineSite(item: CodedInvoiceItem | LineDraft) {
+  return item.tooth_numbers?.length && !item.treatment_id
+    ? `Teeth ${item.tooth_numbers.join(", ")}`
+    : item.site_label || "General / not tooth-specific";
+}
+
+function validLineNumber(value: number, min: number, max: number) {
+  const scaled = value * 100;
+  return Number.isFinite(value) && value >= min && value <= max && Math.abs(scaled - Math.round(scaled)) < 1e-6;
+}
 
 export function InvoiceEditor({
   mode,
@@ -86,11 +100,17 @@ export function InvoiceEditor({
   const router = useRouter();
   const idPrefix = useId();
   const nextRowKey = useRef(initialItems.length);
-  const rowToFocus = useRef<string | null>(null);
+  const focusEntry = useRef(false);
+  const entryRef = useRef<HTMLFieldSetElement>(null);
   const [items, setItems] = useState<EditableItem[]>(() =>
-    initialItems.length ? initialItems.map((item, index) => ({ ...item, rowKey: `initial-${index}` }))
-      : mode === "create" && treatmentOptions.length ? [{ rowKey: "first-line", treatment_type_id: null, description: "", site_label: "General / not tooth-specific", quantity: 1, unit_price: 0 }] : []
+    initialItems.map((item, index) => ({ ...item, rowKey: `initial-${index}` }))
   );
+  const [draft, setDraft] = useState<LineDraft>(emptyDraft);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [entryVersion, setEntryVersion] = useState(0);
+  const [searchEdited, setSearchEdited] = useState(false);
+  const [lineError, setLineError] = useState("");
+  const [lineFeedback, setLineFeedback] = useState("");
   const [taxRate, setTaxRate] = useState(initialTaxRate);
   const [notes, setNotes] = useState(initialNotes);
   const [discount, setDiscount] = useState(initialDiscount);
@@ -103,15 +123,10 @@ export function InvoiceEditor({
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
-    const rowKey = rowToFocus.current;
-    if (!rowKey) return;
-    const input = document.getElementById(`${idPrefix}-${rowKey}-row`)
-      ?.querySelector<HTMLInputElement>('input[role="combobox"], input[type="number"]');
-    if (!input) return;
-    rowToFocus.current = null;
-    input.focus({ preventScroll: true });
-    input.scrollIntoView?.({ block: "center", behavior: "auto" });
-  }, [items, idPrefix]);
+    if (!focusEntry.current) return;
+    focusEntry.current = false;
+    entryRef.current?.querySelector<HTMLInputElement>('input[role="combobox"], input[type="number"]:not([readonly])')?.focus();
+  }, [entryVersion]);
 
   useEffect(() => {
     if (!dirty || pending) return;
@@ -122,85 +137,110 @@ export function InvoiceEditor({
 
   const { subtotal, safeDiscount, tax: discountedTax, total } = invoiceDisplayTotals(items, taxRate, discount);
   const selectedIds = new Set(items.map((item) => item.treatment_id));
-  const available = treatmentCatalog.filter((item) => !selectedIds.has(item.id));
-  const searchOptions = useMemo(() => treatmentOptions.map((option) => ({
-    value: option.id,
+  const available = mode === "edit" ? treatmentCatalog.filter((item) => !selectedIds.has(item.id)) : [];
+  const catalogOptions = useMemo(() => treatmentOptions.map((option) => ({
+    value: `catalog:${option.id}`,
     label: `${option.is_general_consultation ? "General consultation" : option.name}${option.category ? ` — ${option.category}` : ""}`,
     searchText: `${option.name} ${option.category ?? ""} ${option.is_general_consultation ? "general consultation" : ""}`,
   })), [treatmentOptions]);
+  const searchOptions = [
+    ...catalogOptions,
+    ...available.map((item) => ({ value: `case:${item.id}`, label: `${item.code} — ${item.name} — ${item.site_label}` })),
+  ];
+  const existingEdit = items.find((item) => item.rowKey === editingKey);
+  const linkedEdit = Boolean(existingEdit?.treatment_id);
+  const draftSelection = draft.treatment_id ? `case:${draft.treatment_id}` : draft.treatment_type_id ? `catalog:${draft.treatment_type_id}` : "";
+  const hasDraft = Boolean(editingKey || draftSelection || searchEdited || draft.line_note?.trim() || draft.tooth_numbers?.length || draft.quantity !== "1" || draft.unit_price !== "0");
 
-  function updateItem(
-    rowKey: string,
-    patch: Partial<Pick<CodedInvoiceItem, "quantity" | "unit_price" | "tooth_numbers" | "line_note">>
-  ) {
+  function patchDraft(patch: Partial<LineDraft>) {
     setDirty(true);
-    setItems((previous) =>
-      previous.map((item) => (item.rowKey === rowKey ? { ...item, ...patch } : item))
-    );
+    setLineError("");
+    setDraft((current) => ({ ...current, ...patch }));
   }
 
-  function addTreatment(id: string) {
-    const treatment = treatmentCatalog.find((item) => item.id === id);
-    if (!treatment || selectedIds.has(treatment.id)) return;
-    const rowKey = `new-${nextRowKey.current++}`;
-    rowToFocus.current = rowKey;
-    setDirty(true);
-    setItems((previous) => [
-      ...previous,
-      {
-        rowKey,
-        treatment_id: treatment.id,
-        treatment_code: treatment.code,
-        description: treatment.name,
-        site_label: treatment.site_label,
-        quantity: treatment.quantity,
-        unit_price: treatment.unit_price,
-      },
-    ]);
+  function resetEntry() {
+    setDraft(emptyDraft());
+    setEditingKey(null);
+    setSearchEdited(false);
+    setLineError("");
+    focusEntry.current = true;
+    setEntryVersion((version) => version + 1);
   }
 
-  function addCatalogLine(afterRowKey?: string) {
-    if (treatmentOptions.length === 0) {
-      toast.error("No active treatments are available for this center. Ask a center admin to add treatments first.");
+  function selectTreatment(value: string) {
+    setSearchEdited(false);
+    if (value.startsWith("case:")) {
+      const item = available.find((item) => item.id === value.slice(5));
+      if (!item) return;
+      patchDraft({
+        treatment_id: item.id, treatment_type_id: null, treatment_code: item.code,
+        description: item.name, site_label: item.site_label, tooth_numbers: [],
+        quantity: String(item.quantity), unit_price: String(item.unit_price),
+      });
       return;
     }
-    const rowKey = `catalog-${nextRowKey.current++}`;
-    rowToFocus.current = rowKey;
-    setDirty(true);
-    const newItem: EditableItem = {
-      rowKey,
-      treatment_id: null,
-      treatment_type_id: null,
-      treatment_code: null,
-      description: "",
-      site_label: "General / not tooth-specific",
-      tooth_numbers: [],
-      line_note: "",
-      quantity: 1,
-      unit_price: 0,
-    };
-    setItems((previous) => {
-      const index = afterRowKey ? previous.findIndex((item) => item.rowKey === afterRowKey) : -1;
-      const insertAt = index === -1 ? previous.length : index + 1;
-      return [...previous.slice(0, insertAt), newItem, ...previous.slice(insertAt)];
+    const item = treatmentOptions.find((item) => `catalog:${item.id}` === value);
+    patchDraft({
+      treatment_id: null, treatment_code: null, treatment_type_id: item?.id ?? null,
+      description: item?.name ?? "", site_label: "",
+      quantity: draft.treatment_id ? "1" : draft.quantity,
+      unit_price: String(item?.default_cost ?? 0),
     });
   }
 
-  function selectCatalogTreatment(rowKey: string, treatmentTypeId: string) {
-    const selection = treatmentOptions.find((option) => option.id === treatmentTypeId);
-    if (treatmentTypeId && !selection) return;
+  function commitLine() {
+    if (pending) return;
+    if (!draftSelection || searchEdited) {
+      setLineError("Choose a treatment from the search results before adding the line.");
+      return;
+    }
+    if (!editingKey && items.length >= MAX_LINES) {
+      setLineError(`An invoice can contain at most ${MAX_LINES} lines.`);
+      return;
+    }
+    const quantity = Number(draft.quantity);
+    const price = Number(draft.unit_price);
+    if (!validLineNumber(quantity, 0.01, 100_000)) {
+      setLineError("Enter a quantity from 0.01 to 100,000, with at most two decimals.");
+      return;
+    }
+    if (draft.unit_price === "" || !validLineNumber(price, 0, 99_999_999.99)) {
+      setLineError("Enter a valid unit price with at most two decimals. Use 0 for a no-charge treatment.");
+      return;
+    }
+    const line: EditableItem = {
+      ...draft, quantity, unit_price: price, line_note: draft.line_note?.trim(),
+      rowKey: editingKey ?? `new-${nextRowKey.current++}`,
+    };
     setDirty(true);
-    setItems((previous) => previous.map((item) => item.rowKey === rowKey ? {
-      ...item,
-      treatment_type_id: selection?.id ?? null,
-      description: selection?.name ?? "",
-      unit_price: selection ? selection.default_cost ?? item.unit_price : 0,
-    } : item));
+    setItems((previous) => editingKey
+      ? previous.map((item) => item.rowKey === editingKey ? line : item)
+      : [...previous, line]);
+    setLineFeedback(`${line.description} ${editingKey ? "updated" : "added"}.`);
+    resetEntry();
+  }
+
+  function editLine(item: EditableItem) {
+    if (editingKey === item.rowKey) {
+      entryRef.current?.querySelector<HTMLInputElement>('input[role="combobox"], input[type="number"]:not([readonly])')?.focus();
+      return;
+    }
+    if (hasDraft) {
+      setLineError("Add, update, or clear the current entry before editing another line.");
+      entryRef.current?.scrollIntoView?.({ block: "nearest" });
+      return;
+    }
+    setEditingKey(item.rowKey);
+    setDraft({ ...item, quantity: String(item.quantity), unit_price: String(item.unit_price) });
+    setLineError("");
+    focusEntry.current = true;
+    setEntryVersion((version) => version + 1);
   }
 
   function removeItem(rowKey: string) {
     setDirty(true);
     setItems((previous) => previous.filter((item) => item.rowKey !== rowKey));
+    if (editingKey === rowKey) resetEntry();
   }
 
   function cancel() {
@@ -209,6 +249,12 @@ export function InvoiceEditor({
   }
 
   function submit() {
+    if (pending) return;
+    if (hasDraft) {
+      setLineError(editingKey ? "Click Update line or cancel the line edit before saving the invoice." : "Click Add treatment or clear the entry before saving the invoice.");
+      entryRef.current?.scrollIntoView?.({ block: "nearest" });
+      return;
+    }
     if (mode === "create" && (!consultingDoctor.trim() || !referringDoctor.trim())) {
       toast.error("Enter both doctor details; choose No referring doctor for a walk-in.");
       return;
@@ -320,150 +366,100 @@ export function InvoiceEditor({
             </div>
           </div>}
 
-          {mode === "edit" && available.length > 0 && <details className="space-y-1.5">
-            <summary className="cursor-pointer text-sm font-medium">Add from a saved case sheet (optional)</summary>
-            <Label htmlFor={`${idPrefix}-treatment`}>Add a completed case-sheet treatment (optional)</Label>
-            <TreatmentSearch
-              id={`${idPrefix}-treatment`}
-              value=""
-              onChange={(value) => value && addTreatment(value)}
-              options={available.map((treatment) => ({ value: treatment.id, label: `${treatment.code} — ${treatment.name} — ${treatment.site_label}` }))}
-              placeholder="Search coded treatments…"
-              disabled={available.length === 0}
-            />
-          </details>}
-
           <section aria-labelledby={`${idPrefix}-items-heading`} className="space-y-3">
             <h2 id={`${idPrefix}-items-heading`} className="text-base font-semibold">Invoice line items</h2>
-            {treatmentOptions.length === 0 && (
-              <p role="status" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-100">
-                No active treatments are configured for this center, so an invoice line cannot be selected yet. Ask a center admin to update the treatment list.
-              </p>
-            )}
-            {items.length === 0 && (
-              <div className="space-y-3">
-                <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                  There are no invoice lines yet. Add a treatment line, then choose a treatment from this center’s list.
-                </p>
-                <Button type="button" variant="outline" className="w-full border-dashed" disabled={pending} onClick={() => addCatalogLine()}>
-                  <Plus aria-hidden="true" /> Add treatment
-                </Button>
-              </div>
-            )}
-            {items.map((item, index) => {
-              const quantityId = `${idPrefix}-${item.rowKey}-quantity`;
-              const priceId = `${idPrefix}-${item.rowKey}-price`;
-              const isCatalogLine = !item.treatment_id;
-              const isPrimary = mode === "edit" && Boolean(primaryTreatmentId) && item.treatment_id === primaryTreatmentId;
-              return (
-                <fieldset
-                  key={item.rowKey}
-                  id={`${idPrefix}-${item.rowKey}-row`}
-                  className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_44px] items-end gap-3 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_90px_130px_44px]"
-                >
-                  <legend className="sr-only">Treatment line {index + 1}</legend>
-                  <div className="col-span-full min-w-0 sm:col-span-1">
-                    {isCatalogLine ? (
-                      <div className="space-y-1.5">
-                        <Label htmlFor={`${idPrefix}-${item.rowKey}-catalog`}>Treatment</Label>
-                        <TreatmentSearch
-                          id={`${idPrefix}-${item.rowKey}-catalog`}
-                          value={item.treatment_type_id ?? ""}
-                          onChange={(value) => selectCatalogTreatment(item.rowKey, value)}
-                          options={searchOptions}
-                          disabled={pending}
-                          required
-                        />
+            {items.length ? (
+              <ul aria-label="Added treatment lines" className="divide-y rounded-lg border">
+                {items.map((item, index) => {
+                  const isPrimary = mode === "edit" && Boolean(primaryTreatmentId) && item.treatment_id === primaryTreatmentId;
+                  return (
+                    <li key={item.rowKey} aria-label={`Treatment line ${index + 1}: ${item.description}`}
+                      className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 p-3">
+                      <div className="min-w-0 space-y-1 text-sm">
+                        <p className="break-words font-medium">{item.description}{isPrimary && <span className="ml-2 text-xs font-normal text-muted-foreground">Primary treatment</span>}</p>
+                        <p className="break-words text-xs text-muted-foreground">{lineSite(item)}</p>
+                        {item.line_note && <p className="whitespace-pre-wrap break-words text-xs text-muted-foreground">{item.line_note}</p>}
+                        <p className="tabular-nums text-xs text-muted-foreground">{item.quantity} × {formatINR(item.unit_price)} <span className="font-semibold text-foreground">= {formatINR(invoiceLineAmount(item))}</span></p>
                       </div>
+                      <div className="flex shrink-0 gap-1">
+                        <Button type="button" variant="ghost" size="icon-lg" disabled={pending}
+                          aria-label={`Edit treatment line ${index + 1}: ${item.description}`} title="Edit line" onClick={() => editLine(item)}>
+                          <Pencil aria-hidden="true" />
+                        </Button>
+                        <Button type="button" variant="ghost" size="icon-lg" disabled={pending || isPrimary}
+                          aria-label={isPrimary ? "The primary treatment cannot be removed" : `Remove treatment line ${index + 1}: ${item.description}`}
+                          title={isPrimary ? "The primary treatment must remain on this invoice" : "Remove line"} onClick={() => removeItem(item.rowKey)}>
+                          <Trash2 aria-hidden="true" />
+                        </Button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : <p className="text-sm text-muted-foreground">No treatment lines added yet.</p>}
+
+            {searchOptions.length === 0 && !existingEdit ? (
+              <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-100">
+                No active treatments are configured for this center. Ask a center admin to update the treatment list.
+              </p>
+            ) : (
+              <fieldset ref={entryRef} disabled={pending} className="min-w-0 space-y-3 rounded-lg border p-3"
+                aria-describedby={lineError ? `${idPrefix}-line-error` : undefined}>
+                <legend className="px-1 text-sm font-semibold">{existingEdit ? "Edit treatment line" : "Add a treatment line"}</legend>
+                <div className="grid min-w-0 grid-cols-2 items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(5rem,0.3fr)_minmax(7rem,0.4fr)]">
+                  <div className="col-span-full min-w-0 space-y-1.5 lg:col-span-1">
+                    <Label htmlFor={linkedEdit ? undefined : `${idPrefix}-treatment`}>Treatment</Label>
+                    {linkedEdit ? (
+                      <p className="break-words text-sm font-medium">{draft.treatment_code} · {draft.description}</p>
                     ) : (
-                    <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
-                      <span className="rounded border px-1.5 py-0.5 font-mono text-xs">
-                        {item.treatment_code}
-                      </span>
-                      <span>{item.description}</span>
-                      {isPrimary && (
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-normal">
-                          Primary line
-                        </span>
-                      )}
-                    </div>
+                      <TreatmentSearch key={entryVersion} id={`${idPrefix}-treatment`} value={draftSelection}
+                        options={searchOptions} onChange={selectTreatment} disabled={pending}
+                        onSearchChange={(value) => {
+                          setDirty(true);
+                          setSearchEdited(Boolean(value.trim() || draftSelection));
+                          setLineError("");
+                        }} />
                     )}
                   </div>
                   <div className="min-w-0 space-y-1.5">
-                    <Label htmlFor={quantityId}>Quantity</Label>
-                    <Input
-                      id={quantityId}
-                      type="number"
-                      inputMode="decimal"
-                      min={0.01}
-                      step={0.01}
-                      value={item.quantity}
-                      onChange={(event) => updateItem(item.rowKey, { quantity: Number(event.target.value) })}
-                    />
+                    <Label htmlFor={`${idPrefix}-quantity`}>Quantity</Label>
+                    <Input id={`${idPrefix}-quantity`} type="number" inputMode="decimal" step="any" value={draft.quantity}
+                      readOnly={Boolean(draft.treatment_id)} onChange={(event) => patchDraft({ quantity: event.target.value })} />
                   </div>
                   <div className="min-w-0 space-y-1.5">
-                    <Label htmlFor={priceId}>Unit price (₹)</Label>
-                    <Input
-                      id={priceId}
-                      type="number"
-                      inputMode="decimal"
-                      min={0}
-                      step={0.01}
-                      value={item.unit_price}
-                      onChange={(event) => updateItem(item.rowKey, { unit_price: Number(event.target.value) })}
-                    />
+                    <Label htmlFor={`${idPrefix}-price`}>Unit price (₹)</Label>
+                    <Input id={`${idPrefix}-price`} type="number" inputMode="decimal" step="any" value={draft.unit_price}
+                      onChange={(event) => patchDraft({ unit_price: event.target.value })} />
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-lg"
-                    disabled={isPrimary}
-                    onClick={() => removeItem(item.rowKey)}
-                    aria-label={isPrimary
-                      ? `Primary treatment ${item.treatment_code} cannot be removed`
-                      : `Remove treatment line ${index + 1}${item.description ? `: ${item.description}` : ""}`}
-                    title={isPrimary ? "The primary treatment must remain on this invoice" : undefined}
-                  >
-                    <Trash2 aria-hidden="true" />
-                  </Button>
-                  <p className="col-span-full min-w-0 break-words text-xs text-muted-foreground">
-                    {isCatalogLine && item.tooth_numbers?.length ? `Teeth ${item.tooth_numbers.join(", ")}` : item.site_label}
-                  </p>
-                  <details open={isCatalogLine} className="col-span-full min-w-0 rounded-md bg-muted/30 p-3">
-                    <summary className="cursor-pointer text-sm font-medium">
-                      {isCatalogLine ? "Teeth & line note (optional)" : "Line note (optional)"}
-                      {item.tooth_numbers?.length ? ` · ${item.tooth_numbers.length} selected` : ""}
-                    </summary>
-                    <div className="mt-3 space-y-3">
-                      {isCatalogLine && <>
-                        <ToothSelector
-                          label={`Teeth for treatment line ${index + 1}`}
-                          value={item.tooth_numbers ?? []}
-                          onChange={(teeth) => updateItem(item.rowKey, { tooth_numbers: teeth })}
-                          disabled={pending}
-                        />
-                        <p className="text-xs text-muted-foreground">Leave unselected for a general service. Selecting teeth does not change the quantity or mark treatment completed.</p>
-                      </>}
-                      <div className="space-y-1.5">
-                        <Label htmlFor={`${idPrefix}-${item.rowKey}-note`}>Line note</Label>
-                        <Textarea
-                          id={`${idPrefix}-${item.rowKey}-note`}
-                          value={item.line_note ?? ""}
-                          onChange={(event) => updateItem(item.rowKey, { line_note: event.target.value })}
-                          maxLength={1000}
-                          rows={2}
-                          placeholder="Optional note shown on the invoice"
-                        />
-                      </div>
+                </div>
+                {draft.treatment_id && <p className="break-words text-xs text-muted-foreground">{lineSite(draft)} · Quantity and teeth come from the case sheet.</p>}
+                <details key={entryVersion} open={existingEdit && (draft.tooth_numbers?.length || draft.line_note) ? true : undefined}
+                  className="rounded-md bg-muted/30 p-3">
+                  <summary className="cursor-pointer text-sm font-medium">
+                    {draft.treatment_id ? "Line note (optional)" : "Teeth & line note (optional)"}
+                    {draft.tooth_numbers?.length && !draft.treatment_id ? ` · ${draft.tooth_numbers.length} selected` : ""}
+                  </summary>
+                  <div className="mt-3 space-y-3">
+                    {!draft.treatment_id && <ToothSelector label="Teeth for this line" value={draft.tooth_numbers ?? []}
+                      onChange={(teeth) => patchDraft({ tooth_numbers: teeth })} disabled={pending} />}
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`${idPrefix}-line-note`}>Line note</Label>
+                      <Textarea id={`${idPrefix}-line-note`} value={draft.line_note ?? ""} maxLength={1000}
+                        rows={2} placeholder="Optional note shown on the invoice" onChange={(event) => patchDraft({ line_note: event.target.value })} />
                     </div>
-                  </details>
-                  <Button type="button" variant="outline" className="col-span-full w-full border-dashed" disabled={pending}
-                    aria-label={`Add treatment after line ${index + 1}`} onClick={() => addCatalogLine(item.rowKey)}>
-                    <Plus aria-hidden="true" /> Add treatment
+                  </div>
+                </details>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  {hasDraft && <Button type="button" variant="ghost" onClick={resetEntry}>{existingEdit ? "Cancel line edit" : "Clear entry"}</Button>}
+                  <Button type="button" variant="outline" className="ml-auto" onClick={commitLine}>
+                    {existingEdit ? <Pencil aria-hidden="true" /> : <Plus aria-hidden="true" />}
+                    {existingEdit ? "Update line" : "Add treatment"}
                   </Button>
-                </fieldset>
-              );
-            })}
+                </div>
+                {lineError && <p id={`${idPrefix}-line-error`} role="alert" className="text-sm text-destructive">{lineError}</p>}
+              </fieldset>
+            )}
+            <p role="status" className="sr-only">{lineFeedback}</p>
           </section>
 
           <div className="space-y-2">

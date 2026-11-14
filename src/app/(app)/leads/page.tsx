@@ -147,7 +147,7 @@ export default async function LeadsPage({
           {leads.map((l) => (
             <TableRow key={l.id}>
               <TableCell className="whitespace-normal">
-                <Link href={`/leads/${l.id}`} className="font-medium hover:underline">
+                <Link href={`/leads/${l.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab" className="font-medium hover:underline">
                   {patientDisplayName(l)}
                 </Link>
                 <a

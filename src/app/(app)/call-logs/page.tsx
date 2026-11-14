@@ -81,7 +81,7 @@ export default async function CallLogsPage({
                     <div className="text-xs text-muted-foreground">{call.phone ?? call.external_call_id}</div>
                   </TableCell>
                   <TableCell><Badge variant={call.status === "completed" ? "default" : call.status === "failed" || call.status === "missed" ? "destructive" : "secondary"}>{STATUS_LABELS[call.status]}</Badge></TableCell>
-                  <TableCell>{call.lead ? <Link className="hover:underline" href={`/leads/${call.lead.id}`}>{call.lead.name}</Link> : <span className="text-muted-foreground">Unmatched</span>}</TableCell>
+                  <TableCell>{call.lead ? <Link className="hover:underline" href={`/leads/${call.lead.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab">{call.lead.name}</Link> : <span className="text-muted-foreground">Unmatched</span>}</TableCell>
                   <TableCell className="hidden md:table-cell">{call.source_system}</TableCell>
                   <TableCell>{dateLabel(call.started_at)}</TableCell>
                   <TableCell className="text-right"><Button render={<Link href={`/call-logs/${call.id}`} />} variant="outline" size="sm">View</Button></TableCell>
@@ -98,7 +98,7 @@ export default async function CallLogsPage({
           <Table aria-label="External appointment updates">
             <TableHeader><TableRow><TableHead>Patient</TableHead><TableHead>Status</TableHead><TableHead>Scheduled</TableHead><TableHead>Source</TableHead></TableRow></TableHeader>
             <TableBody>
-              {externalAppointments.slice(0, 20).map((appointment) => <TableRow key={appointment.id}><TableCell>{appointment.lead ? <Link className="hover:underline" href={`/leads/${appointment.lead.id}`}>{appointment.lead.name}</Link> : appointment.patient_name ?? "Unknown patient"}<div className="text-xs text-muted-foreground">{appointment.mobile ?? "No mobile"}</div></TableCell><TableCell><Badge variant={appointment.status === "cancelled" ? "destructive" : "secondary"}>{appointment.status.replace("_", " ")}</Badge></TableCell><TableCell>{dateLabel(appointment.scheduled_at)}</TableCell><TableCell>{appointment.source_system}</TableCell></TableRow>)}
+              {externalAppointments.slice(0, 20).map((appointment) => <TableRow key={appointment.id}><TableCell>{appointment.lead ? <Link className="hover:underline" href={`/leads/${appointment.lead.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab">{appointment.lead.name}</Link> : appointment.patient_name ?? "Unknown patient"}<div className="text-xs text-muted-foreground">{appointment.mobile ?? "No mobile"}</div></TableCell><TableCell><Badge variant={appointment.status === "cancelled" ? "destructive" : "secondary"}>{appointment.status.replace("_", " ")}</Badge></TableCell><TableCell>{dateLabel(appointment.scheduled_at)}</TableCell><TableCell>{appointment.source_system}</TableCell></TableRow>)}
               {externalAppointments.length === 0 && <TableRow><TableCell colSpan={4} className="py-8 text-center text-muted-foreground">No external appointment updates yet.</TableCell></TableRow>}
             </TableBody>
           </Table>

@@ -9,6 +9,7 @@ import { listComments } from "@/data/comments";
 import { listCaseSheetsForLead } from "@/data/case-sheets";
 import { getPatientTreatmentProgress } from "@/data/treatment-progress";
 import { TreatmentProgressSummary } from "@/components/clinical/treatment-progress-summary";
+import { VisitHistory } from "@/components/clinical/visit-history";
 import { CaseSheetEditLink } from "@/components/clinical/case-sheet-edit-link";
 import { PatientSectionNav } from "@/components/patients/patient-section-nav";
 import { listAssignableUsers } from "@/data/users";
@@ -201,7 +202,7 @@ export default async function LeadDetailPage({
             userId={ctx.userId}
           />
           <div className="flex flex-wrap items-center gap-1">
-            <RowEditDialog title="Edit lead details" action={updateLeadAction.bind(null, lead.id)}>
+            <RowEditDialog title="Edit lead details" action={updateLeadAction.bind(null, lead.id)} contentClassName="sm:max-w-2xl">
               <div className="grid gap-3 sm:grid-cols-2">
                 <PatientIdentityFields initialName={lead.name} initialTitle={lead.title} initialGender={lead.gender} />
                 <div className="space-y-2">
@@ -258,7 +259,7 @@ export default async function LeadDetailPage({
                 <div className="space-y-2">
                   <Label htmlFor="edit-age">Age (years)</Label>
                   <Input id="edit-age" name="age" type="number" min="0" max="120" step="any" inputMode="decimal" aria-describedby="edit-age-help" defaultValue={lead.age ?? ""} />
-                  <p id="edit-age-help" className="text-xs text-muted-foreground">Decimals are allowed below 5 years.</p>
+                  <p id="edit-age-help" className="text-xs text-muted-foreground">Enter years, including decimals (for example, 2.5 or 25.5).</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-dob">Date of birth</Label>
@@ -284,11 +285,12 @@ export default async function LeadDetailPage({
         { id: "patient-invoices", label: "Invoices" },
         ...(followUps.length ? [{ id: "patient-follow-ups", label: "Past follow-up history" }] : []),
         { id: "patient-notes", label: "Notes" },
+        { id: "visit-history", label: "Visit History" },
         { id: "patient-activity", label: "Activity" },
       ]} />
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-4">
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)]">
+        <div className="min-w-0 space-y-4">
           {/* Contact details */}
           <Card id="patient-overview" className="scroll-mt-20 border-l-4 border-l-gold">
             <CardHeader>
@@ -424,7 +426,7 @@ export default async function LeadDetailPage({
               )}
             </CardHeader>
             <CardContent className="space-y-4">
-              <TreatmentProgressSummary leadId={id} progress={treatmentProgress} />
+              <TreatmentProgressSummary leadId={id} planned={treatmentProgress.planned} />
               {caseSheets.length === 0 && treatments.length === 0 && (
                 <p className="text-sm text-muted-foreground">
                   No case sheet has been recorded yet.
@@ -626,13 +628,13 @@ export default async function LeadDetailPage({
               </div>
               {invoiceTotal !== null && invoiceTotal > invoices.length && (
                 <p className="text-sm text-muted-foreground">
-                  Showing {invoices.length} of {invoiceTotal} invoices. <Link className="font-medium text-primary underline underline-offset-4" href={`/invoices?lead=${encodeURIComponent(lead.id)}`}>View all patient invoices</Link>
+                  Showing {invoices.length} of {invoiceTotal} invoices. <Link className="font-medium text-primary underline underline-offset-4" href={`/invoices?lead=${encodeURIComponent(lead.id)}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab">View all patient invoices</Link>
                 </p>
               )}
               {invoices.map((inv) => (
                 <div key={inv.id} className="rounded-lg border p-3">
                     <div className="flex flex-wrap items-start justify-between gap-2">
-                    <Link href={`/invoices/${inv.id}`} className="text-sm font-medium hover:underline">
+                    <Link href={`/invoices/${inv.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab" className="text-sm font-medium hover:underline">
                       {inv.invoice_number}
                     </Link>
                     <div className="flex flex-wrap items-center gap-2">
@@ -697,8 +699,8 @@ export default async function LeadDetailPage({
           </Card>
         </div>
 
-        {/* Activity timeline */}
-        <div>
+        <aside className="min-w-0 space-y-4" aria-label="Visit history and activity">
+          <VisitHistory leadId={id} completed={treatmentProgress.completed} />
           <Card id="patient-activity" className="scroll-mt-20 border-l-4 border-l-gold">
             <CardHeader>
               <CardTitle className="text-base">Activity</CardTitle>
@@ -727,7 +729,7 @@ export default async function LeadDetailPage({
               </ul>
             </CardContent>
           </Card>
-        </div>
+        </aside>
       </div>
     </div>
   );
