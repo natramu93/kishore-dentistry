@@ -1147,6 +1147,21 @@ export type Database = {
         };
         Returns: Invoice;
       };
+      update_invoice_with_date: {
+        Args: {
+          p_invoice_id: string;
+          p_tax_rate: number;
+          p_notes: string | null;
+          p_items: Json;
+          p_actor: string;
+          p_expected_version: number;
+          p_discount_amount: number | null;
+          p_discount_given_by: string | null;
+          p_mention: string | null;
+          p_invoice_date: string | null;
+        };
+        Returns: Invoice;
+      };
       transition_invoice_status: {
         Args: {
           p_invoice_id: string;

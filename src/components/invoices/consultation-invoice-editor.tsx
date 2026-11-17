@@ -10,24 +10,27 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { preventImplicitInvoiceSubmit } from "./invoice-form-keyboard";
 
-export function ConsultationInvoiceEditor({ invoiceId, version, initialAmount, initialNotes }: {
-  invoiceId: string; version: number; initialAmount: number; initialNotes: string;
+export function ConsultationInvoiceEditor({ invoiceId, version, initialAmount, initialNotes, initialInvoiceDate }: {
+  invoiceId: string; version: number; initialAmount: number; initialNotes: string; initialInvoiceDate: string;
 }) {
   const id = useId();
   const router = useRouter();
   const [amount, setAmount] = useState(String(initialAmount));
   const [notes, setNotes] = useState(initialNotes);
+  const [invoiceDate, setInvoiceDate] = useState(initialInvoiceDate);
   const [pending, startTransition] = useTransition();
   return <form className="space-y-4" onKeyDown={preventImplicitInvoiceSubmit} onSubmit={(event) => {
     event.preventDefault();
     startTransition(async () => {
       try {
-        const result = await updateConsultationInvoiceAction(invoiceId, { amount, notes, expected_version: version });
+        const result = await updateConsultationInvoiceAction(invoiceId, { amount, notes, invoice_date: invoiceDate, expected_version: version });
         if (result.ok) { toast.success("Invoice updated"); router.push(`/invoices/${invoiceId}`); }
         else toast.error(result.error);
       } catch { toast.error("Unable to save. Your entries are still here; please try again."); }
     });
   }}>
+    <div className="space-y-1"><Label htmlFor={`${id}-invoice-date`}>Invoice date</Label>
+      <Input id={`${id}-invoice-date`} type="date" required value={invoiceDate} onChange={(event) => setInvoiceDate(event.target.value)} /></div>
     <div className="space-y-1"><Label htmlFor={`${id}-amount`}>Consultation amount (₹)</Label>
       <Input id={`${id}-amount`} type="number" min="0" max="99999999.99" step="0.01" required value={amount} onChange={(event) => setAmount(event.target.value)} /></div>
     <div className="space-y-1"><Label htmlFor={`${id}-notes`}>Invoice remarks (optional)</Label>

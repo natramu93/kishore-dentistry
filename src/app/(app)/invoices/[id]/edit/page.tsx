@@ -20,7 +20,7 @@ export default async function EditInvoicePage({
   if (invoice.invoice_kind === "consultation" && !invoice.code_enforced) return <div className="max-w-2xl space-y-4">
     <h1 className="text-2xl font-bold">Edit consultation invoice</h1>
     <p className="text-sm text-muted-foreground">{invoice.invoice_number} · Editing is available for 24 hours after creation.</p>
-    <ConsultationInvoiceEditor invoiceId={invoice.id} version={invoice.version} initialAmount={invoice.subtotal} initialNotes={invoice.notes ?? ""} />
+    <ConsultationInvoiceEditor invoiceId={invoice.id} version={invoice.version} initialAmount={invoice.subtotal} initialNotes={invoice.notes ?? ""} initialInvoiceDate={invoice.billing_date} />
   </div>;
   const [eligible, treatmentOptions] = await Promise.all([
     listInvoiceEligibleTreatments(ctx, invoice.lead_id),
@@ -62,6 +62,7 @@ export default async function EditInvoicePage({
         mode="edit"
         invoiceId={invoice.id}
         initialVersion={invoice.version}
+        initialInvoiceDate={invoice.billing_date}
         primaryTreatmentId={invoice.treatment_id}
         leadId={invoice.lead_id}
         treatmentCatalog={catalog}

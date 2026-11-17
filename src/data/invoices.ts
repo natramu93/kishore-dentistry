@@ -693,6 +693,7 @@ export async function updateInvoice(
   ctx: AuthContext,
   id: string,
   input: {
+    invoice_date?: string;
     tax_rate: number;
     notes?: string | null;
     discount_amount?: number;
@@ -736,8 +737,9 @@ export async function updateInvoice(
     throw new ValidationError("Invoice notes are too long");
   }
 
-  const updateResult = await db.rpc("update_invoice", {
+  const updateResult = await db.rpc("update_invoice_with_date", {
     p_invoice_id: invoice.id,
+    p_invoice_date: input.invoice_date === undefined ? null : assertDateOnly(input.invoice_date, "Invoice date"),
     p_tax_rate: input.tax_rate,
     p_notes: input.notes?.trim() || null,
     p_discount_amount: discountAmount,
@@ -757,7 +759,7 @@ export async function updateInvoice(
   if (updateResult.error) throwMappedDatabaseError(updateResult.error, "Invoice");
 }
 
-export async function updateConsultationInvoice(ctx: AuthContext, id: string, input: { amount: number; notes?: string; expected_version: number }) {
+export async function updateConsultationInvoice(ctx: AuthContext, id: string, input: { amount: number; notes?: string; invoice_date?: string; expected_version: number }) {
   const invoice = await loadInvoiceScope(id);
   if (!invoice) throw new NotFoundError("Invoice");
   assertInvoiceWriteAccess(ctx, { branch_id: invoice.branch_id, assignee_id: invoice.lead?.assignee_id ?? null });
@@ -765,7 +767,9 @@ export async function updateConsultationInvoice(ctx: AuthContext, id: string, in
   if (!invoiceEditWindowOpen(invoice.created_at)) throw new ConflictError("Invoices can only be edited within 24 hours of creation");
   if (!Number.isFinite(input.amount) || input.amount < invoice.discount_amount || input.amount > MAX_UNIT_PRICE || !hasAtMostTwoDecimals(input.amount)) throw new ValidationError("Enter a valid amount at least equal to the discount");
   if (input.notes && input.notes.length > 4000) throw new ValidationError("Invoice notes are too long");
-  const result = await db.rpc("update_invoice", { p_invoice_id: invoice.id, p_tax_rate: invoice.tax_rate,
+  const result = await db.rpc("update_invoice_with_date", { p_invoice_id: invoice.id, p_tax_rate: invoice.tax_rate,
+    p_invoice_date: input.invoice_date === undefined ? null : assertDateOnly(input.invoice_date, "Invoice date"),
+    p_discount_amount: null, p_discount_given_by: null, p_mention: null,
     p_notes: input.notes?.trim() || null, p_actor: ctx.userId, p_expected_version: validateExpectedVersion(input.expected_version),
     p_items: [{ description: "Consultation", quantity: 1, unit_price: input.amount }] });
   if (result.error) throwMappedDatabaseError(result.error, "Invoice");

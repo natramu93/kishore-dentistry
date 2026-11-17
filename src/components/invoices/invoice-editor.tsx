@@ -308,6 +308,7 @@ export function InvoiceEditor({
         } else if (!result.ok) toast.error(result.error);
       } else {
         const result = await updateInvoiceAction(invoiceId!, {
+          invoice_date: invoiceDate,
           tax_rate: taxRate,
           discount_amount: safeDiscount,
           discount_given_by: discountGivenBy,
@@ -344,12 +345,13 @@ export function InvoiceEditor({
             </p>
           </div>
 
-          {mode === "create" && <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor={`${idPrefix}-invoice-date`}>Invoice date</Label>
               <Input id={`${idPrefix}-invoice-date`} type="date" value={invoiceDate} required
                 onChange={(event) => { setDirty(true); setInvoiceDate(event.target.value); }} />
             </div>
+            {mode === "create" && <>
             <div className="min-w-0 space-y-1.5">
               <Label htmlFor={`${idPrefix}-consulting-doctor`}>Consulting doctor</Label>
               <Input id={`${idPrefix}-consulting-doctor`} list={`${idPrefix}-doctors`} value={consultingDoctor}
@@ -364,7 +366,8 @@ export function InvoiceEditor({
                 onChange={(event) => { setDirty(true); setReferringDoctor(event.target.value); }} />
               <Button type="button" variant="outline" size="sm" onClick={() => { setDirty(true); setReferringDoctor("No referring doctor"); }}>No referring doctor</Button>
             </div>
-          </div>}
+            </>}
+          </div>
 
           <section aria-labelledby={`${idPrefix}-items-heading`} className="space-y-3">
             <h2 id={`${idPrefix}-items-heading`} className="text-base font-semibold">Invoice line items</h2>

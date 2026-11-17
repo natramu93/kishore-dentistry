@@ -103,6 +103,7 @@ const invoiceSchema = invoiceDetailsSchema
   .superRefine(validateInvoiceTotal);
 const invoiceUpdateSchema = invoiceDetailsSchema
   .extend({
+    invoice_date: z.iso.date("Enter a valid invoice date").optional(),
     expected_version: z.coerce.number().int().positive(),
   })
   .superRefine(validateInvoiceTotal);
@@ -283,7 +284,12 @@ export async function updateInvoicePaymentAction(id: string, paymentId: string, 
 
 export async function updateConsultationInvoiceAction(id: string, input: unknown): Promise<ActionResult> {
   const ctx = await getAuthContext();
-  const parsed = z.object({ amount: consultationAmount, notes: z.string().trim().max(4000).optional(), expected_version: z.number().int().positive() }).safeParse(input);
+  const parsed = z.object({
+    amount: consultationAmount,
+    notes: z.string().trim().max(4000).optional(),
+    invoice_date: z.iso.date("Enter a valid invoice date").optional(),
+    expected_version: z.number().int().positive(),
+  }).safeParse(input);
   if (!uuidSchema.safeParse(id).success || !parsed.success) return { ok: false, error: "Enter valid consultation invoice details" };
   return runAction(async () => {
     await invoiceMutationLimit(ctx.userId);
@@ -309,6 +315,7 @@ export async function updateInvoiceAction(
   return runAction(async () => {
     await invoiceMutationLimit(ctx.userId);
     await invoices.updateInvoice(ctx, invoiceId.data, {
+      invoice_date: parsed.data.invoice_date,
       tax_rate: parsed.data.tax_rate,
       notes: parsed.data.notes || null,
       items: parsed.data.items,
@@ -319,6 +326,7 @@ export async function updateInvoiceAction(
     });
     revalidatePath(`/invoices/${invoiceId.data}`);
     revalidatePath("/invoices");
+    revalidatePath("/reports");
   });
 }
 

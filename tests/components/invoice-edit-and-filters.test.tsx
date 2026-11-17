@@ -23,29 +23,31 @@ describe("invoice date controls", () => {
 
 describe("consultation invoice edits", () => {
   it("does not save an invoice implicitly when Enter is pressed in its amount", () => {
-    render(<ConsultationInvoiceEditor invoiceId="invoice-1" version={3} initialAmount={200} initialNotes="" />);
+    render(<ConsultationInvoiceEditor invoiceId="invoice-1" version={3} initialAmount={200} initialNotes="" initialInvoiceDate="2026-10-07" />);
     expect(fireEvent.keyDown(screen.getByLabelText("Consultation amount (₹)"), { key: "Enter" })).toBe(false);
     expect(fireEvent.keyDown(screen.getByLabelText("Invoice remarks (optional)"), { key: "Enter" })).toBe(true);
     expect(updateConsultationInvoiceAction).not.toHaveBeenCalled();
   });
   it("allows correcting an unpaid consultation fee to zero", async () => {
-    render(<ConsultationInvoiceEditor invoiceId="invoice-1" version={3} initialAmount={200} initialNotes="" />);
+    render(<ConsultationInvoiceEditor invoiceId="invoice-1" version={3} initialAmount={200} initialNotes="" initialInvoiceDate="2026-10-07" />);
     fireEvent.change(screen.getByLabelText("Consultation amount (₹)"), { target: { value: "0" } });
     expect(screen.getByLabelText("Consultation amount (₹)")).toBeValid();
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
-    await waitFor(() => expect(updateConsultationInvoiceAction).toHaveBeenCalledWith("invoice-1", { amount: "0", notes: "", expected_version: 3 }));
+    await waitFor(() => expect(updateConsultationInvoiceAction).toHaveBeenCalledWith("invoice-1", { amount: "0", notes: "", invoice_date: "2026-10-07", expected_version: 3 }));
   });
 
-  it("saves corrected amounts and notes with the invoice version", async () => {
-    render(<ConsultationInvoiceEditor invoiceId="invoice-1" version={3} initialAmount={200} initialNotes="" />);
+  it("prefills and saves the date alongside other consultation edits", async () => {
+    render(<ConsultationInvoiceEditor invoiceId="invoice-1" version={3} initialAmount={200} initialNotes="" initialInvoiceDate="2026-10-07" />);
+    expect(screen.getByLabelText("Invoice date")).toHaveValue("2026-10-07");
+    fireEvent.change(screen.getByLabelText("Invoice date"), { target: { value: "2026-10-06" } });
     fireEvent.change(screen.getByLabelText("Consultation amount (₹)"), { target: { value: "250" } });
     fireEvent.change(screen.getByLabelText("Invoice remarks (optional)"), { target: { value: "Corrected fee" } });
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
-    await waitFor(() => expect(updateConsultationInvoiceAction).toHaveBeenCalledWith("invoice-1", { amount: "250", notes: "Corrected fee", expected_version: 3 }));
+    await waitFor(() => expect(updateConsultationInvoiceAction).toHaveBeenCalledWith("invoice-1", { amount: "250", notes: "Corrected fee", invoice_date: "2026-10-06", expected_version: 3 }));
   });
   it("retains entries when the edit window expires during editing", async () => {
     vi.mocked(updateConsultationInvoiceAction).mockResolvedValueOnce({ ok: false, error: "Invoices can only be edited within 24 hours of creation" });
-    render(<ConsultationInvoiceEditor invoiceId="invoice-1" version={3} initialAmount={200} initialNotes="Keep this note" />);
+    render(<ConsultationInvoiceEditor invoiceId="invoice-1" version={3} initialAmount={200} initialNotes="Keep this note" initialInvoiceDate="2026-10-07" />);
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("24 hours")));
     expect(screen.getByLabelText("Invoice remarks (optional)")).toHaveValue("Keep this note");

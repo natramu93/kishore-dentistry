@@ -74,8 +74,10 @@ describe("zero invoice persistence", () => {
   });
   it("allows editing an unpaid consultation to zero within its edit window", async () => {
     mocks.from.mockReturnValue(query({ id: invoiceId, branch_id: branchId, lead: { assignee_id: ctx.userId }, invoice_kind: "consultation", status: "draft", discount_amount: 0, tax_rate: 0, created_at: new Date().toISOString() }));
-    await updateConsultationInvoice(ctx, invoiceId, { amount: 0, expected_version: 1 });
-    expect(mocks.rpc).toHaveBeenCalledWith("update_invoice", expect.objectContaining({ p_items: [{ description: "Consultation", quantity: 1, unit_price: 0 }] }));
+    await updateConsultationInvoice(ctx, invoiceId, { amount: 0, invoice_date: "2026-10-06", expected_version: 1 });
+    expect(mocks.rpc).toHaveBeenCalledWith("update_invoice_with_date", expect.objectContaining({
+      p_invoice_date: "2026-10-06", p_expected_version: 1, p_items: [{ description: "Consultation", quantity: 1, unit_price: 0 }],
+    }));
   });
   it("keeps a fully discounted invoice at zero even with tax", () => {
     expect(computeInvoiceTotalWithDiscount([{ treatment_type_id: typeId, quantity: 1, unit_price: 200 }], 18, 200)).toEqual({ subtotal: 200, tax_amount: 0, total: 0 });

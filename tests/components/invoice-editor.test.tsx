@@ -234,11 +234,13 @@ describe("independent invoice editor", () => {
     })));
   });
 
-  it("edits standalone invoice teeth and preserves its discount", async () => {
+  it("edits a standalone invoice date and teeth while preserving its discount", async () => {
     render(<InvoiceEditor mode="edit" invoiceId="invoice-1" initialVersion={2} leadId="lead-1" treatmentCatalog={[]}
       treatmentOptions={[{ id: TREATMENT_TYPE_ID, name: "Restoration", category: null, default_cost: 200, is_general_consultation: false }]}
       initialItems={[{ treatment_type_id: TREATMENT_TYPE_ID, description: "Restoration", site_label: "Teeth 11, 12", tooth_numbers: ["11", "12"], line_note: "Existing note", quantity: 1, unit_price: 200 }]}
-      initialDiscount={50} initialDiscountGivenBy="Center head" initialMention="Review" />);
+      initialInvoiceDate="2026-10-07" initialDiscount={50} initialDiscountGivenBy="Center head" initialMention="Review" />);
+    expect(screen.getByLabelText("Invoice date")).toHaveValue("2026-10-07");
+    fireEvent.change(screen.getByLabelText("Invoice date"), { target: { value: "2026-10-06" } });
     fireEvent.click(screen.getByRole("button", { name: "Edit treatment line 1: Restoration" }));
     expect(screen.getByLabelText("Line note")).toHaveValue("Existing note");
     fireEvent.click(screen.getByRole("button", { name: /^12,/ }));
@@ -246,7 +248,7 @@ describe("independent invoice editor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Update line" }));
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(updateInvoiceAction).toHaveBeenCalledWith("invoice-1", expect.objectContaining({
-      discount_amount: 50, discount_given_by: "Center head", mention: "Review", expected_version: 2,
+      discount_amount: 50, discount_given_by: "Center head", mention: "Review", invoice_date: "2026-10-06", expected_version: 2,
       items: [{ treatment_type_id: TREATMENT_TYPE_ID, quantity: 1, unit_price: 200, tooth_numbers: ["11", "13"], line_note: "Existing note" }],
     })));
   });

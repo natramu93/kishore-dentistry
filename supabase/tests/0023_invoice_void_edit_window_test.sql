@@ -23,6 +23,36 @@ begin
   select * into v_invoice from crm.create_patient_invoice(v_lead,0,0,null,null,null,v_items,v_admin,'2026-08-01','Dr. Consulting','No referring doctor');
   if v_invoice.billing_date <> date '2026-08-01' then raise exception 'billing filter ignores selected invoice date'; end if;
   select * into v_invoice from crm.update_invoice(v_invoice.id,0,'Edited within 24 hours',v_items,v_admin,v_invoice.version);
+  v_old := v_invoice;
+  begin
+    update crm.invoices set invoice_date='2026-08-02' where id=v_invoice.id;
+    raise exception 'unaudited date update accepted';
+  exception when object_not_in_prerequisite_state then null;
+  end;
+  begin
+    perform crm.update_invoice_with_date(v_invoice.id,0,null,v_items,v_front,v_invoice.version,null,null,null,'2026-08-02');
+    raise exception 'unassigned front desk could change invoice date';
+  exception when insufficient_privilege then null;
+  end;
+  select * into v_invoice from crm.update_invoice_with_date(v_invoice.id,0,'Correct billing date',v_items,
+    v_admin,v_invoice.version,null,null,null,'2026-08-02');
+  if v_invoice.billing_date is distinct from date '2026-08-02'
+    or (v_invoice.invoice_number,v_invoice.created_at,v_invoice.total,v_invoice.version)
+       is distinct from (v_old.invoice_number,v_old.created_at,v_old.total,v_old.version+1)
+    or not exists (select 1 from crm.audit_log where entity_id=v_invoice.id and action='updated'
+      and old_data->>'billing_date'='2026-08-01' and new_data->>'billing_date'='2026-08-02') then
+    raise exception 'date edit did not preserve invoice identity, update the billing date and record the audit';
+  end if;
+  begin
+    perform crm.update_invoice_with_date(v_invoice.id,0,null,v_items,v_admin,v_old.version,null,null,null,'2026-08-03');
+    raise exception 'stale date edit accepted';
+  exception when serialization_failure then null;
+  end;
+  begin
+    perform crm.update_invoice_with_date(v_invoice.id,0,null,v_items,v_admin,v_invoice.version,null,null,null,'infinity');
+    raise exception 'invalid invoice date accepted';
+  exception when invalid_parameter_value then null;
+  end;
   v_rejected:=false;
   begin perform crm.cancel_invoice(v_invoice.id,v_admin,'Wrong invoice',v_invoice.version-1);
   exception when serialization_failure then v_rejected:=true; end;
@@ -41,17 +71,25 @@ begin
     raise exception 'void did not preserve invoice and lines with audited reason'; end if;
   if not exists(select 1 from crm.audit_log where entity_id=v_invoice.id and action='cancelled' and new_data->>'void_reason'='Wrong invoice') then
     raise exception 'void metadata not audited'; end if;
+  begin
+    perform crm.update_invoice_with_date(v_invoice.id,0,null,v_items,v_admin,v_invoice.version,null,null,null,'2026-08-03');
+    raise exception 'voided invoice date changed';
+  exception when object_not_in_prerequisite_state then null;
+  end;
   select * into v_invoice from crm.create_consultation_invoice(v_lead,200,null,v_admin,'Dr. Consulting','No referring doctor');
-  select * into v_invoice from crm.update_invoice(v_invoice.id,0,'Consultation correction',
-    '[{"description":"Consultation","quantity":1,"unit_price":250}]',v_admin,v_invoice.version);
-  if v_invoice.total<>250 then raise exception 'consultation invoice not editable'; end if;
+  select * into v_invoice from crm.update_invoice_with_date(v_invoice.id,0,'Consultation correction',
+    '[{"description":"Consultation","quantity":1,"unit_price":250}]',v_admin,v_invoice.version,null,null,null,'2026-08-02');
+  if v_invoice.total<>250 or v_invoice.billing_date is distinct from date '2026-08-02' then
+    raise exception 'consultation invoice amount or date not editable';
+  end if;
   perform crm.record_invoice_payment(v_invoice.id,100,'cash',null,null,v_admin);
   v_rejected:=false;
   begin perform crm.cancel_invoice(v_invoice.id,v_admin,'Wrong invoice');
   exception when object_not_in_prerequisite_state then v_rejected:=true; end;
   if not v_rejected then raise exception 'partially paid invoice voided'; end if;
   v_rejected:=false;
-  begin perform crm.update_invoice(v_invoice.id,0,null,'[{"description":"Consultation","quantity":1,"unit_price":300}]',v_admin);
+  begin perform crm.update_invoice_with_date(v_invoice.id,0,null,'[{"description":"Consultation","quantity":1,"unit_price":250}]',
+    v_admin,v_invoice.version,null,null,null,'2026-08-03');
   exception when object_not_in_prerequisite_state then v_rejected:=true; end;
   if not v_rejected then raise exception 'partially paid invoice edited'; end if;
 
@@ -63,7 +101,8 @@ begin
       clock_timestamp()-interval '24 hours','Dr. Consulting','No referring doctor') returning * into v_old;
   perform set_config('crm.allow_adhoc_invoice','off',true);
   v_rejected:=false;
-  begin perform crm.update_invoice(v_old.id,0,null,'[{"description":"Consultation","quantity":1,"unit_price":300}]',v_admin);
+  begin perform crm.update_invoice_with_date(v_old.id,0,null,'[{"description":"Consultation","quantity":1,"unit_price":200}]',
+    v_admin,v_old.version,null,null,null,'2026-08-03');
   exception when object_not_in_prerequisite_state then v_rejected:=true; end;
   if not v_rejected then raise exception 'expired RPC editing accepted'; end if;
   v_rejected:=false;
@@ -84,6 +123,10 @@ begin
   if not v_rejected then raise exception 'fully paid invoice voided'; end if;
   if has_function_privilege('authenticated','crm.cancel_invoice(uuid,uuid,text,bigint)','execute') then
     raise exception 'void RPC exposed to public clients'; end if;
+  if has_function_privilege('authenticated','crm.update_invoice_with_date(uuid,numeric,text,jsonb,uuid,bigint,numeric,text,text,date)','execute')
+    or has_function_privilege('anon','crm.update_invoice_with_date(uuid,numeric,text,jsonb,uuid,bigint,numeric,text,text,date)','execute') then
+    raise exception 'invoice edit RPC exposed to public clients';
+  end if;
 end
 $test$;
 select 'ok 1 - invoice date filters, edit deadline, audited voids and payment locks';
