@@ -30,9 +30,10 @@ export async function GET(request: Request) {
       for (const invoice of result.invoices) {
         if (seen.has(invoice.id)) continue;
         seen.add(invoice.id);
+        const amounts = invoice.status === "cancelled" ? [0, 0, 0, 0, 0, 0]
+          : [invoice.subtotal, invoice.discount_amount ?? 0, invoice.tax_amount, invoice.total, invoice.amount_paid, invoice.balance_due];
         rows.push(csvRow([invoice.invoice_number, invoice.billing_date, invoice.lead?.name ?? "",
-          invoice.branch?.name ?? "", invoiceStatusLabel(invoice.status), invoice.subtotal,
-          invoice.discount_amount ?? 0, invoice.tax_amount, invoice.total, invoice.amount_paid, invoice.balance_due]));
+          invoice.branch?.name ?? "", invoiceStatusLabel(invoice.status), ...amounts]));
       }
       if (page * result.pageSize >= result.total) break;
     }

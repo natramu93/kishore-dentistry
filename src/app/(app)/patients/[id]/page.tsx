@@ -640,7 +640,7 @@ export default async function PatientDetailPage({
                     <div className="flex flex-wrap items-center gap-2">
                       {inv.invoice_kind === "consultation" && <Badge variant="outline">Consultation</Badge>}
                       {inv.invoice_kind === "opening_balance" && <Badge variant="outline">Opening balance</Badge>}
-                      <span className="text-sm font-semibold">{formatINR(inv.total)}</span>
+                      <span className="text-sm font-semibold">{formatINR(inv.status === "cancelled" ? 0 : inv.total)}</span>
                       <Badge variant={inv.status === "paid" ? "default" : "secondary"} className="capitalize">
                         {inv.status}
                       </Badge>

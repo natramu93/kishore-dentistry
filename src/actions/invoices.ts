@@ -12,7 +12,7 @@ import {
 } from "@/lib/validation";
 import type { InvoicePaymentMethod } from "@/lib/database.types";
 import { invoiceLineDetailsSchema } from "@/lib/invoice-lines";
-import { paymentReceiptSchema } from "@/lib/invoice-receipts";
+import { paymentReceiptSchema, receiptDateSchema } from "@/lib/invoice-receipts";
 import type { PatientInvoiceBalance } from "@/lib/patient-invoice-balance";
 import {
   runAction,
@@ -156,13 +156,14 @@ export async function createInvoiceAction(
   });
 }
 
-export async function cancelInvoiceAction(id: string, reason: unknown, expectedVersion: unknown): Promise<ActionResult> {
+export async function cancelInvoiceAction(id: string, reason: unknown, expectedVersion: unknown, archive: unknown = false): Promise<ActionResult> {
   const ctx = await getAuthContext();
-  const parsed = z.object({ id: uuidSchema, reason: z.string().trim().min(1).max(1000), expected_version: z.number().int().positive() }).safeParse({ id, reason, expected_version: expectedVersion });
+  const parsed = z.object({ id: uuidSchema, reason: z.string().trim().min(1).max(1000), expected_version: z.number().int().positive(), archive: z.boolean() })
+    .safeParse({ id, reason, expected_version: expectedVersion, archive });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Cancellation reason is required" };
   return runAction(async () => {
     await invoiceMutationLimit(ctx.userId);
-    await invoices.cancelInvoice(ctx, parsed.data.id, parsed.data.reason, parsed.data.expected_version);
+    await invoices.cancelInvoice(ctx, parsed.data.id, parsed.data.reason, parsed.data.expected_version, parsed.data.archive);
     revalidatePath(`/invoices/${parsed.data.id}`);
     revalidatePath("/invoices");
     revalidatePath("/patients", "layout");
@@ -240,12 +241,12 @@ export async function recordInvoicePaymentAction(id: string, input: unknown): Pr
 
 export async function recordInvoicePaymentsAction(id: string, input: unknown): Promise<ActionResult> {
   const ctx = await getAuthContext();
-  const parsed = z.object({ invoice_id: uuidSchema, request_key: uuidSchema, receipts: z.array(paymentReceiptSchema).min(1).max(10) })
+  const parsed = z.object({ invoice_id: uuidSchema, request_key: uuidSchema, receipt_date: receiptDateSchema.optional(), receipts: z.array(paymentReceiptSchema).min(1).max(10) })
     .safeParse({ ...(typeof input === "object" && input !== null ? input : {}), invoice_id: id });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid payment" };
   return runAction(async () => {
     await invoiceMutationLimit(ctx.userId);
-    await invoices.recordInvoicePayments(ctx, parsed.data.invoice_id, parsed.data.receipts, parsed.data.request_key);
+    await invoices.recordInvoicePayments(ctx, parsed.data.invoice_id, parsed.data.receipts, parsed.data.request_key, parsed.data.receipt_date);
     revalidatePath(`/invoices/${id}`);
     revalidatePath("/invoices");
     revalidatePath("/patients", "layout");
@@ -267,7 +268,7 @@ export async function confirmInvoiceCarryForwardAction(id: string): Promise<Acti
 
 export async function updateInvoicePaymentAction(id: string, paymentId: string, input: unknown): Promise<ActionResult> {
   const ctx = await getAuthContext();
-  const parsed = paymentReceiptSchema.extend({ invoice_id: uuidSchema, payment_id: uuidSchema,
+  const parsed = paymentReceiptSchema.extend({ invoice_id: uuidSchema, payment_id: uuidSchema, receipt_date: receiptDateSchema.optional(),
     expected_version: z.number().int().positive(), reason: z.string().trim().min(1, "Enter a reason for the correction").max(1000) })
     .safeParse({ ...(typeof input === "object" && input !== null ? input : {}), invoice_id: id, payment_id: paymentId });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid receipt correction" };
@@ -350,6 +351,10 @@ export async function deleteInvoiceAction(
       invoice.data.expectedVersion
     );
     revalidatePath("/invoices");
+    revalidatePath(`/invoices/${invoice.data.id}`);
+    revalidatePath("/patients", "layout");
+    revalidatePath("/dashboard");
+    revalidatePath("/reports");
   });
 }
 

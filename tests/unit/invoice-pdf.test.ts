@@ -43,6 +43,13 @@ function expectSingleA4(pdf: PDFDocument) {
 }
 
 describe("downloadable invoice PDF", () => {
+  it("does not generate a payable document for voided invoices", async () => {
+    vi.mocked(getInvoice).mockResolvedValueOnce({ id: "voided", code_enforced: true, status: "cancelled" } as
+      NonNullable<Awaited<ReturnType<typeof getInvoice>>>);
+    const response = await GET(new Request("http://localhost/api/invoices/voided/pdf"), { params: Promise.resolve({ id: "voided" }) });
+    expect(response.status).toBe(404);
+  });
+
   it("keeps the selected date, doctors, teeth, words and all 70 receipts on one A4 page", async () => {
     vi.mocked(getInvoice).mockResolvedValue({ id: "invoice-1", invoice_number: "TEST-001", code_enforced: true,
       invoice_date: "2026-08-01", created_at: "2026-10-01T00:00:00Z", issued_at: "2026-10-01T00:00:00Z",

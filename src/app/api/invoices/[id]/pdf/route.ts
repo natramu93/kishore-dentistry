@@ -49,7 +49,7 @@ export async function GET(
     });
     const { id } = await context.params;
     const invoice = await getInvoice(ctx, id);
-    if (!invoice || (!invoice.code_enforced && invoice.invoice_kind !== "consultation")) {
+    if (!invoice || invoice.status === "cancelled" || (!invoice.code_enforced && invoice.invoice_kind !== "consultation")) {
       throw new NotFoundError("Invoice");
     }
 

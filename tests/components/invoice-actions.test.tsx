@@ -17,10 +17,10 @@ describe("invoice actions", () => {
     render(<InvoiceActions {...defaults} codeEnforced={false} consultation />);
     expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute("href", "/invoices/invoice-1/edit");
   });
-  it("keeps paid and partially paid invoices locked", () => {
+  it("keeps partially paid charges locked but offers admin voiding", () => {
     render(<InvoiceActions {...defaults} hasPayments />);
     expect(screen.queryByRole("link", { name: "Edit" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Void invoice" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Void invoice" })).toBeEnabled();
   });
   it("requires a void reason and sends the current invoice version", async () => {
     render(<InvoiceActions {...defaults} />);
@@ -28,10 +28,28 @@ describe("invoice actions", () => {
     expect(screen.getByRole("button", { name: "Confirm void" })).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Reason for voiding"), { target: { value: "Wrong bill" } });
     fireEvent.click(screen.getByRole("button", { name: "Confirm void" }));
-    await waitFor(() => expect(cancelInvoiceAction).toHaveBeenCalledWith("invoice-1", "Wrong bill", 2));
+    await waitFor(() => expect(cancelInvoiceAction).toHaveBeenCalledWith("invoice-1", "Wrong bill", 2, false));
   });
-  it("preserves admin-only void permissions", () => {
-    render(<InvoiceActions {...defaults} role="front_office" />);
+  it("can void and archive a paid invoice without promising a refund", async () => {
+    render(<InvoiceActions {...defaults} status="paid" hasPayments />);
+    expect(screen.queryByRole("link", { name: "Edit" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Void invoice" }));
+    expect(screen.getByText(/does not refund the patient/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Void & archive" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Reason for voiding"), { target: { value: "Duplicate paid bill" } });
+    fireEvent.click(screen.getByRole("button", { name: "Void & archive" }));
+    await waitFor(() => expect(cancelInvoiceAction).toHaveBeenCalledWith("invoice-1", "Duplicate paid bill", 2, true));
+  });
+  it("allows an admin to archive an already voided invoice", async () => {
+    render(<InvoiceActions {...defaults} status="cancelled" hasPayments />);
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+    fireEvent.change(screen.getByLabelText("Reason for archiving"), { target: { value: "Remove from active list" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm archive" }));
+    await waitFor(() => expect(cancelInvoiceAction).toHaveBeenCalledWith("invoice-1", "Remove from active list", 2, true));
+  });
+  it.each(["front_office", "operations", "clinical_head"] as const)("does not allow %s to void or archive paid bills", (role) => {
+    render(<InvoiceActions {...defaults} role={role} status="paid" hasPayments />);
     expect(screen.queryByRole("button", { name: "Void invoice" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument();
   });
 });

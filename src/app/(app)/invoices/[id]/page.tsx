@@ -51,6 +51,7 @@ export default async function InvoiceDetailPage({
   if (!invoice) notFound();
   const isOpeningBalance = invoice.invoice_kind === "opening_balance";
   const canCollect = invoice.code_enforced || invoice.invoice_kind === "consultation" || isOpeningBalance;
+  const voided = invoice.status === "cancelled";
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -79,7 +80,7 @@ export default async function InvoiceDetailPage({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {(invoice.code_enforced || invoice.invoice_kind === "consultation") && (
+          {!voided && (invoice.code_enforced || invoice.invoice_kind === "consultation") && (
             <>
               <WhatsAppInvoiceShare
                 invoiceId={invoice.id}
@@ -105,18 +106,18 @@ export default async function InvoiceDetailPage({
             codeEnforced={invoice.code_enforced}
             consultation={invoice.invoice_kind === "consultation"}
             hasPrimaryTreatment={Boolean(invoice.treatment_id)}
-            hasPayments={invoice.amount_paid > 0}
+            hasPayments={invoice.payments.length > 0 || invoice.amount_paid > 0 || !!invoice.paid_at}
           />
         </div>
       </div>
 
-      {invoice.status === "cancelled" && <div role="status" className="rounded-md border border-destructive p-3 text-sm">
-        This invoice is voided and has no outstanding balance. {invoice.void_reason && <>Reason: {invoice.void_reason}</>}
+      {voided && <div role="status" className="rounded-md border border-destructive p-3 text-sm">
+        This invoice and its payments are excluded from totals. Any receipts below are retained for audit, not refunded. {invoice.void_reason && <>Reason: {invoice.void_reason}</>}
       </div>}
       {invoice.total === 0 && invoice.status !== "cancelled" && <p role="status" className="rounded-md border p-3 text-sm">
         This is a ₹0 invoice. No payment is required for this bill; earlier patient dues remain unchanged.
       </p>}
-      {!isOpeningBalance && !invoiceEditWindowOpen(invoice.created_at) && invoice.status !== "cancelled" && <p className="text-sm text-muted-foreground">The 24-hour invoice editing window has closed. An admin can void an unpaid invoice if it was generated incorrectly.</p>}
+      {!isOpeningBalance && !invoiceEditWindowOpen(invoice.created_at) && !voided && <p className="text-sm text-muted-foreground">The 24-hour invoice editing window has closed. An admin can void an incorrect invoice.</p>}
       <Card>
         <CardContent className="pt-6">
           {isOpeningBalance ? <p className="mb-4 text-sm text-muted-foreground">Balance carried forward from the old system. This is not a new treatment bill.</p> : <div className="mb-4 space-y-1 text-sm">
@@ -173,7 +174,7 @@ export default async function InvoiceDetailPage({
               <span>{formatINR(invoice.tax_amount)}</span>
             </div>
             <div className="flex justify-between font-bold text-base border-t pt-1">
-              <span>Total</span>
+              <span>{voided ? "Original total" : "Total"}</span>
               <span>{formatINR(invoice.total)}</span>
             </div>
             <div className="flex justify-between">
@@ -189,7 +190,7 @@ export default async function InvoiceDetailPage({
           <PatientBalanceSummary balance={invoice.patient_balance} leadId={invoice.lead_id} />
           {invoice.payments.length > 0 && (
             <div className="mt-6 space-y-2 border-t pt-4">
-              <h2 className="font-semibold">Payment history</h2>
+              <h2 className="font-semibold">{voided ? "Original receipts (excluded from totals)" : "Payment history"}</h2>
               <Table aria-label={`Payments for invoice ${invoice.invoice_number}`}>
                 <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Method</TableHead><TableHead>Reference</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
                 <TableBody>{invoice.payments.map((payment) => (
@@ -207,7 +208,8 @@ export default async function InvoiceDetailPage({
             <div className="mt-3 space-y-2">
               {invoice.payments.map((payment) => <div key={`${payment.id}:${payment.version}`}>
                 <p className="mb-1 text-xs text-muted-foreground">{fmtDate(payment.received_at)} · {payment.payment_method.toUpperCase()} · {formatINR(payment.amount)}</p>
-                <EditPaymentReceipt payment={payment} maximumAmount={Math.max(0, invoice.total - invoice.amount_paid + Number(payment.amount))} />
+                <EditPaymentReceipt payment={payment} canEditDate={ctx.role === "admin"}
+                  maximumAmount={Math.max(0, invoice.total - invoice.amount_paid + Number(payment.amount))} />
               </div>)}
             </div>
           )}

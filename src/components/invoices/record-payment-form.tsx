@@ -7,7 +7,7 @@ import { confirmInvoiceCarryForwardAction, recordInvoicePaymentsAction } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatINR } from "@/lib/tz";
+import { clinicToday, formatINR } from "@/lib/tz";
 import { PAYMENT_METHODS, receivedAmountInWords } from "@/lib/invoice-receipts";
 import type { PatientInvoiceBalance } from "@/lib/patient-invoice-balance";
 import { preventImplicitInvoiceSubmit } from "./invoice-form-keyboard";
@@ -18,6 +18,7 @@ export function RecordPaymentForm({ invoiceId, balanceDue }: { invoiceId: string
   const router = useRouter();
   const id = useId();
   const [entries, setEntries] = useState<ReceiptEntry[]>([{ key: 0, amount: balanceDue.toFixed(2), method: "", reference: "" }]);
+  const [receiptDate, setReceiptDate] = useState(clinicToday);
   const nextKey = useRef(1);
   const requestKey = useRef<string | null>(null);
   const [saved, setSaved] = useState<"payment" | "carry-forward" | null>(null);
@@ -76,6 +77,7 @@ export function RecordPaymentForm({ invoiceId, balanceDue }: { invoiceId: string
         requestKey.current ??= crypto.randomUUID();
         const result = await recordInvoicePaymentsAction(invoiceId, {
           request_key: requestKey.current,
+          receipt_date: receiptDate,
           receipts: entries.map(({ amount, method, reference }) => ({ amount, method, reference })),
         });
         if (!result.ok) toast.error(result.error);
@@ -97,6 +99,15 @@ export function RecordPaymentForm({ invoiceId, balanceDue }: { invoiceId: string
         requestKey.current = null;
         setEntries([{ key: nextKey.current++, amount: "0", method: "", reference: "" }]);
       }}>No payment — carry forward</Button>
+      {!noPayment && <div className="space-y-1.5">
+        <Label htmlFor={`${id}-receipt-date`}>Receipt date</Label>
+        <Input id={`${id}-receipt-date`} type="date" required min="0001-01-01" max={clinicToday()}
+          disabled={pending || saved !== null} value={receiptDate} onChange={(event) => {
+            requestKey.current = null;
+            setReceiptDate(event.target.value);
+          }} />
+        {entries.length > 1 && <p className="text-xs text-muted-foreground">This date applies to all payment methods below.</p>}
+      </div>}
       {entries.map((entry, index) => <fieldset key={entry.key} disabled={pending || saved !== null} className="grid min-w-0 gap-3 rounded-md border p-3 sm:grid-cols-2">
         <legend className="px-1 text-sm font-medium">Payment {index + 1}</legend>
       <div className="space-y-1.5">

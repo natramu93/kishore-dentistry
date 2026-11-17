@@ -1,6 +1,6 @@
 import { assertDateOnly, normalizeSearch } from "@/lib/validation";
 import { clinicToday } from "@/lib/tz";
-import type { InvoicePaymentMethod, InvoiceStatus } from "@/lib/database.types";
+import type { Invoice, InvoicePayment, InvoicePaymentMethod, InvoiceStatus } from "@/lib/database.types";
 
 export const INVOICE_STATUSES: readonly InvoiceStatus[] = ["draft", "sent", "paid", "cancelled"];
 const METHODS: readonly InvoicePaymentMethod[] = ["cash", "upi", "card", "neft"];
@@ -31,6 +31,18 @@ export function invoiceEditWindowOpen(createdAt: string, now = Date.now()): bool
 
 export function invoiceStatusLabel(status: string): string {
   return status === "cancelled" ? "Voided" : status;
+}
+
+export function invoicePaymentTotals(
+  invoice: Pick<Invoice, "total" | "status" | "deleted_at">,
+  payments: readonly Pick<InvoicePayment, "amount">[],
+) {
+  if (invoice.status === "cancelled" || invoice.deleted_at) return { amount_paid: 0, balance_due: 0 };
+  // Preserve historic paid invoices that predate the receipt ledger.
+  const amount_paid = invoice.status === "paid" && payments.length === 0
+    ? Number(invoice.total)
+    : Math.round(payments.reduce((sum, payment) => sum + Number(payment.amount), 0) * 100) / 100;
+  return { amount_paid, balance_due: Math.max(0, Math.round((Number(invoice.total) - amount_paid) * 100) / 100) };
 }
 
 export function invoiceDateFilter(params: Record<string, string | undefined>, today = clinicToday()) {

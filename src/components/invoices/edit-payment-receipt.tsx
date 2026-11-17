@@ -6,16 +6,21 @@ import { toast } from "sonner";
 import { updateInvoicePaymentAction } from "@/actions/invoices";
 import type { InvoicePayment } from "@/lib/database.types";
 import { PAYMENT_METHODS } from "@/lib/invoice-receipts";
+import { clinicToday, toClinicInputValue } from "@/lib/tz";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function EditPaymentReceipt({ payment, maximumAmount }: { payment: InvoicePayment; maximumAmount: number }) {
+export function EditPaymentReceipt({ payment, maximumAmount, canEditDate = false }: {
+  payment: InvoicePayment; maximumAmount: number; canEditDate?: boolean;
+}) {
   const id = useId();
   const router = useRouter();
   const [amount, setAmount] = useState(String(payment.amount));
   const [method, setMethod] = useState(payment.payment_method);
   const [reference, setReference] = useState(payment.reference ?? "");
+  const originalDate = canEditDate ? toClinicInputValue(payment.received_at).slice(0, 10) : "";
+  const [receiptDate, setReceiptDate] = useState(originalDate);
   const [reason, setReason] = useState("");
   const [pending, startTransition] = useTransition();
   return <details className="rounded-md border p-3">
@@ -26,6 +31,7 @@ export function EditPaymentReceipt({ payment, maximumAmount }: { payment: Invoic
         try {
           const result = await updateInvoicePaymentAction(payment.invoice_id, payment.id, {
             amount, method, reference, reason, expected_version: payment.version,
+            ...(canEditDate && receiptDate !== originalDate ? { receipt_date: receiptDate } : {}),
           });
           if (!result.ok) toast.error(result.error);
           else { toast.success("Receipt updated"); router.refresh(); }
@@ -40,9 +46,14 @@ export function EditPaymentReceipt({ payment, maximumAmount }: { payment: Invoic
         </select></div>
       <div className="space-y-1.5 sm:col-span-2"><Label htmlFor={`${id}-reference`}>Transaction / receipt reference</Label>
         <Input id={`${id}-reference`} value={reference} disabled={pending} maxLength={120} onChange={(event) => setReference(event.target.value)} /></div>
+      {canEditDate && <div className="space-y-1.5"><Label htmlFor={`${id}-receipt-date`}>Receipt date</Label>
+        <Input id={`${id}-receipt-date`} type="date" value={receiptDate} required disabled={pending}
+          min="0001-01-01" max={clinicToday()} onChange={(event) => setReceiptDate(event.target.value)} /></div>}
       <div className="space-y-1.5 sm:col-span-2"><Label htmlFor={`${id}-reason`}>Reason for correction</Label>
         <Input id={`${id}-reason`} value={reason} disabled={pending} required maxLength={1000} onChange={(event) => setReason(event.target.value)} /></div>
-      <p className="text-xs text-muted-foreground sm:col-span-2">The original receipt date is retained. The correction and reason are recorded in patient history.</p>
+      <p className="text-xs text-muted-foreground sm:col-span-2">{canEditDate
+        ? "A date change moves this payment to the corrected day in collection reports. The original date and reason remain in the audit history."
+        : "Only a super admin can change the receipt date. Other corrections and their reasons are recorded in patient history."}</p>
       <Button type="submit" disabled={pending}>{pending ? "Updating…" : "Update receipt"}</Button>
     </form>
   </details>;

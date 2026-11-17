@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { clinicToday } from "@/lib/tz";
 
 export const PAYMENT_METHODS = [
   { value: "upi", label: "UPI" },
@@ -14,6 +15,9 @@ export const paymentReceiptSchema = z.object({
   reference: z.string().trim().max(120).optional(),
   notes: z.string().trim().max(1000).optional(),
 });
+
+export const receiptDateSchema = z.iso.date("Enter a valid receipt date")
+  .refine((date) => date >= "0001-01-01" && date <= clinicToday(), "Receipt date must be on or before today");
 
 const small = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
 const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];

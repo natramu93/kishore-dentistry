@@ -39,6 +39,16 @@ it("returns no CSV when the invoice query denies access", async () => {
   expect((await GET(request("dates=all"))).status).toBe(403);
 });
 
+it("exports voided invoices as zero for charges, payments and balance", async () => {
+  const voided = { id: "voided", invoice_number: "VOID-1", billing_date: "2026-11-14",
+    status: "cancelled", subtotal: 210, discount_amount: 10, tax_amount: 5,
+    total: 205, amount_paid: 205, balance_due: 0 };
+  list.mockResolvedValueOnce({ invoices: [voided], total: 1, page: 1, pageSize: 100 } as Awaited<ReturnType<typeof listInvoices>>);
+  const response = await GET(request("dates=all&status=cancelled"));
+  expect(response.status).toBe(200);
+  expect(await response.text()).toContain('"VOID-1","2026-11-14","","","Voided","0","0","0","0","0","0"');
+});
+
 it("rejects invalid dates before querying", async () => {
   expect((await GET(request("dates=range&from=invalid"))).status).toBe(400);
   expect(list).not.toHaveBeenCalled();

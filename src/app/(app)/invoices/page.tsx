@@ -107,7 +107,7 @@ export default async function InvoicesPage({
             defaultValue={params.status ?? ""}
             className="h-11 rounded-md border border-input bg-transparent px-3 text-sm"
           >
-            <option value="">All statuses</option>
+            <option value="">Active invoices</option>
               {INVOICE_STATUSES.map((s) => (
               <option key={s} value={s} className="capitalize">{invoiceStatusLabel(s)}</option>
             ))}
@@ -181,7 +181,7 @@ export default async function InvoicesPage({
               <TableCell className="hidden md:table-cell">{inv.branch?.name ?? "—"}</TableCell>
               <TableCell className="hidden whitespace-nowrap text-muted-foreground md:table-cell">{fmtDate(inv.billing_date)}</TableCell>
               <TableCell className="whitespace-nowrap">
-                <span className="font-semibold">{formatINR(inv.total)}</span>
+                <span className="font-semibold">{formatINR(inv.status === "cancelled" ? 0 : inv.total)}</span>
                 <span className="mt-1 block text-xs text-muted-foreground sm:hidden">Due {formatINR(inv.balance_due)}</span>
               </TableCell>
               <TableCell className="hidden whitespace-nowrap text-xs sm:table-cell">

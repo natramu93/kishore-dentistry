@@ -508,6 +508,7 @@ export type InvoicePayment = Timestamps & {
   version: number;
   batch_key: string | null;
   batch_line: number | null;
+  initial_receipt_date: string | null;
 };
 
 export type WebhookEndpoint = Timestamps & {
@@ -1099,6 +1100,7 @@ export type Database = {
         Returns: Invoice;
       };
       cancel_invoice: { Args: { p_invoice_id: string; p_actor: string; p_reason: string; p_expected_version?: number }; Returns: Invoice };
+      void_invoice: { Args: { p_invoice_id: string; p_actor: string; p_reason: string; p_expected_version: number; p_archive: boolean }; Returns: Invoice };
       get_patient_invoice_summary: {
         Args: { p_lead_id: string; p_actor: string };
         Returns: { invoice_count: number; total_invoiced: number; amount_paid: number; balance_due: number }[];
@@ -1187,8 +1189,16 @@ export type Database = {
         Args: { p_invoice_id: string; p_receipts: Json; p_request_key: string; p_actor: string };
         Returns: InvoicePayment[];
       };
+      record_invoice_payment_batch_with_date: {
+        Args: { p_invoice_id: string; p_receipts: Json; p_request_key: string; p_actor: string; p_receipt_date: string | null };
+        Returns: InvoicePayment[];
+      };
       update_invoice_payment: {
         Args: { p_invoice_id: string; p_payment_id: string; p_amount: number; p_method: InvoicePaymentMethod; p_reference: string | null; p_reason: string; p_expected_version: number; p_actor: string };
+        Returns: InvoicePayment;
+      };
+      update_invoice_payment_with_date: {
+        Args: { p_invoice_id: string; p_payment_id: string; p_amount: number; p_method: InvoicePaymentMethod; p_reference: string | null; p_reason: string; p_expected_version: number; p_actor: string; p_receipt_date: string | null };
         Returns: InvoicePayment;
       };
       delete_invoice: {

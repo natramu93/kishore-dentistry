@@ -3,8 +3,8 @@ import "server-only";
 import { db } from "./db";
 import { throwMappedDatabaseError } from "./helpers";
 import { invoiceLineDetailsSchema } from "@/lib/invoice-lines";
-import { paymentReceiptSchema } from "@/lib/invoice-receipts";
-import { invoiceEditWindowOpen } from "@/lib/invoice-policy";
+import { paymentReceiptSchema, receiptDateSchema } from "@/lib/invoice-receipts";
+import { invoiceEditWindowOpen, invoicePaymentTotals } from "@/lib/invoice-policy";
 import { clinicToday } from "@/lib/tz";
 import { patientDisplayName, type PatientTitle } from "@/lib/patient-demographics";
 import type { PatientInvoiceBalance } from "@/lib/patient-invoice-balance";
@@ -80,17 +80,6 @@ export type InvoiceItemInput = {
   tooth_numbers?: string[];
   line_note?: string;
 };
-
-function paidAmount(invoice: Pick<Invoice, "total" | "status">, payments: Pick<InvoicePayment, "amount">[]): number {
-  // Preserve historic paid invoices that predate the receipt ledger.
-  if (invoice.status === "paid" && payments.length === 0) return invoice.total;
-  return Math.round(payments.reduce((sum, payment) => sum + Number(payment.amount), 0) * 100) / 100;
-}
-
-function paymentTotals(invoice: Pick<Invoice, "total" | "status">, payments: Pick<InvoicePayment, "amount">[]) {
-  const amount_paid = paidAmount(invoice, payments);
-  return { amount_paid, balance_due: invoice.status === "cancelled" ? 0 : Math.max(0, Math.round((invoice.total - amount_paid) * 100) / 100) };
-}
 
 export type InvoiceCatalogTreatment = Pick<TreatmentType, "id" | "name" | "category" | "default_cost" | "is_general_consultation">;
 
@@ -339,6 +328,7 @@ export async function listInvoices(
   if (fromDate) query = query.gte("billing_date", fromDate);
   if (toDate) query = query.lte("billing_date", toDate);
   if (opts.status) query = query.eq("status", assertInvoiceStatus(opts.status));
+  else query = query.neq("status", "cancelled");
   if (opts.leadId) query = query.eq("lead_id", assertUuid(opts.leadId, "Patient"));
   if (opts.dueOnly) query = query.not("status", "in", "(paid,cancelled)").gt("total", 0);
   if (opts.paymentMethod) {
@@ -381,7 +371,7 @@ export async function listInvoices(
     )
     .map((invoice) => {
       const paymentRows = (invoice as InvoiceScopeRow & { payments?: Pick<InvoicePayment, "amount">[] }).payments ?? [];
-      return { ...toInvoiceDto(invoice), ...paymentTotals(invoice, paymentRows) };
+      return { ...toInvoiceDto(invoice), ...invoicePaymentTotals(invoice, paymentRows) };
     });
   return { invoices, total: count ?? 0, page, pageSize };
 }
@@ -488,6 +478,13 @@ async function writablePaymentInvoice(ctx: AuthContext, id: string) {
   return invoice;
 }
 
+function validatedReceiptDate(date?: string): string | null {
+  if (date === undefined) return null;
+  const parsed = receiptDateSchema.safeParse(date);
+  if (!parsed.success) throw new ValidationError(parsed.error.issues[0]?.message ?? "Enter a valid receipt date");
+  return parsed.data;
+}
+
 /** No receipt or new charge is needed: the existing ledger already carries unpaid dues forward. */
 export async function confirmInvoiceCarryForward(ctx: AuthContext, id: string): Promise<PatientInvoiceBalance> {
   const invoice = await writablePaymentInvoice(ctx, id);
@@ -496,7 +493,7 @@ export async function confirmInvoiceCarryForward(ctx: AuthContext, id: string): 
 }
 
 export async function recordInvoicePayments(ctx: AuthContext, id: string,
-  receipts: { amount: number; method: InvoicePaymentMethod; reference?: string; notes?: string }[], requestKey: string) {
+  receipts: { amount: number; method: InvoicePaymentMethod; reference?: string; notes?: string }[], requestKey: string, receiptDate?: string) {
   const invoice = await writablePaymentInvoice(ctx, id);
   assertUuid(requestKey, "Payment request");
   if (!receipts.length || receipts.length > 10) throw new ValidationError("Record between one and ten payments");
@@ -506,24 +503,29 @@ export async function recordInvoicePayments(ctx: AuthContext, id: string,
     return parsed.data;
   });
   // The RPC locks the invoice, validates the combined amount, and handles retries.
-  const result = await db.rpc("record_invoice_payment_batch", {
+  const result = await db.rpc("record_invoice_payment_batch_with_date", {
     p_invoice_id: invoice.id, p_receipts: clean as Json, p_request_key: requestKey, p_actor: ctx.userId,
+    p_receipt_date: validatedReceiptDate(receiptDate),
   });
   if (result.error) throwMappedDatabaseError(result.error, "Payment");
   return result.data;
 }
 
 export async function updateInvoicePayment(ctx: AuthContext, id: string, paymentId: string,
-  input: { amount: number; method: InvoicePaymentMethod; reference?: string; expected_version: number; reason: string }) {
+  input: { amount: number; method: InvoicePaymentMethod; reference?: string; expected_version: number; reason: string; receipt_date?: string }) {
+  if (input.receipt_date !== undefined && ctx.role !== "admin") {
+    throw new AuthorizationError("Only a super admin can correct a receipt date");
+  }
   const invoice = await writablePaymentInvoice(ctx, id);
   const receipt = paymentReceiptSchema.safeParse(input);
   if (!receipt.success) throw new ValidationError(receipt.error.issues[0]?.message ?? "Invalid payment");
   const reason = input.reason.trim();
   if (!reason || reason.length > 1000) throw new ValidationError("Enter a correction reason of up to 1,000 characters");
-  const result = await db.rpc("update_invoice_payment", {
+  const result = await db.rpc("update_invoice_payment_with_date", {
     p_invoice_id: invoice.id, p_payment_id: assertUuid(paymentId, "Receipt"),
     p_amount: receipt.data.amount, p_method: receipt.data.method, p_reference: receipt.data.reference || null,
     p_expected_version: validateExpectedVersion(input.expected_version), p_reason: reason, p_actor: ctx.userId,
+    p_receipt_date: validatedReceiptDate(input.receipt_date),
   });
   if (result.error) throwMappedDatabaseError(result.error, "Receipt");
   return result.data;
@@ -600,11 +602,12 @@ export async function createInvoice(
   return invoiceResult.data;
 }
 
-export async function cancelInvoice(ctx: AuthContext, id: string, reason: string, expectedVersion: number) {
+export async function cancelInvoice(ctx: AuthContext, id: string, reason: string, expectedVersion: number, archive = false) {
   if (ctx.role !== "admin") throw new AuthorizationError("Only an admin can cancel invoices");
   const invoiceId = assertUuid(id, "Invoice");
   if (!reason.trim() || reason.length > 1000) throw new ValidationError("A cancellation reason is required");
-  const result = await db.rpc("cancel_invoice", { p_invoice_id: invoiceId, p_actor: ctx.userId, p_reason: reason.trim(), p_expected_version: validateExpectedVersion(expectedVersion) });
+  const result = await db.rpc("void_invoice", { p_invoice_id: invoiceId, p_actor: ctx.userId, p_reason: reason.trim(),
+    p_expected_version: validateExpectedVersion(expectedVersion), p_archive: archive });
   if (result.error) throwMappedDatabaseError(result.error, "Invoice");
 }
 
@@ -789,8 +792,8 @@ export async function deleteInvoice(
     throw new AuthorizationError("Only Operations or Admin can delete invoices");
   }
   assertBranchAccess(ctx, invoice.branch_id);
-  if (invoice.status === "paid") {
-    throw new ConflictError("Paid invoices cannot be deleted");
+  if (invoice.status === "paid" || invoice.status === "cancelled") {
+    throw new ConflictError("Use the admin void workflow to archive a paid or voided invoice");
   }
   if (invoice.version !== expectedVersion) {
     throw new ConflictError(

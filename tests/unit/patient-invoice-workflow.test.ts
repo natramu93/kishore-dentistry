@@ -16,11 +16,11 @@ const context = (role: AuthContext["role"] = "front_office") => ({
 
 function chain(result: { data: unknown; error: unknown; count?: number }) {
   const query = {
-    select: vi.fn(), eq: vi.fn(), is: vi.fn(), in: vi.fn(), or: vi.fn(), order: vi.fn(), gte: vi.fn(), lte: vi.fn(), gt: vi.fn(), not: vi.fn(),
+    select: vi.fn(), eq: vi.fn(), neq: vi.fn(), is: vi.fn(), in: vi.fn(), or: vi.fn(), order: vi.fn(), gte: vi.fn(), lte: vi.fn(), gt: vi.fn(), not: vi.fn(),
     limit: vi.fn().mockResolvedValue(result), maybeSingle: vi.fn().mockResolvedValue(result),
     range: vi.fn().mockResolvedValue(result),
   };
-  for (const key of ["select", "eq", "is", "in", "or", "order", "gte", "lte", "gt", "not"] as const) query[key].mockReturnValue(query);
+  for (const key of ["select", "eq", "neq", "is", "in", "or", "order", "gte", "lte", "gt", "not"] as const) query[key].mockReturnValue(query);
   return query;
 }
 beforeEach(() => vi.resetAllMocks());
@@ -56,6 +56,20 @@ describe("patient invoice history", () => {
     expect(query.gt).toHaveBeenCalledWith("total", 0);
   });
 
+  it("hides voided invoices in the active list, but an explicit voided filter can see them with zero effective payments", async () => {
+    const active = chain({ data: [], error: null });
+    const history = chain({ data: [{
+      id: "voided", status: "cancelled", total: 200, payments: [{ amount: 200 }], branch_id: branchId,
+    }], error: null });
+    mocks.from.mockReturnValueOnce(active).mockReturnValueOnce(history);
+    await listInvoices(context("admin"));
+    expect(active.neq).toHaveBeenCalledWith("status", "cancelled");
+    const result = await listInvoices(context("admin"), { status: "cancelled" });
+    expect(history.neq).not.toHaveBeenCalled();
+    expect(history.eq).toHaveBeenCalledWith("status", "cancelled");
+    expect(result.invoices[0]).toMatchObject({ amount_paid: 0, balance_due: 0 });
+  });
+
   it("uses the exact ledger balance even when the visible receipt history is capped", async () => {
     const invoiceId="20000000-0000-4000-8000-000000000004";
     mocks.from.mockReturnValueOnce(chain({ data: { id:invoiceId, lead_id:leadId,branch_id:branchId,
@@ -85,7 +99,7 @@ describe("patient invoice history", () => {
     const lead = chain({ data: { id: leadId, branch_id: branchId, assignee_id: userId }, error: null });
     const empty = () => chain({ data: [], error: null });
     const invoices = chain({ data: [
-      { id: "cancelled", status: "cancelled", total: 200, payments: [] },
+      { id: "cancelled", status: "cancelled", total: 200, payments: [{ amount: 200 }] },
       { id: "partial", status: "sent", total: 200, payments: [{ amount: 40 }, { amount: 60 }] },
     ], error: null, count: 225 });
     mocks.from.mockReturnValueOnce(lead).mockReturnValueOnce(empty()).mockReturnValueOnce(empty())
@@ -96,6 +110,7 @@ describe("patient invoice history", () => {
     expect(result?.invoiceSummary).toEqual(summary);
     expect(result?.invoiceTotal).toBe(225);
     expect(result?.invoices[0]?.balance_due).toBe(0);
+    expect(result?.invoices[0]?.amount_paid).toBe(0);
     expect(result?.invoices[1]?.amount_paid).toBe(100);
     expect(result?.invoices[1]?.balance_due).toBe(100);
     expect(mocks.rpc).toHaveBeenCalledWith("get_patient_invoice_summary", { p_lead_id: leadId, p_actor: userId });

@@ -39,6 +39,7 @@ import {
 } from "@/lib/validation";
 import type { Json, Lead, LeadStatus } from "@/lib/database.types";
 import { patientNameTitleCase, type PatientTitle, type PatientGender } from "@/lib/patient-demographics";
+import { invoicePaymentTotals } from "@/lib/invoice-policy";
 
 export type LeadWithRefs = Lead & {
   branch: { name: string; code: string } | null;
@@ -425,10 +426,7 @@ export async function getLeadRelated(ctx: AuthContext, leadIdValue: string) {
     followUps: results[2].data,
     invoices: (results[3].data ?? []).map((invoice) => {
       const payments = invoice.payments ?? [];
-      const amount_paid = invoice.status === "paid" && payments.length === 0
-        ? Number(invoice.total)
-        : payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
-      return { ...invoice, payments, amount_paid, balance_due: invoice.status === "cancelled" ? 0 : Math.max(0, Math.round((Number(invoice.total) - amount_paid) * 100) / 100) };
+      return { ...invoice, payments, ...invoicePaymentTotals(invoice, payments) };
     }),
     callLogs: results[4].data,
     invoiceTotal: results[3].count,

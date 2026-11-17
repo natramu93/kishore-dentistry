@@ -52,7 +52,8 @@ function NavList({
       <Link
         key={item.href}
         href={item.href}
-        onClick={onNavigate}
+        target="_self"
+        onNavigate={onNavigate}
         aria-current={active ? "page" : undefined}
         className={cn(
           "flex min-h-11 items-center gap-3 rounded-lg border-l-4 border-l-transparent px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset",
@@ -126,7 +127,8 @@ export function MobileNav({
           <SheetTitle className="sr-only">Navigation</SheetTitle>
           <Link
             href="/dashboard"
-            onClick={() => setOpen(false)}
+            target="_self"
+            onNavigate={() => setOpen(false)}
             className="inline-flex rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
           >
             <BrandWordmark className="h-12" />
@@ -136,7 +138,8 @@ export function MobileNav({
         <div className="mt-auto space-y-2 border-t border-sidebar-border p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <Link
             href="/profile"
-            onClick={() => setOpen(false)}
+            target="_self"
+            onNavigate={() => setOpen(false)}
             className="block rounded-md px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
           >
             <div className="truncate text-sm font-medium">{fullName || email}</div>

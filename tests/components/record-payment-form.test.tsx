@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { RecordPaymentForm } from "@/components/invoices/record-payment-form";
 import { confirmInvoiceCarryForwardAction, recordInvoicePaymentsAction } from "@/actions/invoices";
 import { toast } from "sonner";
+import { clinicToday } from "@/lib/tz";
 
 vi.mock("@/actions/invoices", () => ({
   recordInvoicePaymentsAction: vi.fn().mockResolvedValue({ ok: true }),
@@ -25,6 +26,7 @@ describe("record payment form", () => {
     fireEvent.change(amount, { target: { value: "0" } });
     expect(amount).toHaveAttribute("min", "0");
     expect(screen.getByRole("combobox", { name: "Payment method" })).toBeDisabled();
+    expect(screen.queryByLabelText("Receipt date")).not.toBeInTheDocument();
     const button = screen.getByRole("button", { name: "Confirm ₹0 received / carry forward" });
     expect(button.closest("form")!.checkValidity()).toBe(true);
     fireEvent.click(button);
@@ -109,6 +111,7 @@ describe("record payment form", () => {
 
     await waitFor(() => expect(recordInvoicePaymentsAction).toHaveBeenCalledWith("invoice-1", {
       request_key: expect.any(String),
+      receipt_date: clinicToday(),
       receipts: [{ amount: "50", method: "upi", reference: "UPI-REF-001" }],
     }));
   });
@@ -137,17 +140,19 @@ describe("record payment form", () => {
   it("submits split methods together and retries an interrupted request with the same key", async () => {
     vi.mocked(recordInvoicePaymentsAction).mockRejectedValueOnce(new Error("Response interrupted"));
     render(<RecordPaymentForm invoiceId="invoice-1" balanceDue={150} />);
+    expect(screen.getByLabelText("Receipt date")).toHaveValue(clinicToday());
+    fireEvent.change(screen.getByLabelText("Receipt date"), { target: { value: "2026-01-15" } });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Payment amount (₹)" }), { target: { value: "50" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Payment method" }), { target: { value: "cash" } });
     fireEvent.click(screen.getByRole("button", { name: "Add payment method" }));
     fireEvent.change(screen.getAllByRole("combobox", { name: "Payment method" })[1], { target: { value: "card" } });
-    fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("retry")));
     const first = vi.mocked(recordInvoicePaymentsAction).mock.calls[0][1];
-    fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Record payment" }));
     await waitFor(() => expect(recordInvoicePaymentsAction).toHaveBeenCalledTimes(2));
     expect(vi.mocked(recordInvoicePaymentsAction).mock.calls[1][1]).toEqual(first);
-    expect(first).toEqual({ request_key: expect.any(String), receipts: [
+    expect(first).toEqual({ request_key: expect.any(String), receipt_date: "2026-01-15", receipts: [
       { amount: "50", method: "cash", reference: "" }, { amount: "100.00", method: "card", reference: "" },
     ] });
   });

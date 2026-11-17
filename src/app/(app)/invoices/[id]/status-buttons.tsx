@@ -70,20 +70,24 @@ export function InvoiceActions({
     });
   }
 
-  function cancelInvoice() {
+  function cancelInvoice(archive: boolean) {
     const reason = voidReason.trim();
     if (!reason) return;
     startTransition(async () => {
-      const result = await cancelInvoiceAction(invoiceId, reason, version);
+      const result = await cancelInvoiceAction(invoiceId, reason, version, archive);
       if (result.ok) {
-        toast.success("Invoice voided");
+        toast.success(archive ? "Invoice archived" : "Invoice voided");
         setVoidOpen(false);
-        router.refresh();
+        setVoidReason("");
+        if (archive) router.push("/invoices");
+        else router.refresh();
       } else toast.error(result.error);
     });
   }
 
   const canDelete = role === "admin" || role === "operations";
+  const voided = status === "cancelled";
+  const hasRecordedPayment = hasPayments || status === "paid";
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -100,20 +104,28 @@ export function InvoiceActions({
           Mark sent
         </Button>
       )}
-      {role === "admin" && !hasPayments && status !== "cancelled" && status !== "paid" && (
+      {role === "admin" && (
         <AlertDialog open={voidOpen} onOpenChange={setVoidOpen}>
-          <AlertDialogTrigger render={<Button size="sm" variant="destructive" disabled={pending}>Void invoice</Button>} />
+          <AlertDialogTrigger render={<Button size="sm" variant="destructive" disabled={pending}>{voided ? "Archive" : "Void invoice"}</Button>} />
           <AlertDialogContent>
-            <AlertDialogHeader><AlertDialogTitle>Void this invoice?</AlertDialogTitle>
-              <AlertDialogDescription>The invoice and its history will be retained, but the balance will be removed. This cannot be undone. Create a replacement invoice if needed.</AlertDialogDescription></AlertDialogHeader>
-            <div className="space-y-2"><Label htmlFor="invoice-void-reason">Reason for voiding</Label>
-              <Textarea id="invoice-void-reason" value={voidReason} onChange={(event) => setVoidReason(event.target.value)} required maxLength={1000} placeholder="e.g. Wrong treatment or duplicate bill" /></div>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{voided ? "Archive this voided invoice?" : "Void this invoice?"}</AlertDialogTitle>
+              <AlertDialogDescription>{voided
+                ? "Archiving removes this invoice from the list and retains its audit history. It already counts as zero in totals."
+                : hasRecordedPayment
+                  ? "This removes the invoice and its payments from billing and collection totals. The original invoice and receipts are retained for audit. This does not refund the patient."
+                  : "This removes the invoice from billing and balance totals but retains its audit history. This cannot be undone."}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-2"><Label htmlFor="invoice-void-reason">{voided ? "Reason for archiving" : "Reason for voiding"}</Label>
+              <Textarea id="invoice-void-reason" value={voidReason} onChange={(event) => setVoidReason(event.target.value)} disabled={pending} required maxLength={1000} placeholder="e.g. Wrong treatment or duplicate bill" /></div>
             <AlertDialogFooter><AlertDialogCancel disabled={pending}>Keep invoice</AlertDialogCancel>
-              <Button variant="destructive" disabled={pending || !voidReason.trim()} onClick={cancelInvoice}>{pending ? "Voiding…" : "Confirm void"}</Button></AlertDialogFooter>
+              {!voided && <Button variant="destructive" disabled={pending || !voidReason.trim()} onClick={() => cancelInvoice(false)}>Confirm void</Button>}
+              {(hasRecordedPayment || voided) && <Button variant="destructive" disabled={pending || !voidReason.trim()} onClick={() => cancelInvoice(true)}>{voided ? "Confirm archive" : "Void & archive"}</Button>}
+            </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
       )}
-      {canDelete && status !== "paid" && !hasPayments && (
+      {canDelete && !voided && !hasRecordedPayment && (
         <AlertDialog>
           <AlertDialogTrigger
             render={

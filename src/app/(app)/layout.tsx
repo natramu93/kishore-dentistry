@@ -25,6 +25,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="border-b border-sidebar-border p-5">
           <Link
             href="/dashboard"
+            target="_self"
             className="inline-flex rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
           >
             <BrandWordmark className="h-12" />
@@ -32,7 +33,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
         <DesktopNav nav={nav} adminNav={adminNav} />
         <div className="space-y-2 border-t border-sidebar-border p-4">
-          <Link href="/profile" className="block rounded-md px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring">
+          <Link href="/profile" target="_self" className="block rounded-md px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring">
             <div className="truncate text-sm font-medium">{ctx.fullName || ctx.email}</div>
             <div className="text-xs text-sidebar-foreground/75">My profile</div>
           </Link>
@@ -59,13 +60,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <MobileNav nav={nav} adminNav={adminNav} fullName={ctx.fullName} email={ctx.email} roleLabel={ROLE_LABELS[ctx.role]} logoutAction={logout} />
             <Link
               href="/dashboard"
+              target="_self"
               aria-label="Go to dashboard"
               className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
             >
               <BrandMark decorative />
             </Link>
           </div>
-          <Link href="/profile" className="inline-flex min-h-11 items-center rounded-md px-2 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">Profile</Link>
+          <Link href="/profile" target="_self" className="inline-flex min-h-11 items-center rounded-md px-2 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">Profile</Link>
         </header>
 
         <main id="main-content" tabIndex={-1} className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain outline-none">
