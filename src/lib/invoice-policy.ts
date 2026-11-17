@@ -26,6 +26,15 @@ export function invoiceStatusLabel(status: string): string {
   return status === "cancelled" ? "Voided" : status;
 }
 
+export function invoicePaymentEditIssue(total: number, received: number, legacyPaidTotal?: number): string | undefined {
+  if (legacyPaidTotal !== undefined && Math.round(total * 100) !== Math.round(legacyPaidTotal * 100)) {
+    return "This historical invoice is marked paid without receipts. You can edit its details, but its total must stay unchanged.";
+  }
+  if (Math.round(total * 100) < Math.round(received * 100)) {
+    return "The invoice total cannot be less than the amount already received.";
+  }
+}
+
 export function invoicePaymentTotals(
   invoice: Pick<Invoice, "total" | "status" | "deleted_at">,
   payments: readonly Pick<InvoicePayment, "amount">[],

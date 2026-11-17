@@ -211,7 +211,7 @@ export default async function InvoiceDetailPage({
               </div>)}
             </div>
           )}
-          {invoice.amount_paid > 0 && <p className="text-sm text-muted-foreground">Original invoice charges are locked after a payment is recorded.</p>}
+          {invoice.amount_paid > 0 && <p className="text-sm text-muted-foreground">Editing the invoice does not change its receipts or refund payments.</p>}
           {invoice.status !== "cancelled" && invoice.balance_due > 0 && canCollect && (
             <div className="mt-6 border-t pt-4">
               <h2 className="mb-3 font-semibold">Record a payment</h2>

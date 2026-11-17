@@ -715,12 +715,9 @@ export async function updateInvoice(
     branch_id: invoice.branch_id,
     assignee_id: invoice.lead?.assignee_id ?? null,
   });
-  if (invoice.status === "paid" || invoice.status === "cancelled") {
-    throw new ConflictError("A paid or voided invoice cannot be edited");
+  if (invoice.status === "cancelled") {
+    throw new ConflictError("A voided invoice cannot be edited");
   }
-  const receipts = await db.from("invoice_payments").select("id").eq("invoice_id", invoice.id).limit(1);
-  if (receipts.error) throw receipts.error;
-  if (receipts.data?.length) throw new ConflictError("An invoice with recorded payments cannot be edited. Its original charges are preserved.");
   if (!invoice.code_enforced && invoice.invoice_kind !== "consultation") {
     throw new ConflictError(
       "Legacy invoices cannot be edited. Create a new invoice from finalized coded treatments."
@@ -767,7 +764,7 @@ export async function updateConsultationInvoice(ctx: AuthContext, id: string, in
   const invoice = await loadInvoiceScope(id);
   if (!invoice) throw new NotFoundError("Invoice");
   assertInvoiceWriteAccess(ctx, { branch_id: invoice.branch_id, assignee_id: invoice.lead?.assignee_id ?? null });
-  if (invoice.invoice_kind !== "consultation" || invoice.status === "paid" || invoice.status === "cancelled") throw new ConflictError("This invoice cannot be edited");
+  if (invoice.invoice_kind !== "consultation" || invoice.status === "cancelled") throw new ConflictError("This invoice cannot be edited");
   if (!Number.isFinite(input.amount) || input.amount < invoice.discount_amount || input.amount > MAX_UNIT_PRICE || !hasAtMostTwoDecimals(input.amount)) throw new ValidationError("Enter a valid amount at least equal to the discount");
   if (input.notes && input.notes.length > 4000) throw new ValidationError("Invoice notes are too long");
   const result = await db.rpc("update_invoice_with_date", { p_invoice_id: invoice.id, p_tax_rate: invoice.tax_rate,

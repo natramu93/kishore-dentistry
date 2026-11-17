@@ -15,11 +15,13 @@ export default async function EditInvoicePage({
   const ctx = await getAuthContext();
   const invoice = await getInvoice(ctx, id);
   if (!invoice) notFound();
-  if ((!invoice.code_enforced && invoice.invoice_kind !== "consultation") || invoice.status === "paid" || invoice.status === "cancelled" || invoice.payments.length > 0) redirect(`/invoices/${invoice.id}`);
+  if (invoice.invoice_kind === "opening_balance" || (!invoice.code_enforced && invoice.invoice_kind !== "consultation") || invoice.status === "cancelled") redirect(`/invoices/${invoice.id}`);
+  const legacyPaidTotal = invoice.status === "paid" && invoice.payments.length === 0 && invoice.total > 0 ? Number(invoice.total) : undefined;
   if (invoice.invoice_kind === "consultation" && !invoice.code_enforced) return <div className="max-w-2xl space-y-4">
     <h1 className="text-2xl font-bold">Edit consultation invoice</h1>
     <p className="text-sm text-muted-foreground">{invoice.invoice_number}</p>
-    <ConsultationInvoiceEditor invoiceId={invoice.id} version={invoice.version} initialAmount={invoice.subtotal} initialNotes={invoice.notes ?? ""} initialInvoiceDate={invoice.billing_date} />
+    <ConsultationInvoiceEditor invoiceId={invoice.id} version={invoice.version} initialAmount={invoice.subtotal} initialNotes={invoice.notes ?? ""} initialInvoiceDate={invoice.billing_date}
+      amountReceived={invoice.amount_paid} legacyPaidTotal={legacyPaidTotal} taxRate={invoice.tax_rate} discount={invoice.discount_amount} />
   </div>;
   const [eligible, treatmentOptions] = await Promise.all([
     listInvoiceEligibleTreatments(ctx, invoice.lead_id),
@@ -62,6 +64,8 @@ export default async function EditInvoicePage({
         invoiceId={invoice.id}
         initialVersion={invoice.version}
         initialInvoiceDate={invoice.billing_date}
+        amountReceived={invoice.amount_paid}
+        legacyPaidTotal={legacyPaidTotal}
         primaryTreatmentId={invoice.treatment_id}
         leadId={invoice.lead_id}
         treatmentCatalog={catalog}

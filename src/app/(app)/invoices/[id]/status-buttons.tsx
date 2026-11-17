@@ -89,7 +89,7 @@ export function InvoiceActions({
 
   return (
     <div className="flex flex-wrap gap-2">
-      {(codeEnforced || consultation) && !hasRecordedPayment && !voided && (
+      {(codeEnforced || consultation) && !voided && (
         <Button asChild size="sm" variant="outline">
           <Link href={`/invoices/${invoiceId}/edit`}>
             <Pencil className="h-3.5 w-3.5 mr-1" />

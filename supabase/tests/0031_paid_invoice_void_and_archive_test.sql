@@ -73,8 +73,8 @@ begin
   begin
     perform crm.update_invoice_with_date(v_paid.id,0,null,'[{"description":"Consultation","quantity":1,"unit_price":10}]',
       v_admin,v_paid.version,null,null,null, date '2026-11-01');
-    raise exception 'paid invoice edit accepted';
-  exception when object_not_in_prerequisite_state then null;
+    raise exception 'paid invoice total fell below receipts';
+  exception when invalid_parameter_value then null;
   end;
 
   select * into v_voided from crm.void_invoice(v_paid.id,v_admin,'Wrong paid invoice',v_paid.version,false);

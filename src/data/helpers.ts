@@ -53,6 +53,12 @@ export function throwMappedDatabaseError(
     throw new AuthorizationError();
   }
   if (code === "23514" || code === "22023" || code === "55000") {
+    if (resource === "Invoice" && code === "22023" && [
+      "invoice total cannot be less than the amount already received",
+      "a historical paid invoice without receipts can be edited, but its total cannot change",
+    ].includes(databaseMessage)) {
+      throw new ValidationError(`${databaseMessage.charAt(0).toUpperCase()}${databaseMessage.slice(1)}.`);
+    }
     if (resource === "Payment") {
       if (code === "55000") throw new ConflictError(databaseMessage);
       throw new ValidationError(databaseMessage || "Payment details are invalid");

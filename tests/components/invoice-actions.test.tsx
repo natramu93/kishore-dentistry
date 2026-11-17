@@ -17,9 +17,9 @@ describe("invoice actions", () => {
     render(<InvoiceActions {...defaults} codeEnforced={false} consultation />);
     expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute("href", "/invoices/invoice-1/edit");
   });
-  it("keeps partially paid charges locked but offers admin voiding", () => {
+  it("offers editing and admin voiding for partially paid invoices", () => {
     render(<InvoiceActions {...defaults} hasPayments />);
-    expect(screen.queryByRole("link", { name: "Edit" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Edit" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Void invoice" })).toBeEnabled();
   });
   it("requires a void reason and sends the current invoice version", async () => {
@@ -32,7 +32,7 @@ describe("invoice actions", () => {
   });
   it("can void and archive a paid invoice without promising a refund", async () => {
     render(<InvoiceActions {...defaults} status="paid" hasPayments />);
-    expect(screen.queryByRole("link", { name: "Edit" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Edit" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Void invoice" }));
     expect(screen.getByText(/does not refund the patient/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Void & archive" })).toBeDisabled();
@@ -42,6 +42,7 @@ describe("invoice actions", () => {
   });
   it("allows an admin to archive an already voided invoice", async () => {
     render(<InvoiceActions {...defaults} status="cancelled" hasPayments />);
+    expect(screen.queryByRole("link", { name: "Edit" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Archive" }));
     fireEvent.change(screen.getByLabelText("Reason for archiving"), { target: { value: "Remove from active list" } });
     fireEvent.click(screen.getByRole("button", { name: "Confirm archive" }));

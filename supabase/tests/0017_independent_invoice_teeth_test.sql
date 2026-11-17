@@ -134,9 +134,9 @@ begin
   v_rejected := false;
   begin
     perform crm.update_invoice(v_invoice.id,10,'Change after receipt',v_items,v_admin,null,50,'Admin',null);
-  exception when object_not_in_prerequisite_state then v_rejected := true;
+  exception when serialization_failure then v_rejected := true;
   end;
-  if not v_rejected then raise exception 'partially paid invoice lines were replaced at equal total'; end if;
+  if not v_rejected then raise exception 'partially paid invoice edited without confirming its current version'; end if;
   execute 'set local role service_role';
   perform crm.record_invoice_payment(v_invoice.id,725,'upi','TEST',null,v_admin);
   execute 'reset role';

@@ -45,11 +45,22 @@ describe("consultation invoice edits", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(updateConsultationInvoiceAction).toHaveBeenCalledWith("invoice-1", { amount: "250", notes: "Corrected fee", invoice_date: "2026-10-06", expected_version: 3 }));
   });
-  it("retains entries when the edit window expires during editing", async () => {
-    vi.mocked(updateConsultationInvoiceAction).mockResolvedValueOnce({ ok: false, error: "Invoices can only be edited within 24 hours of creation" });
+  it("retains entries when a payment was recorded in another request", async () => {
+    vi.mocked(updateConsultationInvoiceAction).mockResolvedValueOnce({ ok: false, error: "Invoice changed in another request. Refresh and try again." });
     render(<ConsultationInvoiceEditor invoiceId="invoice-1" version={3} initialAmount={200} initialNotes="Keep this note" initialInvoiceDate="2026-10-07" />);
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("24 hours")));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("another request")));
     expect(screen.getByLabelText("Invoice remarks (optional)")).toHaveValue("Keep this note");
+  });
+  it("previews a new balance and prevents reducing a paid consultation below receipts", async () => {
+    render(<ConsultationInvoiceEditor invoiceId="invoice-1" version={3} initialAmount={200} initialNotes=""
+      initialInvoiceDate="2026-10-07" amountReceived={200} />);
+    fireEvent.change(screen.getByLabelText("Consultation amount (₹)"), { target: { value: "150" } });
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+    expect(screen.getByText(/cannot be less than the amount already received/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Consultation amount (₹)"), { target: { value: "250" } });
+    expect(screen.getByText(/Balance after edit: ₹50/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(updateConsultationInvoiceAction).toHaveBeenCalledWith("invoice-1", expect.objectContaining({ amount: "250" })));
   });
 });

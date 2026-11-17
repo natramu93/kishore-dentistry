@@ -87,11 +87,12 @@ begin
   begin perform crm.cancel_invoice(v_invoice.id,v_admin,'Wrong invoice');
   exception when object_not_in_prerequisite_state then v_rejected:=true; end;
   if not v_rejected then raise exception 'partially paid invoice voided'; end if;
+  select * into v_invoice from crm.invoices where id=v_invoice.id;
   v_rejected:=false;
-  begin perform crm.update_invoice_with_date(v_invoice.id,0,null,'[{"description":"Consultation","quantity":1,"unit_price":250}]',
+  begin perform crm.update_invoice_with_date(v_invoice.id,0,null,'[{"description":"Consultation","quantity":1,"unit_price":99}]',
     v_admin,v_invoice.version,null,null,null,'2026-08-03');
-  exception when object_not_in_prerequisite_state then v_rejected:=true; end;
-  if not v_rejected then raise exception 'partially paid invoice edited'; end if;
+  exception when invalid_parameter_value then v_rejected:=true; end;
+  if not v_rejected then raise exception 'partially paid invoice total fell below receipts'; end if;
   begin
     update crm.invoice_items set unit_price=1 where invoice_id=v_invoice.id;
     raise exception 'partially paid invoice lines were edited directly';

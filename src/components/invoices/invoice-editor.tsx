@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ToothSelector } from "@/components/clinical/tooth-selector";
 import { invoiceDisplayTotals, invoiceLineAmount } from "@/lib/invoice-lines";
+import { invoicePaymentEditIssue } from "@/lib/invoice-policy";
 import { TreatmentSearch } from "@/components/invoices/treatment-search";
 import { preventImplicitInvoiceSubmit } from "./invoice-form-keyboard";
 import { clinicToday, formatINR } from "@/lib/tz";
@@ -79,6 +80,8 @@ export function InvoiceEditor({
   doctorNames = [],
   initialInvoiceDate,
   existingBalanceDue,
+  amountReceived = 0,
+  legacyPaidTotal,
 }: {
   mode: "create" | "edit";
   invoiceId?: string;
@@ -96,6 +99,8 @@ export function InvoiceEditor({
   doctorNames?: string[];
   initialInvoiceDate?: string;
   existingBalanceDue?: number;
+  amountReceived?: number;
+  legacyPaidTotal?: number;
 }) {
   const router = useRouter();
   const idPrefix = useId();
@@ -136,6 +141,7 @@ export function InvoiceEditor({
   }, [dirty, pending]);
 
   const { subtotal, safeDiscount, tax: discountedTax, total } = invoiceDisplayTotals(items, taxRate, discount);
+  const paymentEditIssue = mode === "edit" ? invoicePaymentEditIssue(total, amountReceived, legacyPaidTotal) : undefined;
   const selectedIds = new Set(items.map((item) => item.treatment_id));
   const available = mode === "edit" ? treatmentCatalog.filter((item) => !selectedIds.has(item.id)) : [];
   const catalogOptions = useMemo(() => treatmentOptions.map((option) => ({
@@ -277,6 +283,10 @@ export function InvoiceEditor({
     }
     if (!Number.isFinite(discount) || discount < 0 || discount > subtotal) {
       toast.error("Discount must be between zero and the invoice subtotal");
+      return;
+    }
+    if (paymentEditIssue) {
+      toast.error(paymentEditIssue);
       return;
     }
     const payloadItems = items.map(({ invoice_item_id, treatment_id, treatment_type_id, quantity, unit_price, tooth_numbers, line_note }) => ({
@@ -522,7 +532,12 @@ export function InvoiceEditor({
               <div className="flex justify-between gap-4"><span>Amount received on creation</span><span>{formatINR(0)}</span></div>
               {total > 0 && <p className="pt-2 text-muted-foreground">No payment is required to create this invoice. The full unpaid amount carries forward; record a payment separately when received.</p>}
             </>}
-            {total === 0 && items.length > 0 && items.every((item) => item.treatment_id || item.treatment_type_id) && (
+            {mode === "edit" && amountReceived > 0 && <>
+              <div className="flex justify-between gap-4"><span>Amount already received</span><span>{formatINR(amountReceived)}</span></div>
+              <div className="flex justify-between gap-4"><span>Balance after edit</span><span>{formatINR(Math.max(0, total - amountReceived))}</span></div>
+            </>}
+            {paymentEditIssue && <p className="text-destructive">{paymentEditIssue}</p>}
+            {total === 0 && !paymentEditIssue && items.length > 0 && items.every((item) => item.treatment_id || item.treatment_type_id) && (
               <p className="pt-2 text-muted-foreground">This is a ₹0 invoice. No payment is required for this bill; earlier patient dues remain unchanged.</p>
             )}
           </div>
@@ -536,7 +551,7 @@ export function InvoiceEditor({
 
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button variant="ghost" type="button" onClick={cancel}>Cancel</Button>
-            <Button type="submit" disabled={pending}>
+            <Button type="submit" disabled={pending || !!paymentEditIssue}>
               {pending ? "Saving…" : mode === "create" ? "Create invoice" : "Save changes"}
             </Button>
           </div>
