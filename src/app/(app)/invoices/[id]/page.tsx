@@ -16,7 +16,7 @@ import { InvoiceActions } from "./status-buttons";
 import { WhatsAppInvoiceShare } from "@/components/invoices/whatsapp-invoice-share";
 import { Printer } from "lucide-react";
 import { invoiceLineToothLabel } from "@/lib/invoice-lines";
-import { invoiceEditWindowOpen, invoiceStatusLabel } from "@/lib/invoice-policy";
+import { invoiceStatusLabel } from "@/lib/invoice-policy";
 import { receivedAmountInWords } from "@/lib/invoice-receipts";
 import { EditPaymentReceipt } from "@/components/invoices/edit-payment-receipt";
 import { PatientBalanceSummary } from "@/components/invoices/patient-balance-summary";
@@ -102,7 +102,6 @@ export default async function InvoiceDetailPage({
             status={invoice.status}
             role={ctx.role}
             version={invoice.version}
-            editWindowOpen={invoiceEditWindowOpen(invoice.created_at)}
             codeEnforced={invoice.code_enforced}
             consultation={invoice.invoice_kind === "consultation"}
             hasPrimaryTreatment={Boolean(invoice.treatment_id)}
@@ -117,7 +116,6 @@ export default async function InvoiceDetailPage({
       {invoice.total === 0 && invoice.status !== "cancelled" && <p role="status" className="rounded-md border p-3 text-sm">
         This is a ₹0 invoice. No payment is required for this bill; earlier patient dues remain unchanged.
       </p>}
-      {!isOpeningBalance && !invoiceEditWindowOpen(invoice.created_at) && !voided && <p className="text-sm text-muted-foreground">The 24-hour invoice editing window has closed. An admin can void an incorrect invoice.</p>}
       <Card>
         <CardContent className="pt-6">
           {isOpeningBalance ? <p className="mb-4 text-sm text-muted-foreground">Balance carried forward from the old system. This is not a new treatment bill.</p> : <div className="mb-4 space-y-1 text-sm">

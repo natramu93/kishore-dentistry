@@ -30,7 +30,6 @@ export function InvoiceActions({
   codeEnforced,
   consultation,
   hasPayments = false,
-  editWindowOpen,
 }: {
   invoiceId: string;
   status: InvoiceStatus;
@@ -39,7 +38,6 @@ export function InvoiceActions({
   codeEnforced: boolean;
   consultation: boolean;
   hasPayments?: boolean;
-  editWindowOpen: boolean;
   hasPrimaryTreatment: boolean;
 }) {
   const router = useRouter();
@@ -91,7 +89,7 @@ export function InvoiceActions({
 
   return (
     <div className="flex flex-wrap gap-2">
-      {(codeEnforced || consultation) && editWindowOpen && !hasPayments && status !== "paid" && status !== "cancelled" && (
+      {(codeEnforced || consultation) && !hasRecordedPayment && !voided && (
         <Button asChild size="sm" variant="outline">
           <Link href={`/invoices/${invoiceId}/edit`}>
             <Pencil className="h-3.5 w-3.5 mr-1" />

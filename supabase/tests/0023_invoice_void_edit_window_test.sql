@@ -92,27 +92,27 @@ begin
     v_admin,v_invoice.version,null,null,null,'2026-08-03');
   exception when object_not_in_prerequisite_state then v_rejected:=true; end;
   if not v_rejected then raise exception 'partially paid invoice edited'; end if;
+  begin
+    update crm.invoice_items set unit_price=1 where invoice_id=v_invoice.id;
+    raise exception 'partially paid invoice lines were edited directly';
+  exception when object_not_in_prerequisite_state then null;
+  end;
 
-  -- Seed a historical header directly: the insert is valid; late line editing is not.
+  -- Older unpaid invoices can change their date, header and line items.
   perform set_config('crm.allow_adhoc_invoice','on',true);
   insert into crm.invoices(invoice_number,lead_id,status,subtotal,tax_rate,tax_amount,total,created_by,
     code_enforced,invoice_kind,created_at,consulting_doctor_name,referring_doctor_name)
     values('I23/AGED/001',v_lead,'draft',200,0,0,200,v_admin,false,'consultation',
-      clock_timestamp()-interval '24 hours','Dr. Consulting','No referring doctor') returning * into v_old;
+      clock_timestamp()-interval '60 days','Dr. Consulting','No referring doctor') returning * into v_old;
   perform set_config('crm.allow_adhoc_invoice','off',true);
-  v_rejected:=false;
-  begin perform crm.update_invoice_with_date(v_old.id,0,null,'[{"description":"Consultation","quantity":1,"unit_price":200}]',
-    v_admin,v_old.version,null,null,null,'2026-08-03');
-  exception when object_not_in_prerequisite_state then v_rejected:=true; end;
-  if not v_rejected then raise exception 'expired RPC editing accepted'; end if;
-  v_rejected:=false;
-  begin update crm.invoices set notes='Late change' where id=v_old.id;
-  exception when object_not_in_prerequisite_state then v_rejected:=true; end;
-  if not v_rejected then raise exception 'expired direct header edit accepted'; end if;
-  v_rejected:=false;
-  begin insert into crm.invoice_items(invoice_id,description,quantity,unit_price) values(v_old.id,'Late line',1,200);
-  exception when object_not_in_prerequisite_state then v_rejected:=true; end;
-  if not v_rejected then raise exception 'expired line insertion accepted'; end if;
+  insert into crm.invoice_items(invoice_id,description,quantity,unit_price) values(v_old.id,'Old line',1,200);
+  select * into v_old from crm.update_invoice_with_date(v_old.id,0,'Old invoice correction',
+    '[{"description":"Consultation","quantity":1,"unit_price":275}]',v_admin,v_old.version,null,null,null,'2026-08-03');
+  if v_old.total<>275 or v_old.billing_date is distinct from date '2026-08-03'
+    or v_old.notes is distinct from 'Old invoice correction'
+    or not exists(select 1 from crm.invoice_items where invoice_id=v_old.id and amount=275 and description='Consultation') then
+    raise exception 'older unpaid invoice date, header or line edits failed';
+  end if;
   select * into v_old from crm.cancel_invoice(v_old.id,v_admin,'Old incorrect invoice',v_old.version);
   if v_old.status<>'cancelled' then raise exception 'old unpaid invoice cannot be voided'; end if;
   select * into v_invoice from crm.create_consultation_invoice(v_lead,200,null,v_admin,'Dr. Consulting','No referring doctor');
@@ -129,5 +129,5 @@ begin
   end if;
 end
 $test$;
-select 'ok 1 - invoice date filters, edit deadline, audited voids and payment locks';
+select 'ok 1 - invoice dates, edits to older unpaid invoices, audited voids and payment locks';
 rollback;

@@ -78,12 +78,11 @@ export default async function ReportsPage({
     const group = groups[key] ?? {
       key,
       label: formatInTimeZone(`${key}-01T12:00:00Z`, CLINIC_TZ, "MMM yyyy"),
-      leads: 0, appointments: 0, followUps: 0, revenue: 0,
+      leads: 0, appointments: 0, followUps: 0,
     };
     group.leads += row.leads;
     group.appointments += row.appointments;
     group.followUps += row.followUps;
-    group.revenue += row.revenue;
     groups[key] = group;
     return groups;
   }, {}));
@@ -93,8 +92,8 @@ export default async function ReportsPage({
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Reports</h1>
         <p className="text-sm text-muted-foreground">
-          {ctx.role === "admin" ? "All branches" : "Your branches"} · Revenue received is actual invoice payments.
-          Treatment value is invoice line value before discounts and tax, including direct invoices.
+          {ctx.role === "admin" ? "All branches" : "Your branches"} · Revenue follows the date on the payment receipt.
+          Treatment value is billed separately by invoice date, before discounts and tax.
         </p>
       </div>
 
@@ -192,8 +191,8 @@ export default async function ReportsPage({
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <TotalCard label="Total patients" value={data.totals.leads} accent="border-l-blue-400" />
         <TotalCard label="Appointments" value={data.totals.appointments} accent="border-l-violet-400" />
-        <TotalCard label="Revenue received" value={formatINR(data.collections.total.amount)} accent="border-l-emerald-400" />
-        <TotalCard label="Treatment value" value={formatINR(data.totals.revenue)} accent="border-l-blue-400" />
+        <TotalCard label="Revenue received" value={formatINR(data.totals.revenue)} accent="border-l-emerald-400" />
+        <TotalCard label="Treatment value" value={formatINR(data.invoiceValues.subtotal)} accent="border-l-blue-400" />
         <TotalCard label="Invoice discounts" value={formatINR(data.invoiceValues.discounts)} accent="border-l-amber-400" />
         <TotalCard label="Invoice tax" value={formatINR(data.invoiceValues.tax)} accent="border-l-amber-400" />
         <TotalCard label="Net billed" value={formatINR(data.invoiceValues.net)} accent="border-l-blue-400" />
@@ -202,7 +201,7 @@ export default async function ReportsPage({
       <Card className="border-l-4 border-l-blue-400">
         <CardContent className="pt-5">
           <h2 className="mb-1 text-base font-semibold">Invoice-based treatment value</h2>
-          <p className="mb-4 text-sm text-muted-foreground">Includes direct and case-sheet invoices, including drafts; excludes cancelled and archived invoices. Grouped by the invoice’s consulting doctor and line-item treatment/category. Uses invoice date, or issue/creation date for older invoices. Doctor and center filters apply. Missing details remain visible in unspecified groups.</p>
+          <p className="mb-4 text-sm text-muted-foreground">Includes direct and case-sheet invoices, including drafts; excludes opening balances, voided and archived invoices. Grouped by the invoice’s consulting doctor and line-item treatment/category. Uses invoice date, or issue/creation date for older invoices. Doctor and center filters apply. Missing details remain visible in unspecified groups.</p>
           <Tabs defaultValue="invoice-doctor">
             <TabsList className="mb-4 h-auto flex-wrap">
               {(["doctor", "category", "treatment", "center", "day", "month"] as const).map((dimension) => <TabsTrigger key={dimension} value={`invoice-${dimension}`}>By {dimension === "day" ? "date" : dimension}</TabsTrigger>)}
@@ -254,7 +253,7 @@ export default async function ReportsPage({
       <Card className="border-l-4 border-l-emerald-400">
         <CardContent className="pt-5">
           <h2 className="mb-1 text-base font-semibold">Revenue received by payment method</h2>
-          <p className="mb-4 text-sm text-muted-foreground">Actual invoice receipts by payment date, including split payments. Center and date filters apply; doctor filter does not apply to receipts. These are collections, not expense costs or profit.</p>
+          <p className="mb-4 text-sm text-muted-foreground">Payments count on their receipt date, including backdated or corrected receipts and split payments. Receipts on voided or archived invoices are excluded. Center and date filters apply; the doctor filter does not apply to receipts.</p>
           <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
             {PAYMENT_METHODS.map((method) => <TotalCard key={method} label={PAYMENT_LABELS[method]} value={formatINR(data.collections.total[method])} accent="border-l-emerald-400" />)}
           </div>

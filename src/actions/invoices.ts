@@ -327,6 +327,7 @@ export async function updateInvoiceAction(
     });
     revalidatePath(`/invoices/${invoiceId.data}`);
     revalidatePath("/invoices");
+    revalidatePath("/patients", "layout");
     revalidatePath("/reports");
   });
 }

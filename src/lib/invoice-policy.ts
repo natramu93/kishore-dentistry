@@ -22,13 +22,6 @@ export function invoiceListFilters(params: Record<string, string | undefined>) {
   };
 }
 
-export const INVOICE_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
-
-export function invoiceEditWindowOpen(createdAt: string, now = Date.now()): boolean {
-  const created = Date.parse(createdAt);
-  return Number.isFinite(created) && now >= created && now < created + INVOICE_EDIT_WINDOW_MS;
-}
-
 export function invoiceStatusLabel(status: string): string {
   return status === "cancelled" ? "Voided" : status;
 }

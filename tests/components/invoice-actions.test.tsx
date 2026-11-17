@@ -6,14 +6,14 @@ vi.mock("@/actions/invoices", () => ({ cancelInvoiceAction: vi.fn().mockResolved
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
-const defaults = { invoiceId: "invoice-1", status: "sent" as const, role: "admin" as const, version: 2, codeEnforced: true, consultation: false, hasPrimaryTreatment: false, editWindowOpen: true };
+const defaults = { invoiceId: "invoice-1", status: "sent" as const, role: "admin" as const, version: 2, codeEnforced: true, consultation: false, hasPrimaryTreatment: false };
 describe("invoice actions", () => {
-  it("hides edit after 24 hours but keeps unpaid admin void available", () => {
-    render(<InvoiceActions {...defaults} editWindowOpen={false} />);
-    expect(screen.queryByRole("link", { name: "Edit" })).not.toBeInTheDocument();
+  it("offers editing and admin voiding for unpaid treatment invoices", () => {
+    render(<InvoiceActions {...defaults} />);
+    expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute("href", "/invoices/invoice-1/edit");
     expect(screen.getByRole("button", { name: "Void invoice" })).toBeEnabled();
   });
-  it("allows editing an unpaid consultation within 24 hours", () => {
+  it("allows editing an unpaid consultation", () => {
     render(<InvoiceActions {...defaults} codeEnforced={false} consultation />);
     expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute("href", "/invoices/invoice-1/edit");
   });

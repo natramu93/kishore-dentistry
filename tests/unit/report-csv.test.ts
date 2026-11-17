@@ -28,7 +28,6 @@ describe("report CSV export", () => {
           leads: 2,
           appointments: 3,
           followUps: 1,
-          revenue: 500,
         },
       ],
       byCenter: [],
@@ -41,7 +40,7 @@ describe("report CSV export", () => {
         leads: 2,
         appointments: 3,
         followUps: 1,
-        revenue: 500,
+        revenue: 250,
       },
       range: {
         from: "2026-07-01T18:30:00.000Z",

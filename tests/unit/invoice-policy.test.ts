@@ -1,20 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { invoiceDateFilter, invoiceEditWindowOpen, invoicePaymentTotals, invoiceStatusLabel, INVOICE_EDIT_WINDOW_MS } from "@/lib/invoice-policy";
-
-describe("invoice editing window", () => {
-  const created = "2026-10-07T00:00:00Z";
-  const start = Date.parse(created);
-  it("allows edits until, but not at, the 24-hour deadline", () => {
-    expect(invoiceEditWindowOpen(created, start)).toBe(true);
-    expect(invoiceEditWindowOpen(created, start + INVOICE_EDIT_WINDOW_MS - 1)).toBe(true);
-    expect(invoiceEditWindowOpen(created, start + INVOICE_EDIT_WINDOW_MS)).toBe(false);
-    expect(invoiceEditWindowOpen(created, start + INVOICE_EDIT_WINDOW_MS + 1)).toBe(false);
-  });
-  it("does not allow invalid or future creation timestamps", () => {
-    expect(invoiceEditWindowOpen("invalid", start)).toBe(false);
-    expect(invoiceEditWindowOpen(created, start - 1)).toBe(false);
-  });
-});
+import { invoiceDateFilter, invoicePaymentTotals, invoiceStatusLabel } from "@/lib/invoice-policy";
 
 describe("invoice date filters", () => {
   it("defaults to the current clinic date and retains today with other filters", () => {

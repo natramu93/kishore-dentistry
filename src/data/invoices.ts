@@ -4,7 +4,7 @@ import { db } from "./db";
 import { throwMappedDatabaseError } from "./helpers";
 import { invoiceLineDetailsSchema } from "@/lib/invoice-lines";
 import { paymentReceiptSchema, receiptDateSchema } from "@/lib/invoice-receipts";
-import { invoiceEditWindowOpen, invoicePaymentTotals } from "@/lib/invoice-policy";
+import { invoicePaymentTotals } from "@/lib/invoice-policy";
 import { clinicToday } from "@/lib/tz";
 import { patientDisplayName, type PatientTitle } from "@/lib/patient-demographics";
 import type { PatientInvoiceBalance } from "@/lib/patient-invoice-balance";
@@ -715,7 +715,6 @@ export async function updateInvoice(
     branch_id: invoice.branch_id,
     assignee_id: invoice.lead?.assignee_id ?? null,
   });
-  if (!invoiceEditWindowOpen(invoice.created_at)) throw new ConflictError("Invoices can only be edited within 24 hours of creation");
   if (invoice.status === "paid" || invoice.status === "cancelled") {
     throw new ConflictError("A paid or voided invoice cannot be edited");
   }
@@ -769,7 +768,6 @@ export async function updateConsultationInvoice(ctx: AuthContext, id: string, in
   if (!invoice) throw new NotFoundError("Invoice");
   assertInvoiceWriteAccess(ctx, { branch_id: invoice.branch_id, assignee_id: invoice.lead?.assignee_id ?? null });
   if (invoice.invoice_kind !== "consultation" || invoice.status === "paid" || invoice.status === "cancelled") throw new ConflictError("This invoice cannot be edited");
-  if (!invoiceEditWindowOpen(invoice.created_at)) throw new ConflictError("Invoices can only be edited within 24 hours of creation");
   if (!Number.isFinite(input.amount) || input.amount < invoice.discount_amount || input.amount > MAX_UNIT_PRICE || !hasAtMostTwoDecimals(input.amount)) throw new ValidationError("Enter a valid amount at least equal to the discount");
   if (input.notes && input.notes.length > 4000) throw new ValidationError("Invoice notes are too long");
   const result = await db.rpc("update_invoice_with_date", { p_invoice_id: invoice.id, p_tax_rate: invoice.tax_rate,

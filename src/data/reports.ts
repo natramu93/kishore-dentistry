@@ -24,7 +24,6 @@ export type ReportRow = {
   leads: number;
   appointments: number;
   followUps: number;
-  revenue: number;
 };
 
 export type ReportFilters = {
@@ -57,7 +56,6 @@ const reportRowSchema = z.object({
   leads: z.number().nonnegative(),
   appointments: z.number().nonnegative(),
   followUps: z.number().nonnegative(),
-  revenue: z.number().nonnegative(),
 });
 
 const reportPayloadSchema = z.object({
@@ -69,7 +67,6 @@ const reportPayloadSchema = z.object({
     leads: z.number().nonnegative(),
     appointments: z.number().nonnegative(),
     followUps: z.number().nonnegative(),
-    revenue: z.number().nonnegative(),
   }),
 });
 
@@ -174,7 +171,7 @@ export async function getReportsData(
     collectedByDay: collections.byDay.map((row) => ({ day: row.key, amount: row.amount })),
     collections,
     invoiceValues,
-    totals: { ...payload.totals, revenue: invoiceValues.subtotal },
+    totals: { ...payload.totals, revenue: collections.total.amount },
     range: { from, to },
   };
 }

@@ -72,8 +72,8 @@ describe("zero invoice persistence", () => {
     expect(await createConsultationInvoice(ctx, { lead_id: leadId, amount: 0, ...doctors })).toMatchObject({ total: 0 });
     expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("create_consultation_invoice", expect.objectContaining({ p_amount: 0 }));
   });
-  it("allows editing an unpaid consultation to zero within its edit window", async () => {
-    mocks.from.mockReturnValue(query({ id: invoiceId, branch_id: branchId, lead: { assignee_id: ctx.userId }, invoice_kind: "consultation", status: "draft", discount_amount: 0, tax_rate: 0, created_at: new Date().toISOString() }));
+  it("allows editing an old unpaid consultation to zero", async () => {
+    mocks.from.mockReturnValue(query({ id: invoiceId, branch_id: branchId, lead: { assignee_id: ctx.userId }, invoice_kind: "consultation", status: "draft", discount_amount: 0, tax_rate: 0, created_at: "2025-06-08T10:00:00Z" }));
     await updateConsultationInvoice(ctx, invoiceId, { amount: 0, invoice_date: "2026-10-06", expected_version: 1 });
     expect(mocks.rpc).toHaveBeenCalledWith("update_invoice_with_date", expect.objectContaining({
       p_invoice_date: "2026-10-06", p_expected_version: 1, p_items: [{ description: "Consultation", quantity: 1, unit_price: 0 }],

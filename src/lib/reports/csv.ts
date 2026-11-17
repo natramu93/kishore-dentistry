@@ -50,9 +50,9 @@ export function buildReportCsv(data: ReportsData): string {
       "Total",
       data.totals.leads,
       data.totals.appointments,
-      data.totals.revenue,
+      data.invoiceValues.subtotal,
       data.collections.total.upi, data.collections.total.cash, data.collections.total.card,
-      data.collections.total.neft, data.collections.total.amount,
+      data.collections.total.neft, data.totals.revenue,
     ],
   ];
 
