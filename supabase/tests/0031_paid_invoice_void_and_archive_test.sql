@@ -11,6 +11,7 @@ declare
   v_end timestamptz := v_start + interval '1 day';
   v_paid crm.invoices%rowtype;
   v_paid_direct crm.invoices%rowtype;
+  v_unpaid crm.invoices%rowtype;
   v_partial crm.invoices%rowtype;
   v_unaffected crm.invoices%rowtype;
   v_legacy crm.invoices%rowtype;
@@ -141,10 +142,21 @@ begin
     code_enforced,invoice_kind,consulting_doctor_name,referring_doctor_name)
     values('I31/LEGACY/001',v_lead,'paid',75,0,0,75,v_admin,false,'consultation','Dr. Test','Self') returning * into v_legacy;
   perform set_config('crm.allow_adhoc_invoice','off',true);
-  select * into v_voided from crm.void_invoice(v_legacy.id,v_admin,'Incorrect historic paid bill',v_legacy.version,true);
-  if v_voided.status<>'cancelled' or v_voided.deleted_at is null
+  select * into v_voided from crm.void_invoice(v_legacy.id,v_admin,'Incorrect historic paid bill',v_legacy.version,false);
+  if v_voided.status<>'cancelled'
     or not exists(select 1 from crm.audit_log where entity_id=v_legacy.id and action='cancelled'
       and (new_data->>'payments_excluded')::numeric=75) then raise exception 'historic paid invoice not reversed'; end if;
+  begin
+    perform crm.delete_invoice(v_legacy.id,v_ops,'Archive via old workflow',v_voided.version);
+    raise exception 'legacy bill paid without receipts archived outside admin workflow';
+  exception when object_not_in_prerequisite_state then null;
+  end;
+  perform crm.void_invoice(v_legacy.id,v_admin,'Archive historic paid bill',v_voided.version,true);
+
+  select * into v_unpaid from crm.create_consultation_invoice(v_lead,75,null,v_admin,'Dr. Test','Self');
+  select * into v_voided from crm.void_invoice(v_unpaid.id,v_admin,'Unpaid test bill',v_unpaid.version,false);
+  select * into v_voided from crm.delete_invoice(v_unpaid.id,v_admin,'Archive unpaid via old workflow',v_voided.version);
+  if v_voided.deleted_at is null then raise exception 'legacy archive path blocked for a voided unpaid invoice'; end if;
 
   select * into v_totals from crm.get_patient_invoice_summary(v_lead,v_admin);
   if (v_totals.invoice_count,v_totals.total_invoiced,v_totals.amount_paid,v_totals.balance_due)
