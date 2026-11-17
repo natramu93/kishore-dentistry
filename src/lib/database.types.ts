@@ -413,7 +413,8 @@ export type Invoice = Timestamps & {
   delete_reason: string | null;
   version: number;
   code_enforced: boolean;
-  invoice_kind: "clinical" | "consultation";
+  invoice_kind: "clinical" | "consultation" | "opening_balance";
+  legacy_patient_ref?: string | null;
 };
 
 export type InvoiceItem = Timestamps & {

@@ -458,7 +458,7 @@ export async function recordInvoicePayment(
   assertInvoiceWriteAccess(ctx, { branch_id: invoice.branch_id, assignee_id: invoice.lead?.assignee_id ?? null });
   if (invoice.status === "paid") throw new ConflictError("This invoice is already paid");
   if (invoice.status === "cancelled") throw new ConflictError("Cancelled invoices cannot accept payments");
-  if (!invoice.code_enforced && invoice.invoice_kind !== "consultation") {
+  if (!invoice.code_enforced && invoice.invoice_kind !== "consultation" && invoice.invoice_kind !== "opening_balance") {
     throw new ConflictError("Legacy uncoded invoices cannot accept payments");
   }
   if (!Number.isFinite(input.amount) || input.amount <= 0 || input.amount > MAX_INVOICE_TOTAL || !hasAtMostTwoDecimals(input.amount)) {
@@ -482,7 +482,9 @@ async function writablePaymentInvoice(ctx: AuthContext, id: string) {
   if (!invoice) throw new NotFoundError("Invoice");
   assertInvoiceWriteAccess(ctx, { branch_id: invoice.branch_id, assignee_id: invoice.lead?.assignee_id ?? null });
   if (invoice.status === "cancelled") throw new ConflictError("Cancelled invoices cannot accept receipt changes");
-  if (!invoice.code_enforced && invoice.invoice_kind !== "consultation") throw new ConflictError("Legacy uncoded invoices cannot accept receipt changes");
+  if (!invoice.code_enforced && invoice.invoice_kind !== "consultation" && invoice.invoice_kind !== "opening_balance") {
+    throw new ConflictError("Legacy uncoded invoices cannot accept receipt changes");
+  }
   return invoice;
 }
 

@@ -164,6 +164,7 @@ export default async function InvoicesPage({
                 <Link href={`/invoices/${inv.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab" className="font-medium hover:underline">
                   {inv.invoice_number}
                 </Link>
+                {inv.invoice_kind === "opening_balance" && <div className="text-xs text-muted-foreground">Opening balance</div>}
                 <div className="mt-1 sm:hidden">
                   <Badge variant={STATUS_VARIANT[inv.status]} className="capitalize">
                     {invoiceStatusLabel(inv.status)}

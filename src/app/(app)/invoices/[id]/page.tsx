@@ -49,6 +49,8 @@ export default async function InvoiceDetailPage({
   const { id } = await params;
   const { ctx, invoice } = await getInvoicePageData(id);
   if (!invoice) notFound();
+  const isOpeningBalance = invoice.invoice_kind === "opening_balance";
+  const canCollect = invoice.code_enforced || invoice.invoice_kind === "consultation" || isOpeningBalance;
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -59,8 +61,8 @@ export default async function InvoiceDetailPage({
             <Badge variant={invoice.status === "paid" ? "default" : "secondary"} className="capitalize">
               {invoiceStatusLabel(invoice.status)}
             </Badge>
-            <Badge variant={invoice.code_enforced || invoice.invoice_kind === "consultation" ? "outline" : "destructive"}>
-              {invoice.code_enforced
+            <Badge variant={canCollect ? "outline" : "destructive"}>
+              {isOpeningBalance ? "Opening balance" : invoice.code_enforced
                 ? invoice.treatment_id ? "Case-sheet coded" : "Treatment catalog"
                 : invoice.invoice_kind === "consultation"
                   ? "Consultation"
@@ -114,14 +116,14 @@ export default async function InvoiceDetailPage({
       {invoice.total === 0 && invoice.status !== "cancelled" && <p role="status" className="rounded-md border p-3 text-sm">
         This is a ₹0 invoice. No payment is required for this bill; earlier patient dues remain unchanged.
       </p>}
-      {!invoiceEditWindowOpen(invoice.created_at) && invoice.status !== "cancelled" && <p className="text-sm text-muted-foreground">The 24-hour invoice editing window has closed. An admin can void an unpaid invoice if it was generated incorrectly.</p>}
+      {!isOpeningBalance && !invoiceEditWindowOpen(invoice.created_at) && invoice.status !== "cancelled" && <p className="text-sm text-muted-foreground">The 24-hour invoice editing window has closed. An admin can void an unpaid invoice if it was generated incorrectly.</p>}
       <Card>
         <CardContent className="pt-6">
-          <div className="mb-4 space-y-1 text-sm">
+          {isOpeningBalance ? <p className="mb-4 text-sm text-muted-foreground">Balance carried forward from the old system. This is not a new treatment bill.</p> : <div className="mb-4 space-y-1 text-sm">
             <p>Referring doctor: {invoice.referring_doctor_name || "Not recorded"}</p>
             <p>Consulting doctor: {invoice.consulting_doctor_name || "Not recorded"}</p>
-          </div>
-          {!invoice.code_enforced && invoice.invoice_kind !== "consultation" && (
+          </div>}
+          {!canCollect && (
             <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:bg-amber-950/20 dark:text-amber-100">
               This historical invoice predates coded digital case sheets. It remains readable,
               but editing, sending, payment changes, and print generation are locked.
@@ -201,7 +203,7 @@ export default async function InvoiceDetailPage({
               </Table>
             </div>
           )}
-          {invoice.status !== "cancelled" && (invoice.code_enforced || invoice.invoice_kind === "consultation") && invoice.payments.length > 0 && (
+          {invoice.status !== "cancelled" && canCollect && invoice.payments.length > 0 && (
             <div className="mt-3 space-y-2">
               {invoice.payments.map((payment) => <div key={`${payment.id}:${payment.version}`}>
                 <p className="mb-1 text-xs text-muted-foreground">{fmtDate(payment.received_at)} · {payment.payment_method.toUpperCase()} · {formatINR(payment.amount)}</p>
@@ -210,7 +212,7 @@ export default async function InvoiceDetailPage({
             </div>
           )}
           {invoice.amount_paid > 0 && <p className="text-sm text-muted-foreground">Original invoice charges are locked after a payment is recorded.</p>}
-          {invoice.status !== "cancelled" && invoice.balance_due > 0 && (invoice.code_enforced || invoice.invoice_kind === "consultation") && (
+          {invoice.status !== "cancelled" && invoice.balance_due > 0 && canCollect && (
             <div className="mt-6 border-t pt-4">
               <h2 className="mb-3 font-semibold">Record a payment</h2>
               <RecordPaymentForm key={invoice.version} invoiceId={invoice.id} balanceDue={invoice.balance_due} />
