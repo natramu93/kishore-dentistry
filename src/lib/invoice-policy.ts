@@ -1,6 +1,7 @@
 import { assertDateOnly, normalizeSearch } from "@/lib/validation";
 import { clinicToday } from "@/lib/tz";
 import type { Invoice, InvoicePayment, InvoicePaymentMethod, InvoiceStatus } from "@/lib/database.types";
+import { invoiceSort } from "@/lib/finance-activity";
 
 export const INVOICE_STATUSES: readonly InvoiceStatus[] = ["draft", "sent", "paid", "cancelled"];
 const METHODS: readonly InvoicePaymentMethod[] = ["cash", "upi", "card", "neft"];
@@ -18,6 +19,8 @@ export function invoiceListFilters(params: Record<string, string | undefined>) {
       status: INVOICE_STATUSES.find((status) => status === params.status),
       dueOnly: params.balance === "due",
       paymentMethod: METHODS.find((method) => method === params.method),
+      sort: invoiceSort(params.sort),
+      descending: params.order !== "asc",
     },
   };
 }

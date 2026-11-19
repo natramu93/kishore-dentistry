@@ -14,6 +14,9 @@ import {
 import { invoiceListFilters, invoiceStatusLabel, INVOICE_STATUSES } from "@/lib/invoice-policy";
 import { InvoiceDateFilters } from "@/components/invoices/invoice-date-filters";
 import { clinicToday, fmtDate, formatINR } from "@/lib/tz";
+import { invoiceFinanceFilters } from "@/lib/finance-activity";
+import { FinanceDetailCard } from "@/components/invoices/finance-detail-card";
+import { PAYMENT_METHODS, PAYMENT_LABELS } from "@/lib/reports/collections";
 
 export const metadata = { title: "Invoices — Dr. Kishor's Dentistry CRM" };
 
@@ -36,7 +39,8 @@ export default async function InvoicesPage({
 
   const branches = await listMyBranches(ctx);
   const { dates: dateFilter, options } = invoiceListFilters(params);
-  const invoiceResult = dateFilter.error ? { invoices: [], total: 0, page: 1, pageSize: 25 } : await listInvoices(ctx, {
+  const invoiceResult = dateFilter.error ? { invoices: [], total: 0, page: 1, pageSize: 25,
+    collections: { upi: 0, cash: 0, card: 0, neft: 0, amount: 0 } } : await listInvoices(ctx, {
     ...options,
     leadId: patient?.id,
     page: Number(params.page),
@@ -51,11 +55,20 @@ export default async function InvoicesPage({
     status: options.status ?? "",
     balance: options.dueOnly ? "due" : "",
     method: options.paymentMethod ?? "",
+    sort: options.sort, order: options.descending ? "desc" : "asc",
   });
   const { invoices, total, page, pageSize } = invoiceResult;
 
-  const paidTotalOnPage = invoices.reduce((s, i) => s + i.amount_paid, 0);
   const dueTotalOnPage = invoices.reduce((s, i) => s + i.balance_due, 0);
+  const financeFilters = dateFilter.error ? undefined : invoiceFinanceFilters({ ...options, leadId: patient?.id });
+  const sortState = (key: string) => options.sort === key ? options.descending ? "descending" as const : "ascending" as const : "none" as const;
+  const sortHeading = (label: string, key: string) => {
+    const search = new URLSearchParams(exportParams);
+    search.set("sort", key);
+    search.set("order", options.sort === key && !options.descending ? "desc" : "asc");
+    return <Link href={`/invoices?${search}`} className="inline-flex min-h-10 items-center gap-1"
+      aria-label={`Sort all matching invoices by ${label}`}>{label} {options.sort === key ? options.descending ? "↓" : "↑" : "↕"}</Link>;
+  };
 
   return (
     <div className="space-y-4">
@@ -64,7 +77,7 @@ export default async function InvoicesPage({
           <h1 className="text-2xl font-bold tracking-tight">Invoices</h1>
           {patient && <p className="text-sm">For <Link className="underline underline-offset-4" href={`/patients/${patient.id}#patient-invoices`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab">{patient.name}</Link></p>}
           <p className="text-sm text-muted-foreground">
-            {total} invoice{total === 1 ? "" : "s"} · {formatINR(paidTotalOnPage)} collected · {formatINR(dueTotalOnPage)} due on this page
+            {total} invoice{total === 1 ? "" : "s"} · {formatINR(invoiceResult.collections.amount)} received in range · {formatINR(dueTotalOnPage)} outstanding on this page
           </p>
         </div>
         {ctx.role !== "doctor" && (
@@ -74,8 +87,14 @@ export default async function InvoicesPage({
         )}
       </div>
 
+      {financeFilters && <section aria-label="Collections in the selected receipt date range" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <FinanceDetailCard label="Total received in range" amount={invoiceResult.collections.amount} source="invoices" filters={financeFilters} />
+        {PAYMENT_METHODS.filter((method) => !options.paymentMethod || options.paymentMethod === method).map((method) => <FinanceDetailCard key={method} label={PAYMENT_LABELS[method]}
+          amount={invoiceResult.collections[method]} source="invoices" filters={{ ...financeFilters, method }} />)}
+      </section>}
       {/* Patient search and invoice filters */}
       <form className="flex flex-wrap gap-2 items-end" action="/invoices" method="get">
+        <input type="hidden" name="sort" value={options.sort} /><input type="hidden" name="order" value={options.descending ? "desc" : "asc"} />
         {patient && <input type="hidden" name="lead" value={patient.id} />}
         <div className="w-full space-y-1 sm:w-64">
           <label htmlFor="invoice-patient-search" className="text-xs text-muted-foreground">Patient name or mobile number</label>
@@ -137,23 +156,25 @@ export default async function InvoicesPage({
       </form>
 
       {dateFilter.error && <p role="alert" className="text-sm text-destructive">{dateFilter.error}</p>}
-      <p className="text-sm text-muted-foreground">Showing {dateFilter.mode === "all" ? "all invoice dates" : dateFilter.mode === "today" ? `today’s invoices (${fmtDate(clinicToday())})` : "the selected invoice date range"}.</p>
-      <Table aria-label="Invoices">
+      <p className="text-sm text-muted-foreground">Showing invoices dated in the range or with payments received in it{dateFilter.mode === "today" ? ` (today, ${fmtDate(clinicToday())})` : dateFilter.mode === "all" ? " (all dates)" : ""}. Collections use receipt dates only; unpaid charges do not count as revenue.</p>
+      <Table aria-label="Invoices" sortable={false}>
         <TableHeader>
           <TableRow>
-            <TableHead>Invoice #</TableHead>
-            <TableHead>Patient</TableHead>
-            <TableHead className="hidden md:table-cell">Center</TableHead>
-            <TableHead className="hidden md:table-cell">Date</TableHead>
-            <TableHead>Total</TableHead>
-            <TableHead className="hidden sm:table-cell">Paid / Due</TableHead>
-            <TableHead className="hidden sm:table-cell">Status</TableHead>
+            <TableHead aria-sort={sortState("number")}>{sortHeading("Invoice #", "number")}</TableHead>
+            <TableHead aria-sort={sortState("patient")}>{sortHeading("Patient", "patient")}</TableHead>
+            <TableHead aria-sort={sortState("center")} className="hidden md:table-cell">{sortHeading("Center", "center")}</TableHead>
+            <TableHead aria-sort={sortState("date")} className="hidden md:table-cell">{sortHeading("Invoice date", "date")}</TableHead>
+            <TableHead aria-sort={sortState("total")}>{sortHeading("Total", "total")}</TableHead>
+            <TableHead aria-sort={sortState("received")} className="hidden sm:table-cell">{sortHeading("Received in range", "received")}</TableHead>
+            <TableHead aria-sort={sortState("paid")} className="hidden sm:table-cell">{sortHeading("All payments", "paid")}</TableHead>
+            <TableHead aria-sort={sortState("due")} className="hidden sm:table-cell">{sortHeading("Due", "due")}</TableHead>
+            <TableHead aria-sort={sortState("status")} className="hidden sm:table-cell">{sortHeading("Status", "status")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {invoices.length === 0 && (
             <TableRow>
-              <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                 No invoices match these filters
               </TableCell>
             </TableRow>
@@ -185,9 +206,10 @@ export default async function InvoicesPage({
                 <span className="mt-1 block text-xs text-muted-foreground sm:hidden">Due {formatINR(inv.balance_due)}</span>
               </TableCell>
               <TableCell className="hidden whitespace-nowrap text-xs sm:table-cell">
-                <span className="block">Paid {formatINR(inv.amount_paid)}</span>
-                <span className="text-muted-foreground">Due {formatINR(inv.balance_due)}</span>
+                {formatINR(inv.received_in_range)}
               </TableCell>
+              <TableCell className="hidden whitespace-nowrap text-xs sm:table-cell">{formatINR(inv.amount_paid)}</TableCell>
+              <TableCell className="hidden whitespace-nowrap text-xs sm:table-cell">{formatINR(inv.balance_due)}</TableCell>
               <TableCell className="hidden sm:table-cell">
                 <Badge variant={STATUS_VARIANT[inv.status]} className="capitalize">
                   {invoiceStatusLabel(inv.status)}

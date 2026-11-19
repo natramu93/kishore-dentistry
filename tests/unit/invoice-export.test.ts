@@ -15,7 +15,7 @@ beforeEach(() => list.mockReset());
 it("exports every page with the same filters and escapes spreadsheet labels", async () => {
   const first = { id: "one", invoice_number: "INV-1", billing_date: "2026-11-14",
     lead: { name: '=TEST("name")' }, status: "sent", subtotal: 200, tax_amount: 0,
-    total: 200, amount_paid: 0, balance_due: 200 };
+    total: 200, amount_paid: 0, balance_due: 200, received_in_range: 0 };
   list.mockResolvedValueOnce({ invoices: [first], total: 101, page: 1, pageSize: 100 } as Awaited<ReturnType<typeof listInvoices>>)
     .mockResolvedValueOnce({ invoices: [{ ...first, id: "two", invoice_number: "INV-2" }], total: 101, page: 2, pageSize: 100 } as Awaited<ReturnType<typeof listInvoices>>);
   const response = await GET(request("dates=range&from=2026-11-01&to=2026-11-14&status=sent&balance=due&branch=center&lead=patient&method=upi&q=Test+Patient&page=9"));
@@ -26,6 +26,7 @@ it("exports every page with the same filters and escapes spreadsheet labels", as
     expect(list).toHaveBeenNthCalledWith(page, { userId: "staff" }, {
       fromDate: "2026-11-01", toDate: "2026-11-14", branchId: "center", leadId: "patient",
       status: "sent", dueOnly: true, paymentMethod: "upi", search: "Test Patient", page, pageSize: 100,
+      sort: "created", descending: true,
     });
   }
   const csv = await response.text();
@@ -55,7 +56,7 @@ it("rejects invalid dates before querying", async () => {
 });
 
 it("asks for narrower filters instead of silently truncating a large export", async () => {
-  list.mockResolvedValueOnce({ invoices: [], total: 10_001, page: 1, pageSize: 100 });
+  list.mockResolvedValueOnce({ invoices: [], total: 10_001, page: 1, pageSize: 100, collections: { upi: 0, cash: 0, card: 0, neft: 0, amount: 0 } });
   expect((await GET(request("dates=all"))).status).toBe(400);
   expect(list).toHaveBeenCalledTimes(1);
 });

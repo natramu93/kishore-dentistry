@@ -16,6 +16,8 @@ import { formatInTimeZone } from "date-fns-tz";
 import { CLINIC_TZ } from "@/lib/tz";
 import { PAYMENT_METHODS, PAYMENT_LABELS, type CollectionRow } from "@/lib/reports/collections";
 import type { InvoiceValues } from "@/lib/reports/invoice-values";
+import { FinanceDetailCard } from "@/components/invoices/finance-detail-card";
+import type { FinanceFilters } from "@/lib/finance-activity";
 import {
   Stethoscope,
   Building2,
@@ -55,6 +57,7 @@ export default async function ReportsPage({
 
   const fromValue = params.from ?? toDateInputValue(fallback.from);
   const toValue = params.to ?? clinicToday();
+  const financeFilters: FinanceFilters = { from: fromValue, to: toValue, branch: params.branch || undefined, doctor: params.doctor || undefined };
   const qs = (overrides: Record<string, string | undefined>) => {
     const merged = { from: fromValue, to: toValue, branch: params.branch, doctor: params.doctor, ...overrides };
     const sp = new URLSearchParams();
@@ -191,11 +194,11 @@ export default async function ReportsPage({
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <TotalCard label="Total patients" value={data.totals.leads} accent="border-l-blue-400" />
         <TotalCard label="Appointments" value={data.totals.appointments} accent="border-l-violet-400" />
-        <TotalCard label="Revenue received" value={formatINR(data.totals.revenue)} accent="border-l-emerald-400" />
-        <TotalCard label="Treatment value" value={formatINR(data.invoiceValues.subtotal)} accent="border-l-blue-400" />
-        <TotalCard label="Invoice discounts" value={formatINR(data.invoiceValues.discounts)} accent="border-l-amber-400" />
-        <TotalCard label="Invoice tax" value={formatINR(data.invoiceValues.tax)} accent="border-l-amber-400" />
-        <TotalCard label="Net billed" value={formatINR(data.invoiceValues.net)} accent="border-l-blue-400" />
+        <FinanceDetailCard label="Revenue received" amount={data.totals.revenue} filters={financeFilters} source="reports" />
+        <FinanceDetailCard label="Treatment value" amount={data.invoiceValues.subtotal} metric="subtotal" filters={financeFilters} source="reports" accent="border-l-blue-400" />
+        <FinanceDetailCard label="Invoice discounts" amount={data.invoiceValues.discounts} metric="discounts" filters={financeFilters} source="reports" accent="border-l-amber-400" />
+        <FinanceDetailCard label="Invoice tax" amount={data.invoiceValues.tax} metric="tax" filters={financeFilters} source="reports" accent="border-l-amber-400" />
+        <FinanceDetailCard label="Net billed" amount={data.invoiceValues.net} metric="net" filters={financeFilters} source="reports" accent="border-l-blue-400" />
       </div>
 
       <Card className="border-l-4 border-l-blue-400">
@@ -255,7 +258,7 @@ export default async function ReportsPage({
           <h2 className="mb-1 text-base font-semibold">Revenue received by payment method</h2>
           <p className="mb-4 text-sm text-muted-foreground">Payments count on their receipt date, including backdated or corrected receipts and split payments. Receipts on voided or archived invoices are excluded. Center and date filters apply; the doctor filter does not apply to receipts.</p>
           <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {PAYMENT_METHODS.map((method) => <TotalCard key={method} label={PAYMENT_LABELS[method]} value={formatINR(data.collections.total[method])} accent="border-l-emerald-400" />)}
+            {PAYMENT_METHODS.map((method) => <FinanceDetailCard key={method} label={PAYMENT_LABELS[method]} amount={data.collections.total[method]} filters={{ ...financeFilters, method }} source="reports" />)}
           </div>
           <Tabs defaultValue="collection-day">
             <TabsList className="mb-4"><TabsTrigger value="collection-day">By Date</TabsTrigger><TabsTrigger value="collection-month">By Month</TabsTrigger></TabsList>
@@ -276,7 +279,7 @@ function CollectionTable({ rows, total, monthly }: { rows: CollectionRow[]; tota
       <TableBody>
         {rows.length === 0 && <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground">No payments received in this date range</TableCell></TableRow>}
         {rows.map((row) => <TableRow key={row.key}><TableCell className="whitespace-nowrap">{formatInTimeZone(`${row.key}${monthly ? "-01" : ""}T12:00:00Z`, CLINIC_TZ, monthly ? "MMM yyyy" : "d MMM yyyy")}</TableCell>{cells(row)}</TableRow>)}
-        <TableRow className="bg-muted/40 font-semibold"><TableCell>Total</TableCell>{cells(total)}</TableRow>
+        <TableRow data-sort-fixed className="bg-muted/40 font-semibold"><TableCell>Total</TableCell>{cells(total)}</TableRow>
       </TableBody>
     </Table>
   );
@@ -288,7 +291,7 @@ function InvoiceValueTable({ rows, dimension }: { rows: InvoiceValues["rows"]; d
     <TableBody>
       {rows.length === 0 && <TableRow><TableCell colSpan={3} className="py-8 text-center text-muted-foreground">No invoices in this range</TableCell></TableRow>}
       {rows.map((row) => <TableRow key={row.key}><TableCell>{row.label}</TableCell><TableCell className="text-right">{row.invoices}</TableCell><TableCell className="text-right">{formatINR(row.value)}</TableCell></TableRow>)}
-      <TableRow className="bg-muted/40 font-semibold"><TableCell>Total value</TableCell><TableCell /><TableCell className="text-right">{formatINR(rows.reduce((sum, row) => sum + row.value, 0))}</TableCell></TableRow>
+      <TableRow data-sort-fixed className="bg-muted/40 font-semibold"><TableCell>Total value</TableCell><TableCell /><TableCell className="text-right">{formatINR(rows.reduce((sum, row) => sum + row.value, 0))}</TableCell></TableRow>
     </TableBody>
   </Table>;
 }
@@ -338,7 +341,7 @@ function ReportTable({
           </TableRow>
         ))}
         {rows.length > 0 && (
-          <TableRow className="bg-muted/40">
+          <TableRow data-sort-fixed className="bg-muted/40">
             <TableCell className="font-semibold">Total</TableCell>
             <TableCell className="text-right font-semibold">
               {rows.reduce((s, r) => s + r.leads, 0)}

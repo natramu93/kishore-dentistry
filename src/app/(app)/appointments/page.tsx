@@ -235,7 +235,7 @@ export default async function AppointmentsPage({
           )}
           {appointments.map((a) => (
             <TableRow key={a.id}>
-              <TableCell className="font-medium whitespace-nowrap">
+              <TableCell data-sort-value={a.scheduled_at} className="font-medium whitespace-nowrap">
                 {view === "today" || view === "date"
                   ? fmtTime(a.scheduled_at)
                   : fmt(a.scheduled_at)}

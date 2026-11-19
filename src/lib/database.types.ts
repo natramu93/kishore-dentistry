@@ -1101,6 +1101,14 @@ export type Database = {
       };
       cancel_invoice: { Args: { p_invoice_id: string; p_actor: string; p_reason: string; p_expected_version?: number }; Returns: Invoice };
       void_invoice: { Args: { p_invoice_id: string; p_actor: string; p_reason: string; p_expected_version: number; p_archive: boolean }; Returns: Invoice };
+      get_invoice_activity: {
+        Args: { p_actor: string; p_filters: Json; p_page: number; p_page_size: number; p_sort: string; p_desc: boolean };
+        Returns: Json;
+      };
+      get_finance_details: {
+        Args: { p_actor: string; p_filters: Json; p_source: string; p_metric: string; p_page: number; p_page_size: number };
+        Returns: Json;
+      };
       get_patient_invoice_summary: {
         Args: { p_lead_id: string; p_actor: string };
         Returns: { invoice_count: number; total_invoiced: number; amount_paid: number; balance_due: number }[];

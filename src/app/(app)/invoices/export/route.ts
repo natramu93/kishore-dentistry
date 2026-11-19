@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     if (options.leadId && !await getLead(ctx, options.leadId)) throw new NotFoundError("Patient");
 
     const rows = [csvRow(["Invoice number", "Invoice date", "Patient", "Center", "Status",
-      "Subtotal (INR)", "Discount (INR)", "Tax (INR)", "Total (INR)", "Received (INR)", "Due (INR)"])];
+      "Subtotal (INR)", "Discount (INR)", "Tax (INR)", "Total (INR)", "All payments (INR)", "Due (INR)", "Received in range (INR)"])];
     const seen = new Set<string>();
     for (let page = 1; ; page++) {
       const result = await listInvoices(ctx, { ...options, page, pageSize: MAX_PAGE_SIZE });
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
         const amounts = invoice.status === "cancelled" ? [0, 0, 0, 0, 0, 0]
           : [invoice.subtotal, invoice.discount_amount ?? 0, invoice.tax_amount, invoice.total, invoice.amount_paid, invoice.balance_due];
         rows.push(csvRow([invoice.invoice_number, invoice.billing_date, invoice.lead?.name ?? "",
-          invoice.branch?.name ?? "", invoiceStatusLabel(invoice.status), ...amounts]));
+          invoice.branch?.name ?? "", invoiceStatusLabel(invoice.status), ...amounts, invoice.status === "cancelled" ? 0 : invoice.received_in_range]));
       }
       if (page * result.pageSize >= result.total) break;
     }

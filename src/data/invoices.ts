@@ -4,10 +4,10 @@ import { db } from "./db";
 import { throwMappedDatabaseError } from "./helpers";
 import { invoiceLineDetailsSchema } from "@/lib/invoice-lines";
 import { paymentReceiptSchema, receiptDateSchema } from "@/lib/invoice-receipts";
-import { invoicePaymentTotals } from "@/lib/invoice-policy";
 import { clinicToday } from "@/lib/tz";
 import { patientDisplayName, type PatientTitle } from "@/lib/patient-demographics";
 import type { PatientInvoiceBalance } from "@/lib/patient-invoice-balance";
+import { invoiceFinanceFilters, invoiceSort, type FinanceFilters } from "@/lib/finance-activity";
 import type { AuthContext } from "@/lib/auth/context";
 import {
   assertBranchAccess,
@@ -23,12 +23,10 @@ import {
   ValidationError,
 } from "@/lib/errors";
 import {
-  EMPTY_UUID,
   assertDateOnly,
   assertInvoiceStatus,
   assertUuid,
   normalizePagination,
-  normalizeSearch,
 } from "@/lib/validation";
 import type {
   Invoice,
@@ -291,89 +289,47 @@ export async function listInvoices(
     paymentMethod?: InvoicePaymentMethod;
     fromDate?: string;
     toDate?: string;
+    sort?: string;
+    descending?: boolean;
     page?: number;
     pageSize?: number;
   } = {}
 ): Promise<{
-  invoices: InvoiceWithRefs[];
+  invoices: (InvoiceWithRefs & { received_in_range: number })[];
   total: number;
   page: number;
   pageSize: number;
+  collections: { upi: number; cash: number; card: number; neft: number; amount: number };
 }> {
   requireAnyRole(ctx, INVOICE_ROLES, "Invoices access required");
   const { page, pageSize } = normalizePagination(opts.page, opts.pageSize);
-  let query = db
-    .from("invoices")
-    .select(
-      "*, lead:leads!inner(id, name, title, mobile, email, assignee_id), branch:branches(name, code, address, phone, company_name, invoice_email, gst_number), payments:invoice_payments(amount)",
-      { count: "exact" }
-    )
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false });
-  if (ctx.role !== "admin") {
-    query = query.in(
-      "branch_id",
-      ctx.branchIds.length ? [...ctx.branchIds] : [EMPTY_UUID]
-    );
-  }
   if (opts.branchId) {
     const branchId = assertUuid(opts.branchId, "Branch");
     assertBranchAccess(ctx, branchId);
-    query = query.eq("branch_id", branchId);
   }
   const fromDate = opts.fromDate ? assertDateOnly(opts.fromDate, "From date") : undefined;
   const toDate = opts.toDate ? assertDateOnly(opts.toDate, "To date") : undefined;
   if (fromDate && toDate && fromDate > toDate) throw new ValidationError("From date must be on or before To date");
-  if (fromDate) query = query.gte("billing_date", fromDate);
-  if (toDate) query = query.lte("billing_date", toDate);
-  if (opts.status) query = query.eq("status", assertInvoiceStatus(opts.status));
-  else query = query.neq("status", "cancelled");
-  if (opts.leadId) query = query.eq("lead_id", assertUuid(opts.leadId, "Patient"));
-  if (opts.dueOnly) query = query.not("status", "in", "(paid,cancelled)").gt("total", 0);
-  if (opts.paymentMethod) {
-    const paymentsQuery = db.from("invoice_payments").select("invoice_id")
-      .eq("payment_method", opts.paymentMethod).limit(5_000);
-    const payments = await paymentsQuery;
-    if (payments.error) throw payments.error;
-    const ids = [...new Set((payments.data ?? []).map((row) => row.invoice_id))];
-    query = ids.length ? query.in("id", ids) : query.eq("id", EMPTY_UUID);
-  }
-  if (ctx.role === "front_office") {
-    query = query.or(`assignee_id.eq.${ctx.userId},assignee_id.is.null`, {
-      referencedTable: "lead",
-    });
-  }
-  const search = normalizeSearch(opts.search);
-  if (search) {
-    // `lead` is an inner embed, so this filters invoices before pagination.
-    // normalizeSearch strips LIKE wildcards and backslashes; quote the pattern
-    // so punctuation in a patient's name can't become PostgREST syntax.
-    const pattern = `"%${search.replaceAll('"', '\\"')}%"`;
-    const mobile = /^[+\d .-]+$/.test(search) ? search.replace(/\D/g, "") : "";
-    const filters = [`name.ilike.${pattern}`, `mobile.ilike.${pattern}`];
-    if (mobile && mobile !== search) filters.push(`mobile.ilike."%${mobile}%"`);
-    query = query.or(filters.join(","), { referencedTable: "lead" });
-  }
-
-  const from = (page - 1) * pageSize;
-  const { data, error, count } = await query.range(
-    from,
-    from + pageSize - 1
-  );
-  if (error) throw error;
-  const invoices = (data as InvoiceScopeRow[])
+  const filters: FinanceFilters = invoiceFinanceFilters({ ...opts, fromDate, toDate });
+  const { data, error } = await db.rpc("get_invoice_activity", {
+    p_actor: ctx.userId, p_filters: filters as Json, p_page: page, p_page_size: pageSize,
+    p_sort: invoiceSort(opts.sort), p_desc: opts.descending ?? true,
+  });
+  if (error) throwMappedDatabaseError(error, "Invoice list");
+  const result = data as unknown as {
+    invoices: (InvoiceScopeRow & { amount_paid: number; balance_due: number; received_in_range: number })[];
+    total: number; collections: { upi: number; cash: number; card: number; neft: number; amount: number };
+  };
+  const invoices = result.invoices
     .filter((invoice) =>
       canReadInvoice(ctx, {
         branch_id: invoice.branch_id,
         assignee_id: invoice.lead?.assignee_id ?? null,
       })
     )
-    .map((invoice) => {
-      const paymentRows = (invoice as InvoiceScopeRow & { payments?: Pick<InvoicePayment, "amount">[] }).payments ?? [];
-      return { ...toInvoiceDto(invoice), ...invoicePaymentTotals(invoice, paymentRows) };
-    });
-  return { invoices, total: count ?? 0, page, pageSize };
+    .map((invoice) => ({ ...toInvoiceDto(invoice), amount_paid: Number(invoice.amount_paid),
+      balance_due: Number(invoice.balance_due), received_in_range: Number(invoice.received_in_range) }));
+  return { invoices, total: Number(result.total), page, pageSize, collections: result.collections };
 }
 
 async function loadInvoiceScope(id: string): Promise<InvoiceScopeRow | null> {

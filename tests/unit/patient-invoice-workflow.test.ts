@@ -23,37 +23,35 @@ function chain(result: { data: unknown; error: unknown; count?: number }) {
   for (const key of ["select", "eq", "neq", "is", "in", "or", "order", "gte", "lte", "gt", "not"] as const) query[key].mockReturnValue(query);
   return query;
 }
-beforeEach(() => vi.resetAllMocks());
+const emptyCollections = { upi: 0, cash: 0, card: 0, neft: 0, amount: 0 };
+beforeEach(() => {
+  vi.resetAllMocks();
+  mocks.rpc.mockResolvedValue({ data: { invoices: [], total: 0, collections: emptyCollections }, error: null });
+});
 
 describe("patient invoice history", () => {
   it("searches the linked patient by name without removing Front Office scope or date filters", async () => {
     const query = chain({ data: [], error: null, count: 0 });
     mocks.from.mockReturnValue(query);
     await listInvoices(context(), { search: '  A. "Test"  ', fromDate: "2026-11-14", page: 2, pageSize: 25 });
-    expect(query.select).toHaveBeenCalledWith(expect.stringContaining("lead:leads!inner"), { count: "exact" });
-    expect(query.in).toHaveBeenCalledWith("branch_id", [branchId]);
-    expect(query.or).toHaveBeenNthCalledWith(1, `assignee_id.eq.${userId},assignee_id.is.null`, { referencedTable: "lead" });
-    expect(query.or).toHaveBeenNthCalledWith(2, 'name.ilike."%A. \\"Test\\"%",mobile.ilike."%A. \\"Test\\"%"', { referencedTable: "lead" });
-    expect(query.gte).toHaveBeenCalledWith("billing_date", "2026-11-14");
-    expect(query.range).toHaveBeenCalledWith(25, 49);
+    expect(mocks.rpc).toHaveBeenCalledWith("get_invoice_activity", expect.objectContaining({
+      p_actor: userId, p_filters: expect.objectContaining({ search: 'A. "Test"', from: "2026-11-14" }), p_page: 2, p_page_size: 25,
+    }));
+    expect(mocks.from).not.toHaveBeenCalled();
   });
 
   it("matches a phone number as entered and with its separators removed", async () => {
     const query = chain({ data: [], error: null, count: 0 });
     mocks.from.mockReturnValue(query);
     await listInvoices(context("admin"), { search: "90000-01234" });
-    expect(query.or).toHaveBeenCalledWith(
-      'name.ilike."%90000-01234%",mobile.ilike."%90000-01234%",mobile.ilike."%9000001234%"',
-      { referencedTable: "lead" },
-    );
+    expect(mocks.rpc).toHaveBeenCalledWith("get_invoice_activity", expect.objectContaining({ p_filters: expect.objectContaining({ search: "90000-01234" }) }));
   });
 
   it("excludes zero-total invoices from the due-only filter", async () => {
     const query = chain({ data: [], error: null, count: 0 });
     mocks.from.mockReturnValue(query);
     await listInvoices(context(), { dueOnly: true });
-    expect(query.not).toHaveBeenCalledWith("status", "in", "(paid,cancelled)");
-    expect(query.gt).toHaveBeenCalledWith("total", 0);
+    expect(mocks.rpc).toHaveBeenCalledWith("get_invoice_activity", expect.objectContaining({ p_filters: expect.objectContaining({ due: true }) }));
   });
 
   it("hides voided invoices in the active list, but an explicit voided filter can see them with zero effective payments", async () => {
@@ -61,13 +59,16 @@ describe("patient invoice history", () => {
     const history = chain({ data: [{
       id: "voided", status: "cancelled", total: 200, payments: [{ amount: 200 }], branch_id: branchId,
     }], error: null });
-    mocks.from.mockReturnValueOnce(active).mockReturnValueOnce(history);
+    mocks.rpc.mockResolvedValueOnce({ data: { invoices: [], total: 0, collections: emptyCollections }, error: null })
+      .mockResolvedValueOnce({ data: { invoices: [{
+        id: "voided", status: "cancelled", total: 200, amount_paid: 0, balance_due: 0, received_in_range: 0, branch_id: branchId,
+      }], total: 1, collections: emptyCollections }, error: null });
     await listInvoices(context("admin"));
-    expect(active.neq).toHaveBeenCalledWith("status", "cancelled");
+    expect(mocks.rpc).toHaveBeenNthCalledWith(1, "get_invoice_activity", expect.objectContaining({ p_filters: expect.objectContaining({ status: undefined }) }));
     const result = await listInvoices(context("admin"), { status: "cancelled" });
-    expect(history.neq).not.toHaveBeenCalled();
-    expect(history.eq).toHaveBeenCalledWith("status", "cancelled");
+    expect(mocks.rpc).toHaveBeenNthCalledWith(2, "get_invoice_activity", expect.objectContaining({ p_filters: expect.objectContaining({ status: "cancelled" }) }));
     expect(result.invoices[0]).toMatchObject({ amount_paid: 0, balance_due: 0 });
+    expect(result.collections).toEqual(emptyCollections);
   });
 
   it("uses the exact ledger balance even when the visible receipt history is capped", async () => {
@@ -89,11 +90,10 @@ describe("patient invoice history", () => {
     const query = chain({ data: [], error: null, count: 0 });
     mocks.from.mockReturnValue(query);
     await listInvoices(context(), { fromDate: "2026-10-01", toDate: "2026-10-07" });
-    expect(query.gte).toHaveBeenCalledWith("billing_date", "2026-10-01");
-    expect(query.lte).toHaveBeenCalledWith("billing_date", "2026-10-07");
-    query.gte.mockClear(); query.lte.mockClear();
+    expect(mocks.rpc).toHaveBeenCalledWith("get_invoice_activity", expect.objectContaining({ p_filters: expect.objectContaining({ from: "2026-10-01", to: "2026-10-07" }) }));
+    mocks.rpc.mockClear();
     await listInvoices(context(), { leadId });
-    expect(query.gte).not.toHaveBeenCalled(); expect(query.lte).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith("get_invoice_activity", expect.objectContaining({ p_filters: expect.objectContaining({ from: undefined, to: undefined, patient: leadId }) }));
   });
   it("uses exact totals rather than summing a capped preview, with no debt for cancelled rows", async () => {
     const lead = chain({ data: { id: leadId, branch_id: branchId, assignee_id: userId }, error: null });
@@ -127,10 +127,9 @@ describe("patient invoice history", () => {
   it("keeps patient filtering inside the existing branch and front-desk access scope", async () => {
     const query = chain({ data: [], error: null, count: 0 });
     mocks.from.mockReturnValue(query);
-    await listInvoices(context(), { leadId, page: 2, pageSize: 20 });
-    expect(query.eq).toHaveBeenCalledWith("lead_id", leadId);
-    expect(query.in).toHaveBeenCalledWith("branch_id", [branchId]);
-    expect(query.or).toHaveBeenCalledWith(`assignee_id.eq.${userId},assignee_id.is.null`, { referencedTable: "lead" });
-    expect(query.range).toHaveBeenCalledWith(20, 39);
+    await listInvoices(context(), { leadId, page: 2, pageSize: 20, sort: "received", descending: false });
+    expect(mocks.rpc).toHaveBeenCalledWith("get_invoice_activity", expect.objectContaining({
+      p_actor: userId, p_filters: expect.objectContaining({ patient: leadId }), p_page: 2, p_page_size: 20, p_sort: "received", p_desc: false,
+    }));
   });
 });
