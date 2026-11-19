@@ -18,6 +18,8 @@ export type ToothAssessmentHistoryItem = {
   assessed_at?: string | null;
   signed_at?: string | null;
   doctor_name?: string | null;
+  case_sheet_id?: string | null;
+  doctor_id?: string | null;
 };
 
 export type ToothAssessmentHistoryProps = {
@@ -95,6 +97,27 @@ function recordedText(value: string | null): string | null {
   return normalized ? normalized : null;
 }
 
+/** Group only identical findings from the same clinical encounter. Individual
+ * tooth snapshots remain untouched for longitudinal review and reassessment. */
+export function groupToothAssessmentHistory(assessments: readonly ToothAssessmentHistoryItem[]) {
+  const groups = new Map<string, { assessment: ToothAssessmentHistoryItem; teeth: string[] }>();
+  for (const assessment of assessments) {
+    const encounter = assessment.case_sheet_id ?? assessment.assessed_at ?? assessment.id;
+    const key = JSON.stringify([
+      encounter, assessment.case_sheet_id ? null : assessment.assessed_at ?? null, assessment.signed_at ?? null,
+      assessment.doctor_id ?? null, assessment.doctor_name ?? null, assessment.tooth_state,
+      [...(assessment.conditions ?? [])].sort(), [...(assessment.surfaces ?? [])].sort(),
+      recordedText(assessment.clinical_findings), recordedText(assessment.diagnosis), assessment.prognosis,
+      assessment.recommended_action, recordedText(assessment.future_plan), recordedText(assessment.notes),
+    ]);
+    const existing = groups.get(key);
+    // Duplicate snapshots for the very same tooth must remain separate history.
+    if (existing && !existing.teeth.includes(assessment.tooth_number)) existing.teeth.push(assessment.tooth_number);
+    else groups.set(existing ? `${key}:${assessment.id}` : key, { assessment, teeth: [assessment.tooth_number] });
+  }
+  return [...groups.values()];
+}
+
 export function ToothAssessmentHistory({
   assessments,
   className,
@@ -109,16 +132,16 @@ export function ToothAssessmentHistory({
       aria-label="General tooth assessment history"
       className={cn("grid gap-3", className)}
     >
-      {assessments.map((assessment) => (
+      {groupToothAssessmentHistory(assessments).map(({ assessment, teeth }) => (
         <li key={assessment.id} className="min-w-0">
           <article className="min-w-0 rounded-lg border bg-background p-3 sm:p-4">
             <header className="flex flex-col gap-2 border-b pb-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <h4 className="font-semibold leading-snug">
-                  IS 8815 tooth <span className="font-mono tabular-nums">{assessment.tooth_number}</span>
+                  IS 8815 {teeth.length === 1 ? "tooth" : "teeth"} <span className="font-mono tabular-nums">{teeth.join(", ")}</span>
                 </h4>
                 <p className="mt-0.5 text-sm text-muted-foreground">
-                  {describeIndianTooth(assessment.tooth_number)}
+                  {teeth.length === 1 ? describeIndianTooth(assessment.tooth_number) : `Shared findings · ${teeth.length} teeth`}
                 </p>
                 {(assessment.assessed_at || assessment.doctor_name) && (
                   <p className="mt-1 text-xs text-muted-foreground">

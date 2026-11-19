@@ -12,7 +12,7 @@ declare
   v_posted date := v_today-3;
   v_corrected date := v_today-2;
   v_batch uuid := gen_random_uuid();
-  v_receipts jsonb := '[{"amount":40,"method":"upi"},{"amount":60,"method":"cash"}]';
+  v_receipts jsonb := '[{"amount":40,"method":"upi","notes":"Advance received by UPI"},{"amount":60,"method":"cash","notes":"Balance at reception"}]';
   v_invoice crm.invoices%rowtype;
   v_receipt crm.invoice_payments%rowtype;
   v_changed crm.invoice_payments%rowtype;
@@ -54,6 +54,10 @@ begin
     raise exception 'backdating was not applied atomically or changed the invoice';
   end if;
   select * into strict v_receipt from crm.invoice_payments where invoice_id=v_invoice.id and payment_method='upi';
+  if v_receipt.notes is distinct from 'Advance received by UPI'
+    or (select notes from crm.invoice_payments where invoice_id=v_invoice.id and payment_method='cash') is distinct from 'Balance at reception' then
+    raise exception 'split receipt remarks were not stored independently';
+  end if;
   begin
     perform crm.update_invoice_payment_with_date(v_invoice.id,v_receipt.id,40,'upi',null,'Backdate',v_receipt.version,v_ops,v_corrected);
     raise exception 'operations changed a saved receipt date';
@@ -73,6 +77,7 @@ begin
   select * into v_changed from crm.update_invoice_payment_with_date(
     v_invoice.id,v_receipt.id,40,'upi',null,'Correct bank settlement date',v_receipt.version,v_admin,v_corrected);
   if (v_changed.received_at at time zone 'Asia/Kolkata')::date is distinct from v_corrected
+    or v_changed.notes is distinct from v_receipt.notes
     or v_changed.initial_receipt_date is distinct from v_posted
     or (v_changed.amount,v_changed.created_at,v_changed.created_by,v_changed.version)
        is distinct from (v_receipt.amount,v_receipt.created_at,v_receipt.created_by,v_receipt.version+1)

@@ -20,6 +20,31 @@ afterEach(() => {
 });
 
 describe("record payment form", () => {
+  it("saves independent remarks on each split receipt", async () => {
+    render(<RecordPaymentForm invoiceId="invoice-1" balanceDue={150} />);
+    fireEvent.change(screen.getByLabelText("Payment amount (₹)"), { target: { value: "50" } });
+    fireEvent.change(screen.getByLabelText("Payment method"), { target: { value: "upi" } });
+    fireEvent.change(screen.getByLabelText("Remarks (optional)"), { target: { value: "  First installment  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Add payment method" }));
+    fireEvent.change(screen.getAllByLabelText("Payment method")[1], { target: { value: "cash" } });
+    fireEvent.change(screen.getAllByLabelText("Remarks (optional)")[1], { target: { value: "Balance received at desk" } });
+    fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
+    await waitFor(() => expect(recordInvoicePaymentsAction).toHaveBeenCalledWith("invoice-1", expect.objectContaining({
+      receipts: [
+        { amount: "50", method: "upi", reference: "", notes: "First installment" },
+        { amount: "100.00", method: "cash", reference: "", notes: "Balance received at desk" },
+      ],
+    })));
+  });
+  it("does not discard remarks when an entered receipt is changed to zero", () => {
+    render(<RecordPaymentForm invoiceId="invoice-1" balanceDue={150} />);
+    fireEvent.change(screen.getByLabelText("Remarks (optional)"), { target: { value: "Important receipt note" } });
+    fireEvent.change(screen.getByLabelText("Payment amount (₹)"), { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm ₹0 received / carry forward" }));
+    expect(confirmInvoiceCarryForwardAction).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Clear the receipt remarks"));
+    expect(screen.getByLabelText("Remarks (optional)")).toHaveValue("Important receipt note");
+  });
   it("accepts ₹0 received without a method and carries all dues forward without a receipt", async () => {
     render(<RecordPaymentForm invoiceId="invoice-1" balanceDue={150} />);
     const amount = screen.getByRole("spinbutton", { name: "Payment amount (₹)" });

@@ -8,6 +8,7 @@ import { PatientSectionNav } from "@/components/patients/patient-section-nav";
 import { TreatmentProgressSummary } from "@/components/clinical/treatment-progress-summary";
 import { VisitHistory } from "@/components/clinical/visit-history";
 import { PatientIdentityFields } from "@/components/leads/patient-identity-fields";
+import { ToothAssessmentHistory } from "@/components/clinical/tooth-assessment-history";
 import { RowEditDialog } from "@/components/admin/row-edit-dialog";
 import type { TreatmentProgressRecord } from "@/lib/treatment-progress";
 import "@/app/globals.css";
@@ -71,8 +72,18 @@ function Preview() {
         { id: "00000000-0000-4000-8000-000000000005", name: "Restoration", category: "Restorative", default_cost: 1000, is_general_consultation: false },
       ]}
       initialItems={[]}
+      doctorNames={["Dr. Preview Alpha", "Dr. Preview Beta"]}
       existingBalanceDue={200}
     />}
+    </section>
+    <section aria-label="Synthetic grouped tooth findings" className="space-y-2">
+      <h2 className="font-semibold">Recorded tooth findings — synthetic example</h2>
+      <ToothAssessmentHistory assessments={["16", "17", "18"].map((tooth) => ({
+        id: `preview-finding-${tooth}`, case_sheet_id: "preview-visit", tooth_number: tooth, tooth_state: "present",
+        conditions: ["caries"], surfaces: [], clinical_findings: null, diagnosis: "Shared diagnosis for selected teeth",
+        prognosis: null, recommended_action: "restorative", future_plan: "Review at the next visit", notes: "One shared remark",
+        assessed_at: "2026-11-19T04:30:00Z", doctor_name: "Preview doctor",
+      }))} />
     </section>
     <section id="preview-progress" className="grid scroll-mt-20 items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)]">
       <TreatmentProgressSummary leadId="00000000-0000-4000-8000-000000000001" planned={{ records: [pendingPlan], total: 1 }} />

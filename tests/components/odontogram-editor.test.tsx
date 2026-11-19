@@ -37,7 +37,7 @@ describe("OdontogramEditor", () => {
     expect(onAddTreatment).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText("Remark for selected teeth"), { target: { value: "General review" } });
     const recorded = onChange.mock.lastCall?.[0] as ToothAssessmentInput[];
-    expect(recorded).toHaveLength(32);
+    expect(recorded).toHaveLength(52);
     expect(recorded.every((item) => item.notes === "General review")).toBe(true);
   });
   it("records a general Indian Standard tooth assessment without a treatment", () => {

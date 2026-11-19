@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ToothSelector } from "@/components/clinical/tooth-selector";
+import { SuggestionInput } from "@/components/ui/suggestion-input";
 import { invoiceDisplayTotals, invoiceLineAmount } from "@/lib/invoice-lines";
 import { invoicePaymentEditIssue } from "@/lib/invoice-policy";
 import { TreatmentSearch } from "@/components/invoices/treatment-search";
@@ -142,17 +143,19 @@ export function InvoiceEditor({
 
   const { subtotal, safeDiscount, tax: discountedTax, total } = invoiceDisplayTotals(items, taxRate, discount);
   const paymentEditIssue = mode === "edit" ? invoicePaymentEditIssue(total, amountReceived, legacyPaidTotal) : undefined;
-  const selectedIds = new Set(items.map((item) => item.treatment_id));
-  const available = mode === "edit" ? treatmentCatalog.filter((item) => !selectedIds.has(item.id)) : [];
+  const available = useMemo(() => {
+    const selectedIds = new Set(items.map((item) => item.treatment_id));
+    return mode === "edit" ? treatmentCatalog.filter((item) => !selectedIds.has(item.id)) : [];
+  }, [items, mode, treatmentCatalog]);
   const catalogOptions = useMemo(() => treatmentOptions.map((option) => ({
     value: `catalog:${option.id}`,
     label: `${option.is_general_consultation ? "General consultation" : option.name}${option.category ? ` — ${option.category}` : ""}`,
     searchText: `${option.name} ${option.category ?? ""} ${option.is_general_consultation ? "general consultation" : ""}`,
   })), [treatmentOptions]);
-  const searchOptions = [
+  const searchOptions = useMemo(() => [
     ...catalogOptions,
     ...available.map((item) => ({ value: `case:${item.id}`, label: `${item.code} — ${item.name} — ${item.site_label}` })),
-  ];
+  ], [catalogOptions, available]);
   const existingEdit = items.find((item) => item.rowKey === editingKey);
   const linkedEdit = Boolean(existingEdit?.treatment_id);
   const draftSelection = draft.treatment_id ? `case:${draft.treatment_id}` : draft.treatment_type_id ? `catalog:${draft.treatment_type_id}` : "";
@@ -364,16 +367,15 @@ export function InvoiceEditor({
             {mode === "create" && <>
             <div className="min-w-0 space-y-1.5">
               <Label htmlFor={`${idPrefix}-consulting-doctor`}>Consulting doctor</Label>
-              <Input id={`${idPrefix}-consulting-doctor`} list={`${idPrefix}-doctors`} value={consultingDoctor}
+              <SuggestionInput id={`${idPrefix}-consulting-doctor`} value={consultingDoctor} options={doctorNames.map((name) => ({ value: name, label: name }))}
                 required maxLength={200} placeholder="Choose or enter doctor name"
-                onChange={(event) => { setDirty(true); setConsultingDoctor(event.target.value); }} />
-              <datalist id={`${idPrefix}-doctors`}>{doctorNames.map((name) => <option key={name} value={name} />)}</datalist>
+                onValueChange={(name) => { setDirty(true); setConsultingDoctor(name); }} />
             </div>
             <div className="min-w-0 space-y-1.5">
               <Label htmlFor={`${idPrefix}-referring-doctor`}>Referring doctor</Label>
-              <Input id={`${idPrefix}-referring-doctor`} list={`${idPrefix}-doctors`} value={referringDoctor}
+              <SuggestionInput id={`${idPrefix}-referring-doctor`} value={referringDoctor} options={doctorNames.map((name) => ({ value: name, label: name }))}
                 required maxLength={200} placeholder="Choose or enter referring doctor"
-                onChange={(event) => { setDirty(true); setReferringDoctor(event.target.value); }} />
+                onValueChange={(name) => { setDirty(true); setReferringDoctor(name); }} />
               <Button type="button" variant="outline" size="sm" onClick={() => { setDirty(true); setReferringDoctor("No referring doctor"); }}>No referring doctor</Button>
             </div>
             </>}

@@ -48,6 +48,20 @@ afterEach(() => {
 });
 
 describe("independent invoice editor", () => {
+  it("chooses the typed treatment with arrows and Enter after parent state updates, without creating an invoice", async () => {
+    render(<InvoiceEditor mode="create" leadId="lead-1" treatmentCatalog={[]} initialItems={[]} treatmentOptions={[
+      { id: "consultation", name: "Consultation", category: "General", default_cost: 200, is_general_consultation: true },
+      { id: "restoration", name: "Restoration", category: "Restorative", default_cost: 1000, is_general_consultation: false },
+    ]} />);
+    const input = screen.getByRole("combobox", { name: "Treatment" });
+    fireEvent.input(input, { target: { value: "restor" }, inputType: "insertText" });
+    await screen.findByRole("option", { name: "Restoration — Restorative" });
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(input).toHaveValue("Restoration — Restorative"));
+    expect(screen.getByRole("spinbutton", { name: "Unit price (₹)" })).toHaveValue(1000);
+    expect(createInvoiceAction).not.toHaveBeenCalled();
+  });
   it("reuses one form and adds compact lines with independent catalog prices, including zero", async () => {
     render(<InvoiceEditor mode="create" leadId="lead-1" treatmentCatalog={[]} initialItems={[]}
       treatmentOptions={[

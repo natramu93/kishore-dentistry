@@ -12,8 +12,22 @@ function Harness({ multiple = true }: { multiple?: boolean }) {
 }
 
 describe("ToothSelector", () => {
+  it("matches the reference's four-row structure and provides row selection", () => {
+    const { container } = render(<Harness />);
+    const chart = screen.getByRole("group", { name: /Indian Standard dental chart/ });
+    const rows = within(chart).getAllByRole("group");
+    expect(rows.map((row) => row.getAttribute("aria-label"))).toEqual(["Upper primary teeth", "Upper permanent teeth", "Lower permanent teeth", "Lower primary teeth"]);
+    expect(within(chart).getAllByRole("button", { name: /^\d+,/ })).toHaveLength(52);
+    expect(container.querySelectorAll("svg[data-tooth-kind]")).toHaveLength(52);
+    expect(within(rows[0]).getAllByRole("button", { name: /^\d+,/ }).map((button) => button.textContent)).toEqual(["55", "54", "53", "52", "51", "61", "62", "63", "64", "65"]);
+    fireEvent.click(screen.getByRole("button", { name: "Select upper permanent teeth" }));
+    expect(within(chart).getAllByRole("button", { pressed: true, name: /^\d+,/ })).toHaveLength(16);
+    fireEvent.click(screen.getByRole("button", { name: "Deselect upper permanent teeth" }));
+    expect(screen.getByRole("status")).toHaveTextContent("No teeth selected");
+  });
   it("selects all displayed teeth and allows individual deselection and clearing", () => {
     render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Permanent teeth" }));
     const selectedTeeth = () => within(screen.getByRole("group", { name: /Indian Standard dental chart/ }))
       .getAllByRole("button", { pressed: true, name: /^\d+,/ });
     fireEvent.click(screen.getByRole("button", { name: "Select all" }));

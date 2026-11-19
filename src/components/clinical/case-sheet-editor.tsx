@@ -705,6 +705,7 @@ function TreatmentRow({
                   onChange({ codePickerOpen: false });
                 }, 120)}
                 onKeyDown={(event) => {
+                  if (event.nativeEvent.isComposing) return;
                   if (event.key === "ArrowDown") {
                     event.preventDefault();
                     if (!treatment.codePickerOpen) onChange({ codePickerOpen: true });
@@ -722,9 +723,10 @@ function TreatmentRow({
                   } else if (event.key === "Escape") {
                     setActiveCodeIndex(-1);
                     onChange({ codePickerOpen: false });
-                  } else if (event.key === "Enter" && (activeCode || matches.length === 1)) {
+                  } else if (event.key === "Enter") {
                     event.preventDefault();
-                    selectTreatment(activeCode ?? matches[0]!);
+                    event.stopPropagation();
+                    if (treatment.codePickerOpen && (activeCode || matches.length === 1)) selectTreatment(activeCode ?? matches[0]!);
                   }
                 }}
                 onChange={(event) => {
@@ -751,6 +753,7 @@ function TreatmentRow({
                       role="option"
                       tabIndex={-1}
                       aria-selected={optionIndex === activeCodeIndex}
+                      ref={(node) => { if (optionIndex === activeCodeIndex) node?.scrollIntoView?.({ block: "nearest" }); }}
                       onMouseDown={(event) => event.preventDefault()}
                       onMouseEnter={() => setActiveCodeIndex(optionIndex)}
                       onClick={() => selectTreatment(option)}

@@ -3,6 +3,7 @@ import axe, { type AxeResults } from "axe-core";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { PrescriptionItemsEditor } from "@/components/clinical/prescription-items-editor";
+import type { MedicationSuggestion } from "@/lib/database.types";
 import {
   createPrescriptionItemDraft,
   MAX_PRESCRIPTION_ITEMS,
@@ -27,6 +28,23 @@ function Harness({ initial = [] }: { initial?: PrescriptionItemDraft[] }) {
 }
 
 describe("PrescriptionItemsEditor", () => {
+  it("selects medicine and strength with arrows and Enter without duplicating the entry fields", () => {
+    function Medicines() {
+      const [items, setItems] = useState([createPrescriptionItemDraft("medicine-1")]);
+      return <PrescriptionItemsEditor value={items} onChange={setItems} suggestions={[
+        { id: "medicine-a", name: "Example medicine", strength: "250 mg" },
+        { id: "medicine-b", name: "Example medicine", strength: "500 mg" },
+      ] as MedicationSuggestion[]} />;
+    }
+    render(<Medicines />);
+    const input = screen.getByLabelText("Medicine name");
+    fireEvent.change(input, { target: { value: "Example" } });
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(input).toHaveValue("Example medicine");
+    expect(screen.getByLabelText("Strength")).toHaveValue("500 mg");
+    expect(screen.queryByLabelText("Pick from this center’s medication list")).not.toBeInTheDocument();
+  });
   it("adds, edits and removes a stable medicine line", () => {
     render(<Harness />);
 

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SuggestionField } from "@/components/ui/suggestion-input";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -18,18 +19,13 @@ import { CATEGORY_ORDER, categoryRank } from "@/lib/dental";
 
 export const metadata = { title: "Treatment Types — Admin" };
 
-// Reused datalist of known categories (admins can also type a new one)
+// Known categories remain suggestions; admins may enter a new category.
 function CategoryField({ id, defaultValue }: { id: string; defaultValue?: string | null }) {
-  const datalistId = `${id}-categories`;
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>Category</Label>
-      <Input id={id} name="category" list={datalistId} defaultValue={defaultValue ?? ""} placeholder="e.g. Orthodontics" />
-      <datalist id={datalistId}>
-        {CATEGORY_ORDER.map((c) => (
-          <option key={c} value={c} />
-        ))}
-      </datalist>
+      <SuggestionField id={id} name="category" defaultValue={defaultValue ?? ""} placeholder="e.g. Orthodontics" maxLength={200}
+        options={CATEGORY_ORDER.map((category) => ({ value: category, label: category }))} />
     </div>
   );
 }

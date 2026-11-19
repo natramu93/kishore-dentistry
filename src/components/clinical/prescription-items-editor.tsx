@@ -5,6 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { SuggestionInput } from "@/components/ui/suggestion-input";
 import {
   createPrescriptionItemDraft,
   MAX_PRESCRIPTION_ITEMS,
@@ -147,30 +148,26 @@ function PrescriptionItemRow({
     <fieldset className="rounded-xl border bg-muted/15 p-3 sm:p-4">
       <legend className="px-1 text-sm font-semibold">Medicine {index + 1}</legend>
       <div className="space-y-4">
-        {suggestions.length > 0 && <Field label="Pick from this center’s medication list" htmlFor={`${idPrefix}-suggestion`}>
-          <select id={`${idPrefix}-suggestion`} value="" onChange={(event) => {
-            const selected = suggestions.find((entry) => entry.id === event.target.value);
-            if (selected) onChange({ medicine_name: selected.name, strength: selected.strength ?? "" });
-          }} className="h-11 w-full rounded-lg border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm">
-            <option value="">Choose a saved medicine or enter one below</option>
-            {suggestions.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}{entry.strength ? ` — ${entry.strength}` : ""}</option>)}
-          </select>
-        </Field>}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field
             label="Medicine name"
             htmlFor={`${idPrefix}-name`}
             error={medicineError}
           >
-            <Input
+            <SuggestionInput
               id={`${idPrefix}-name`}
+              options={suggestions.map((entry) => ({ key: entry.id, value: entry.name, label: `${entry.name}${entry.strength ? ` — ${entry.strength}` : ""}` }))}
               required
               maxLength={200}
               autoComplete="off"
               value={item.medicine_name}
               aria-invalid={Boolean(medicineError)}
               aria-describedby={medicineError ? `${idPrefix}-name-error` : undefined}
-              onChange={(event) => onChange({ medicine_name: event.target.value })}
+              onValueChange={(medicine_name) => onChange({ medicine_name })}
+              onOptionSelect={(option) => {
+                const selected = suggestions.find((entry) => entry.id === option.key);
+                if (selected) onChange({ medicine_name: selected.name, strength: selected.strength ?? "" });
+              }}
               placeholder="Generic or brand name"
             />
           </Field>

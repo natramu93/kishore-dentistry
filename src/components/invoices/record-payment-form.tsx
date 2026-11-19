@@ -7,17 +7,18 @@ import { confirmInvoiceCarryForwardAction, recordInvoicePaymentsAction } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { clinicToday, formatINR } from "@/lib/tz";
 import { PAYMENT_METHODS, receivedAmountInWords } from "@/lib/invoice-receipts";
 import type { PatientInvoiceBalance } from "@/lib/patient-invoice-balance";
 import { preventImplicitInvoiceSubmit } from "./invoice-form-keyboard";
 
-type ReceiptEntry = { key: number; amount: string; method: string; reference: string };
+type ReceiptEntry = { key: number; amount: string; method: string; reference: string; notes: string };
 
 export function RecordPaymentForm({ invoiceId, balanceDue }: { invoiceId: string; balanceDue: number }) {
   const router = useRouter();
   const id = useId();
-  const [entries, setEntries] = useState<ReceiptEntry[]>([{ key: 0, amount: balanceDue.toFixed(2), method: "", reference: "" }]);
+  const [entries, setEntries] = useState<ReceiptEntry[]>([{ key: 0, amount: balanceDue.toFixed(2), method: "", reference: "", notes: "" }]);
   const [receiptDate, setReceiptDate] = useState(clinicToday);
   const nextKey = useRef(1);
   const requestKey = useRef<string | null>(null);
@@ -42,6 +43,10 @@ export function RecordPaymentForm({ invoiceId, balanceDue }: { invoiceId: string
     if (noPayment) {
       if (entries[0].reference.trim()) {
         toast.error("Clear the transaction reference when no payment was received");
+        return;
+      }
+      if (entries[0].notes.trim()) {
+        toast.error("Clear the receipt remarks when no payment was received. No receipt will be created.");
         return;
       }
       startTransition(async () => {
@@ -78,7 +83,7 @@ export function RecordPaymentForm({ invoiceId, balanceDue }: { invoiceId: string
         const result = await recordInvoicePaymentsAction(invoiceId, {
           request_key: requestKey.current,
           receipt_date: receiptDate,
-          receipts: entries.map(({ amount, method, reference }) => ({ amount, method, reference })),
+          receipts: entries.map(({ amount, method, reference, notes }) => ({ amount, method, reference, ...(notes.trim() ? { notes: notes.trim() } : {}) })),
         });
         if (!result.ok) toast.error(result.error);
         else {
@@ -97,7 +102,7 @@ export function RecordPaymentForm({ invoiceId, balanceDue }: { invoiceId: string
       <p className="text-xs text-muted-foreground">Outstanding: {formatINR(balanceDue)}. Split a receipt across methods, or enter ₹0 to carry the full unpaid balance forward.</p>
       <Button type="button" variant="outline" className="w-full whitespace-normal" disabled={pending || saved !== null} onClick={() => {
         requestKey.current = null;
-        setEntries([{ key: nextKey.current++, amount: "0", method: "", reference: "" }]);
+        setEntries([{ key: nextKey.current++, amount: "0", method: "", reference: "", notes: "" }]);
       }}>No payment — carry forward</Button>
       {!noPayment && <div className="space-y-1.5">
         <Label htmlFor={`${id}-receipt-date`}>Receipt date</Label>
@@ -125,6 +130,12 @@ export function RecordPaymentForm({ invoiceId, balanceDue }: { invoiceId: string
         <Label htmlFor={`${id}-${entry.key}-reference`}>Transaction / receipt reference (optional)</Label>
         <Input id={`${id}-${entry.key}-reference`} value={entry.reference} onChange={(event) => update(entry.key, { reference: event.target.value })} maxLength={120} placeholder="UPI transaction ID, card slip, NEFT UTR, etc." />
       </div>
+      <div className="space-y-1.5 sm:col-span-2">
+        <Label htmlFor={`${id}-${entry.key}-remarks`}>Remarks (optional)</Label>
+        <Textarea id={`${id}-${entry.key}-remarks`} value={entry.notes} rows={2} maxLength={1000}
+          onChange={(event) => update(entry.key, { notes: event.target.value })}
+          placeholder="Remarks for this payment receipt" />
+      </div>
       {entries.length > 1 && <Button type="button" variant="ghost" className="sm:col-span-2" onClick={() => {
         requestKey.current = null;
         setEntries((previous) => previous.filter((row) => row.key !== entry.key));
@@ -132,7 +143,7 @@ export function RecordPaymentForm({ invoiceId, balanceDue }: { invoiceId: string
       </fieldset>)}
       <Button type="button" variant="outline" disabled={pending || saved !== null || noPayment || entries.length >= 10} onClick={() => {
         requestKey.current = null;
-        setEntries((previous) => [...previous, { key: nextKey.current++, amount: Math.max(0, balanceDue - total).toFixed(2), method: "", reference: "" }]);
+        setEntries((previous) => [...previous, { key: nextKey.current++, amount: Math.max(0, balanceDue - total).toFixed(2), method: "", reference: "", notes: "" }]);
       }}>Add payment method</Button>
       <p className="text-sm">Receiving now: {formatINR(total)}</p>
       {Number.isFinite(total) && total >= 0 && total <= 9_999_999_999.99 && <p className="text-xs text-muted-foreground">{receivedAmountInWords(total)}</p>}
@@ -145,7 +156,7 @@ export function RecordPaymentForm({ invoiceId, balanceDue }: { invoiceId: string
           setSaved(null);
           setConfirmedBalance(null);
           requestKey.current = null;
-          setEntries([{ key: nextKey.current++, amount: confirmedBalance.invoice_due.toFixed(2), method: "", reference: "" }]);
+          setEntries([{ key: nextKey.current++, amount: confirmedBalance.invoice_due.toFixed(2), method: "", reference: "", notes: "" }]);
         }}>Record a payment</Button>
       </div>}
       <div>

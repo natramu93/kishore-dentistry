@@ -28,18 +28,17 @@ export function ToothSelector({
   disabled = false,
 }: ToothSelectorProps) {
   const id = useId();
-  const [dentition, setDentition] = useState<"permanent" | "primary">(
-    value.length > 0 && value.every((tooth) => Number(tooth[0]) >= 5) ? "primary" : "permanent",
+  const [dentition, setDentition] = useState<"all" | "permanent" | "primary">(
+    value.length > 0 && value.every((tooth) => Number(tooth[0]) >= 5) ? "primary" : "all",
   );
-  const teeth = dentition === "permanent" ? INDIAN_PERMANENT_TEETH : INDIAN_PRIMARY_TEETH;
+  const teeth = dentition === "all" ? [...INDIAN_PERMANENT_TEETH, ...INDIAN_PRIMARY_TEETH] : dentition === "permanent" ? INDIAN_PERMANENT_TEETH : INDIAN_PRIMARY_TEETH;
   const eligibleTeeth = teeth.filter((tooth) => selectableTeeth === undefined || selectableTeeth.includes(tooth));
   const allSelected = eligibleTeeth.length > 0 && eligibleTeeth.every((tooth) => value.includes(tooth));
-  const quarter = teeth.length / 4;
-  const quadrants = [
-    { label: "Upper right", arch: "upper" as const, teeth: teeth.slice(0, quarter) },
-    { label: "Upper left", arch: "upper" as const, teeth: teeth.slice(quarter, quarter * 2) },
-    { label: "Lower right", arch: "lower" as const, teeth: teeth.slice(quarter * 2, quarter * 3) },
-    { label: "Lower left", arch: "lower" as const, teeth: teeth.slice(quarter * 3) },
+  const rows = [
+    { label: "Upper primary teeth", arch: "upper" as const, primary: true, teeth: INDIAN_PRIMARY_TEETH.slice(0, 10) },
+    { label: "Upper permanent teeth", arch: "upper" as const, primary: false, teeth: INDIAN_PERMANENT_TEETH.slice(0, 16) },
+    { label: "Lower permanent teeth", arch: "lower" as const, primary: false, teeth: INDIAN_PERMANENT_TEETH.slice(16) },
+    { label: "Lower primary teeth", arch: "lower" as const, primary: true, teeth: INDIAN_PRIMARY_TEETH.slice(10) },
   ];
 
   function select(tooth: string) {
@@ -63,6 +62,9 @@ export function ToothSelector({
     <fieldset disabled={disabled} aria-describedby={`${id}-selection`} className="min-w-0 space-y-3">
       <legend className="mb-2 text-sm font-medium">{label}</legend>
       <div className="flex flex-wrap gap-2" aria-label="Dentition shown">
+        <Button type="button" size="sm" variant={dentition === "all" ? "default" : "outline"} aria-pressed={dentition === "all"} onClick={() => setDentition("all")}>
+          Adult &amp; primary teeth
+        </Button>
         <Button type="button" size="sm" variant={dentition === "permanent" ? "default" : "outline"} aria-pressed={dentition === "permanent"} onClick={() => setDentition("permanent")}>
           Permanent teeth
         </Button>
@@ -76,14 +78,29 @@ export function ToothSelector({
         )}
       </div>
       <div className="min-w-0 rounded-xl border bg-muted/20 p-2 sm:p-3">
-        <p className="mb-3 text-xs text-muted-foreground">Right and left refer to the patient&apos;s side.</p>
-        <div className="grid min-w-0 gap-4 sm:grid-cols-2" role="group" aria-label={`${dentition} teeth — Indian Standard dental chart`}>
-          {quadrants.map((quadrant) => (
-            <div key={quadrant.label} role="group" aria-label={quadrant.label} className="min-w-0 space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">{quadrant.label}</p>
-              <ToothChart teeth={quadrant.teeth} selected={value} documentedTeeth={documentedTeeth} selectableTeeth={selectableTeeth} arch={quadrant.arch} onSelect={select} columns={4} showMidline={false} />
-            </div>
-          ))}
+        <p className="mb-2 text-xs text-muted-foreground">Patient&apos;s right is on the left of the chart. Scroll sideways on smaller screens.</p>
+        <div className="max-w-full overflow-x-auto overscroll-x-contain rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" tabIndex={0} role="region" aria-label="Scrollable tooth chart">
+        <div className="min-w-[49rem] space-y-2" role="group" aria-label={`${dentition} teeth — Indian Standard dental chart`}>
+          <div className="mr-12 flex justify-between px-2 text-xs text-muted-foreground"><span>Patient&apos;s right</span><span>Patient&apos;s left</span></div>
+          {rows.filter((row) => dentition === "all" || row.primary === (dentition === "primary")).map((row) => {
+            const eligible: readonly string[] = row.teeth.filter((tooth) => selectableTeeth === undefined || selectableTeeth.includes(tooth));
+            const rowSelected = eligible.length > 0 && eligible.every((tooth) => value.includes(tooth));
+            return <div key={row.label} role="group" aria-label={row.label} className="space-y-0.5 border-b border-border/50 pb-1 last:border-b-0">
+              <p className="text-xs text-muted-foreground">{row.label}</p>
+              <div className="grid grid-cols-[minmax(0,1fr)_2.75rem] items-center gap-1">
+                <ToothChart teeth={row.teeth} selected={value} documentedTeeth={documentedTeeth} selectableTeeth={selectableTeeth}
+                  arch={row.arch} onSelect={select} columns={16} startColumn={row.primary ? 4 : 1} />
+                {(multiple || onSelectAll) && <button type="button" disabled={disabled || eligible.length === 0}
+                  aria-label={`${rowSelected ? "Deselect" : "Select"} ${row.label.toLowerCase()}`} aria-pressed={rowSelected}
+                  className="flex size-11 items-center justify-center rounded-md border bg-background text-primary outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
+                  onClick={() => {
+                    const next = rowSelected ? value.filter((tooth) => !eligible.includes(tooth)) : [...new Set([...value, ...eligible])].sort();
+                    (onSelectAll ?? onChange)(next);
+                  }}><span aria-hidden="true" className="flex size-5 items-center justify-center rounded border border-current text-sm">{rowSelected ? "✓" : ""}</span></button>}
+              </div>
+            </div>;
+          })}
+        </div>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">{multiple || onSelectAll ? "Select all applies to the displayed eligible teeth. Tap individual teeth to adjust the selection." : "Tap a tooth to review or update its record."}</p>
       </div>

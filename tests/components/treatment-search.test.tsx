@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import axe from "axe-core";
 import { TreatmentSearch } from "@/components/invoices/treatment-search";
+import { preventImplicitInvoiceSubmit } from "@/components/invoices/invoice-form-keyboard";
 
 const options = [
   { value: "filling", label: "Composite filling — Restorative", searchText: "composite filling restorative" },
@@ -11,7 +12,7 @@ const options = [
 ];
 function Picker({ onChange = vi.fn(), disabled = false }: { onChange?: (value: string) => void; disabled?: boolean }) {
   const [value, setValue] = useState("");
-  return <form><label htmlFor="treatment">Treatment</label><TreatmentSearch id="treatment" value={value} options={options}
+  return <form onKeyDown={preventImplicitInvoiceSubmit}><label htmlFor="treatment">Treatment</label><TreatmentSearch id="treatment" value={value} options={options}
     onChange={(next) => { setValue(next); onChange(next); }} required disabled={disabled} /></form>;
 }
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
