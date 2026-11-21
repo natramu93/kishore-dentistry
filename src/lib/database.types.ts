@@ -1201,6 +1201,10 @@ export type Database = {
         Args: { p_invoice_id: string; p_receipts: Json; p_request_key: string; p_actor: string; p_receipt_date: string | null };
         Returns: InvoicePayment[];
       };
+      record_invoice_payment_with_discount: {
+        Args: { p_invoice_id: string; p_receipts: Json; p_request_key: string; p_actor: string; p_receipt_date: string; p_discount: number; p_given_by: string; p_reason: string; p_expected_version: number };
+        Returns: Json;
+      };
       update_invoice_payment: {
         Args: { p_invoice_id: string; p_payment_id: string; p_amount: number; p_method: InvoicePaymentMethod; p_reference: string | null; p_reason: string; p_expected_version: number; p_actor: string };
         Returns: InvoicePayment;

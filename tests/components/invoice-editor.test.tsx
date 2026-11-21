@@ -38,7 +38,6 @@ function renderInvoiceEditor(existingBalanceDue?: number) {
     />
   );
   fireEvent.change(screen.getByLabelText("Consulting doctor"), { target: { value: "Dr. Test Doctor" } });
-  fireEvent.change(screen.getByLabelText("Referring doctor"), { target: { value: "Dr. Referrer" } });
   return result;
 }
 
@@ -69,7 +68,6 @@ describe("independent invoice editor", () => {
         { id: "scaling", name: "Scaling", category: "Preventive", default_cost: 0, is_general_consultation: false },
       ]} />);
     fireEvent.change(screen.getByLabelText("Consulting doctor"), { target: { value: "Dr. Consultant" } });
-    fireEvent.click(screen.getByRole("button", { name: "No referring doctor" }));
     fireEvent.input(screen.getByRole("combobox", { name: "Treatment" }), { target: { value: "fill" }, inputType: "insertText" });
     fireEvent.click(await screen.findByRole("option", { name: "Composite filling — Restorative" }));
     fireEvent.click(screen.getByRole("button", { name: "Add treatment" }));
@@ -175,18 +173,18 @@ describe("independent invoice editor", () => {
     fireEvent.click(screen.getByRole("button",{ name:"Create invoice" }));
     await waitFor(() => expect(createInvoiceAction).toHaveBeenCalledWith(expect.objectContaining({ items:[{ treatment_type_id:TREATMENT_TYPE_ID,quantity:1,unit_price:200 }] })));
   });
-  it("requires both doctor details and provides an explicit walk-in choice", async () => {
+  it("requires the consulting doctor without asking for a referring doctor", async () => {
     renderInvoiceEditor();
     await chooseConsultation();
     fireEvent.click(screen.getByRole("button", { name: "Add treatment" }));
-    const referring = screen.getByLabelText("Referring doctor");
-    fireEvent.change(referring, { target: { value: " " } });
+    expect(screen.queryByLabelText("Referring doctor")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Consulting doctor"), { target: { value: " " } });
     fireEvent.click(screen.getByRole("button", { name: "Create invoice" }));
     expect(createInvoiceAction).not.toHaveBeenCalled();
-    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("both doctor details"));
-    fireEvent.click(screen.getByRole("button", { name: "No referring doctor" }));
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("consulting doctor"));
+    fireEvent.change(screen.getByLabelText("Consulting doctor"), { target: { value: "Dr. Consultant" } });
     fireEvent.click(screen.getByRole("button", { name: "Create invoice" }));
-    await waitFor(() => expect(createInvoiceAction).toHaveBeenCalledWith(expect.objectContaining({ referring_doctor_name: "No referring doctor" })));
+    await waitFor(() => expect(createInvoiceAction).toHaveBeenCalledWith(expect.objectContaining({ consulting_doctor_name: "Dr. Consultant" })));
   });
   it("requires a selected treatment and does not silently save an unadded line", async () => {
     renderInvoiceEditor();
@@ -226,13 +224,12 @@ describe("independent invoice editor", () => {
         lead_id: "lead-1",
         invoice_date: "2026-09-25",
         consulting_doctor_name: "Dr. Test Doctor",
-        referring_doctor_name: "Dr. Referrer",
         items: [{ treatment_type_id: TREATMENT_TYPE_ID, quantity: 1, unit_price: 200 }],
       }));
     });
   });
 
-  it("saves multiple teeth and an invoice note without altering billing quantity", async () => {
+  it("saves multiple teeth as one line and automatically counts the selected teeth", async () => {
     renderInvoiceEditor();
     await chooseConsultation();
     fireEvent.click(screen.getByText("Teeth & line note (optional)"));
@@ -244,7 +241,7 @@ describe("independent invoice editor", () => {
     expect(screen.getByLabelText("Line note")).toHaveValue("");
     fireEvent.click(screen.getByRole("button", { name: "Create invoice" }));
     await waitFor(() => expect(createInvoiceAction).toHaveBeenCalledWith(expect.objectContaining({
-      items: [{ treatment_type_id: TREATMENT_TYPE_ID, quantity: 1, unit_price: 200, tooth_numbers: ["11", "12"], line_note: "Review restoration" }],
+      items: [{ treatment_type_id: TREATMENT_TYPE_ID, quantity: 2, unit_price: 200, tooth_numbers: ["11", "12"], line_note: "Review restoration" }],
     })));
   });
 
@@ -263,7 +260,7 @@ describe("independent invoice editor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(updateInvoiceAction).toHaveBeenCalledWith("invoice-1", expect.objectContaining({
       discount_amount: 50, discount_given_by: "Center head", mention: "Review", invoice_date: "2026-10-06", expected_version: 2,
-      items: [{ treatment_type_id: TREATMENT_TYPE_ID, quantity: 1, unit_price: 200, tooth_numbers: ["11", "13"], line_note: "Existing note" }],
+      items: [{ treatment_type_id: TREATMENT_TYPE_ID, quantity: 2, unit_price: 200, tooth_numbers: ["11", "13"], line_note: "Existing note" }],
     })));
   });
 
@@ -286,7 +283,7 @@ describe("independent invoice editor", () => {
   it("blocks implicit Enter submission from invoice inputs but preserves note line breaks", async () => {
     renderInvoiceEditor();
     await chooseConsultation();
-    for (const label of ["Invoice date", "Consulting doctor", "Referring doctor", "Quantity", "Unit price (₹)", "Discount amount (₹)", "Discount given by"]) {
+    for (const label of ["Invoice date", "Consulting doctor", "Quantity", "Unit price (₹)", "Discount amount (₹)", "Discount given by"]) {
       for (const key of ["Enter", "NumpadEnter"]) {
         expect(fireEvent.keyDown(screen.getByLabelText(label), { key })).toBe(false);
       }

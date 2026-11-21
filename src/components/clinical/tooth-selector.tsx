@@ -77,19 +77,14 @@ export function ToothSelector({
           </Button>
         )}
       </div>
-      <div className="min-w-0 rounded-xl border bg-muted/20 p-2 sm:p-3">
-        <p className="mb-2 text-xs text-muted-foreground">Patient&apos;s right is on the left of the chart. Scroll sideways on smaller screens.</p>
-        <div className="max-w-full overflow-x-auto overscroll-x-contain rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" tabIndex={0} role="region" aria-label="Scrollable tooth chart">
-        <div className="min-w-[49rem] space-y-2" role="group" aria-label={`${dentition} teeth — Indian Standard dental chart`}>
-          <div className="mr-12 flex justify-between px-2 text-xs text-muted-foreground"><span>Patient&apos;s right</span><span>Patient&apos;s left</span></div>
+      <div className="@container/matrix min-w-0 rounded-xl border bg-muted/20 p-2 sm:p-3">
+        <p className="mb-2 text-xs text-muted-foreground">Right and left refer to the patient. Quadrants wrap to fit your screen.</p>
+        <div className="min-w-0 space-y-2" role="group" aria-label={`${dentition} teeth — Indian Standard dental chart`}>
           {rows.filter((row) => dentition === "all" || row.primary === (dentition === "primary")).map((row) => {
             const eligible: readonly string[] = row.teeth.filter((tooth) => selectableTeeth === undefined || selectableTeeth.includes(tooth));
             const rowSelected = eligible.length > 0 && eligible.every((tooth) => value.includes(tooth));
             return <div key={row.label} role="group" aria-label={row.label} className="space-y-0.5 border-b border-border/50 pb-1 last:border-b-0">
-              <p className="text-xs text-muted-foreground">{row.label}</p>
-              <div className="grid grid-cols-[minmax(0,1fr)_2.75rem] items-center gap-1">
-                <ToothChart teeth={row.teeth} selected={value} documentedTeeth={documentedTeeth} selectableTeeth={selectableTeeth}
-                  arch={row.arch} onSelect={select} columns={16} startColumn={row.primary ? 4 : 1} />
+              <div className="flex items-center justify-between gap-2"><p className="text-xs font-medium text-muted-foreground">{row.label}</p>
                 {(multiple || onSelectAll) && <button type="button" disabled={disabled || eligible.length === 0}
                   aria-label={`${rowSelected ? "Deselect" : "Select"} ${row.label.toLowerCase()}`} aria-pressed={rowSelected}
                   className="flex size-11 items-center justify-center rounded-md border bg-background text-primary outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
@@ -98,9 +93,16 @@ export function ToothSelector({
                     (onSelectAll ?? onChange)(next);
                   }}><span aria-hidden="true" className="flex size-5 items-center justify-center rounded border border-current text-sm">{rowSelected ? "✓" : ""}</span></button>}
               </div>
+              <div className="grid min-w-0 grid-cols-1 gap-2 @min-[32rem]/matrix:grid-cols-2">
+                {[row.teeth.slice(0, row.teeth.length / 2), row.teeth.slice(row.teeth.length / 2)].map((quadrant, index) => <div key={index} className="min-w-0">
+                  <p className="mb-1 text-xs text-muted-foreground">Patient&apos;s {index === 0 ? "right" : "left"}</p>
+                  <ToothChart teeth={quadrant} selected={value} documentedTeeth={documentedTeeth} selectableTeeth={selectableTeeth}
+                    arch={row.arch} onSelect={select} columns={8} startColumn={row.primary && index === 0 ? 4 : 1}
+                    compactColumns={row.primary ? 5 : 4} fit showMidline={false} />
+                </div>)}
+              </div>
             </div>;
           })}
-        </div>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">{multiple || onSelectAll ? "Select all applies to the displayed eligible teeth. Tap individual teeth to adjust the selection." : "Tap a tooth to review or update its record."}</p>
       </div>

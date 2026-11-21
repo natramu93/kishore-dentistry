@@ -12,7 +12,7 @@ import {
 } from "@/lib/validation";
 import type { InvoicePaymentMethod } from "@/lib/database.types";
 import { invoiceLineDetailsSchema } from "@/lib/invoice-lines";
-import { paymentReceiptSchema, receiptDateSchema } from "@/lib/invoice-receipts";
+import { paymentDiscountSchema, paymentReceiptSchema, receiptDateSchema } from "@/lib/invoice-receipts";
 import type { PatientInvoiceBalance } from "@/lib/patient-invoice-balance";
 import {
   runAction,
@@ -98,7 +98,7 @@ const invoiceSchema = invoiceDetailsSchema
     lead_id: uuidSchema,
     invoice_date: z.iso.date("Enter a valid invoice date").optional(),
     consulting_doctor_name: z.string().trim().min(1, "Enter the consulting doctor").max(200),
-    referring_doctor_name: z.string().trim().min(1, "Enter the referring doctor or choose No referring doctor").max(200),
+    referring_doctor_name: z.string().trim().min(1).max(200).default("No referring doctor"),
   })
   .superRefine(validateInvoiceTotal);
 const invoiceUpdateSchema = invoiceDetailsSchema
@@ -109,7 +109,7 @@ const invoiceUpdateSchema = invoiceDetailsSchema
   .superRefine(validateInvoiceTotal);
 const consultationInvoiceSchema = z.object({
   consulting_doctor_name: z.string().trim().min(1, "Enter the consulting doctor").max(200),
-  referring_doctor_name: z.string().trim().min(1, "Enter the referring doctor or choose No referring doctor").max(200),
+  referring_doctor_name: z.string().trim().min(1).max(200).default("No referring doctor"),
   lead_id: uuidSchema,
   amount: consultationAmount.default(200),
   notes: z.string().trim().max(4_000).optional(),
@@ -241,12 +241,13 @@ export async function recordInvoicePaymentAction(id: string, input: unknown): Pr
 
 export async function recordInvoicePaymentsAction(id: string, input: unknown): Promise<ActionResult> {
   const ctx = await getAuthContext();
-  const parsed = z.object({ invoice_id: uuidSchema, request_key: uuidSchema, receipt_date: receiptDateSchema.optional(), receipts: z.array(paymentReceiptSchema).min(1).max(10) })
+  const parsed = z.object({ invoice_id: uuidSchema, request_key: uuidSchema, receipt_date: receiptDateSchema.optional(), receipts: z.array(paymentReceiptSchema).max(10), discount: paymentDiscountSchema.optional() })
+    .refine((value) => value.receipts.length > 0 || Boolean(value.discount), "Add a payment or a discount")
     .safeParse({ ...(typeof input === "object" && input !== null ? input : {}), invoice_id: id });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid payment" };
   return runAction(async () => {
     await invoiceMutationLimit(ctx.userId);
-    await invoices.recordInvoicePayments(ctx, parsed.data.invoice_id, parsed.data.receipts, parsed.data.request_key, parsed.data.receipt_date);
+    await invoices.recordInvoicePayments(ctx, parsed.data.invoice_id, parsed.data.receipts, parsed.data.request_key, parsed.data.receipt_date, parsed.data.discount);
     revalidatePath(`/invoices/${id}`);
     revalidatePath("/invoices");
     revalidatePath("/patients", "layout");

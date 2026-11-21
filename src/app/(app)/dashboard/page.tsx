@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { getAuthContext } from "@/lib/auth/context";
-import { getDashboardData, getRecentActivity, getDoctorDashboardData } from "@/data/dashboard";
+import { getDashboardData, getDoctorDashboardData } from "@/data/dashboard";
 import { canViewReports } from "@/lib/auth/guards";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { LeadStatusBadge } from "@/components/lead-status-badge";
 import { STATUS_LABELS, PIPELINE_ORDER } from "@/lib/leads/transitions";
 import type { LeadStatus } from "@/lib/database.types";
-import { fmt, formatINR } from "@/lib/tz";
+import { formatINR } from "@/lib/tz";
 import {
   CalendarDays, Users, TrendingUp, Stethoscope, BarChart3, Plus,
 } from "lucide-react";
@@ -56,10 +56,7 @@ export default async function DashboardPage() {
     );
   }
 
-  const [data, activity] = await Promise.all([
-    getDashboardData(ctx),
-    getRecentActivity(ctx),
-  ]);
+  const data = await getDashboardData(ctx);
 
   const terminalStatuses: LeadStatus[] = ["missed", "dropped"];
 
@@ -208,37 +205,6 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Recent activity */}
-        <Card className="border-l-4 border-l-gold lg:col-span-3">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Recent activity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {activity.length === 0 && (
-              <p className="text-sm text-muted-foreground">Nothing yet</p>
-            )}
-            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {activity.slice(0, 9).map((a) => {
-                const lead = a.lead as { id: string; name: string } | null;
-                const actor = a.actor as { full_name: string } | null;
-                return (
-                  <li key={a.id} className="text-sm">
-                    <Link href={`/patients/${a.lead_id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab" className="font-medium hover:underline">
-                      {lead?.name ?? "Patient"}
-                    </Link>{" "}
-                    <span className="text-muted-foreground">
-                      {a.type === "status_change" && a.to_status
-                        ? `→ ${STATUS_LABELS[a.to_status]}`
-                        : a.type.replaceAll("_", " ")}
-                      {actor?.full_name ? ` · ${actor.full_name}` : ""}
-                    </span>
-                    <div className="text-xs text-muted-foreground">{fmt(a.created_at)}</div>
-                  </li>
-                );
-              })}
-            </ul>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

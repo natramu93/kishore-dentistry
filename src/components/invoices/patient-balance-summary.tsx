@@ -9,7 +9,6 @@ export function PatientBalanceSummary({ balance, leadId }: { balance: PatientInv
     <div className="flex justify-between gap-4"><span>This invoice due</span><span>{formatINR(balance.invoice_due)}</span></div>
     {balance.later_due > 0 && <div className="flex justify-between gap-4"><span>Newer unpaid bills</span><span>{formatINR(balance.later_due)}</span></div>}
     <div className="flex justify-between gap-4 border-t pt-2 text-base font-bold"><span>Overall patient due</span><span>{formatINR(balance.overall_due)}</span></div>
-    <p className="text-xs text-muted-foreground">Current balances across all active bills. Earlier dues are carried forward for visibility, not billed again. Payments remain recorded against their original invoice.</p>
     <Link href={`/patients/${leadId}#patient-invoices`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab" className="inline-block font-medium underline underline-offset-4">View all patient bills / record earlier payments</Link>
   </section>;
 }

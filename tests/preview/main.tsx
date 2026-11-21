@@ -63,7 +63,7 @@ function Preview() {
       doctorLocked
       treatmentCodes={[{ code: "K02.9", name: "Dental caries, unspecified", code_system: "ICD10_IN", code_level: "detail", billable: true }]}
       pendingPlans={{ records: [pendingPlan], total: 1 }}
-    /> : view === "payment" ? <RecordPaymentForm invoiceId="00000000-0000-4000-8000-000000000009" balanceDue={800} /> : <InvoiceEditor
+    /> : view === "payment" ? <RecordPaymentForm invoiceId="00000000-0000-4000-8000-000000000009" balanceDue={800} invoiceVersion={2} availableDiscount={1000} /> : <InvoiceEditor
       mode="create"
       leadId="00000000-0000-4000-8000-000000000001"
       treatmentCatalog={[]}
@@ -87,9 +87,8 @@ function Preview() {
     </section>
     <section id="preview-progress" className="grid scroll-mt-20 items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)]">
       <TreatmentProgressSummary leadId="00000000-0000-4000-8000-000000000001" planned={{ records: [pendingPlan], total: 1 }} />
-      <aside className="min-w-0 space-y-4" aria-label="Visit history and activity">
+      <aside className="min-w-0 space-y-4" aria-label="Visit history">
         <VisitHistory leadId="00000000-0000-4000-8000-000000000001" completed={{ records: [completedVisit], total: 1 }} />
-        <div className="rounded-lg border p-3"><h2 className="font-medium">Activity</h2><p className="text-sm">Synthetic activity item.</p></div>
       </aside>
     </section>
     <section id="preview-output" className="scroll-mt-20">

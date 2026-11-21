@@ -8,7 +8,7 @@ describe("patient-wide invoice dues", () => {
     const panel = screen.getByRole("region", { name: "Patient outstanding balance" });
     expect(within(panel).getByText("Earlier unpaid bills (2)")).toBeInTheDocument();
     expect(within(panel).getByText("₹1,300.00")).toBeInTheDocument();
-    expect(within(panel).getByText(/not billed again/)).toBeInTheDocument();
+    expect(within(panel).queryByText(/Record payments against/)).not.toBeInTheDocument();
     expect(within(panel).queryByText("Newer unpaid bills")).toBeNull();
     expect(screen.getByRole("link")).toHaveAttribute("href", "/patients/patient-1#patient-invoices");
     expect(screen.getByRole("link")).toHaveAttribute("target", "_blank");

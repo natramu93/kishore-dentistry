@@ -19,6 +19,16 @@ export const paymentReceiptSchema = z.object({
 export const receiptDateSchema = z.iso.date("Enter a valid receipt date")
   .refine((date) => date >= "0001-01-01" && date <= clinicToday(), "Receipt date must be on or before today");
 
+export const paymentDiscountSchema = z.object({
+  amount: z.coerce.number().finite().positive().max(9_999_999_999.99)
+    .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-6, "Amounts support at most two decimals"),
+  given_by: z.string().trim().min(1, "Enter who approved the discount").max(200),
+  reason: z.string().trim().min(1, "Enter a reason for the discount").max(1000),
+  expected_version: z.number().int().positive(),
+});
+
+export type PaymentDiscount = z.infer<typeof paymentDiscountSchema>;
+
 const small = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
 const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
 

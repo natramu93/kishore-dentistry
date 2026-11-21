@@ -289,9 +289,8 @@ export async function finalizeCaseSheet(
     p_tooth_assessments: input.tooth_assessments as unknown as Json,
     p_treatments: input.treatments.map((treatment) => ({
       ...treatment,
-      // Treatment records are clinical only. Billing quantity and price are
-      // selected later while generating the invoice.
-      quantity: 1,
+      // One clinical record holds all selected teeth; invoices may adjust billing later.
+      quantity: Math.max(1, treatment.tooth_numbers.length),
       unit_price: 0,
     })) as unknown as Json,
     p_prescriptions: prescriptions as unknown as Json,

@@ -8,7 +8,6 @@ import { fmtDate, formatINR } from "@/lib/tz";
 import { TIRUPUR_CLINIC } from "@/lib/clinic";
 import { NotFoundError, PublicError } from "@/lib/errors";
 import { invoiceLineToothLabel } from "@/lib/invoice-lines";
-import { receivedAmountInWords } from "@/lib/invoice-receipts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,7 +48,7 @@ export async function GET(
     });
     const { id } = await context.params;
     const invoice = await getInvoice(ctx, id);
-    if (!invoice || invoice.status === "cancelled" || (!invoice.code_enforced && invoice.invoice_kind !== "consultation")) {
+    if (!invoice || invoice.status === "cancelled") {
       throw new NotFoundError("Invoice");
     }
 
@@ -167,7 +166,7 @@ export async function GET(
       const contact = [invoice.lead?.mobile, invoice.lead?.email].filter(Boolean).join(" | ");
       if (contact) patientY = paragraph(contact, margin, patientY, halfWidth, s(7.5), regular, muted);
       let doctorY = y;
-      for (const detail of [`Referring doctor: ${invoice.referring_doctor_name || "Not recorded"}`, `Consulting doctor: ${invoice.consulting_doctor_name || "Not recorded"}`]) {
+      for (const detail of invoice.invoice_kind === "opening_balance" ? [] : [`Consulting doctor: ${invoice.consulting_doctor_name || "Not recorded"}`]) {
         doctorY = paragraph(detail, secondX, doctorY, halfWidth, s(7.5));
       }
       y = Math.min(patientY, doctorY) - s(6);
@@ -225,26 +224,9 @@ export async function GET(
         { label: `Discount${invoice.discount_given_by ? ` (${invoice.discount_given_by})` : ""}`, amount: invoice.discount_amount ?? 0 },
         { label: `Tax (${invoice.tax_rate}%)`, amount: invoice.tax_amount },
         { label: "Total", amount: invoice.total, strong: true },
-        { label: "Amount received", amount: invoice.amount_paid },
         { label: "Balance due", amount: invoice.balance_due, strong: true },
       ], secondX);
       y = Math.min(accountY, totalsY) - s(3);
-      y = paragraph("Earlier dues are not charged again. Record payments against their original invoice.", margin, y, width, s(6.5), regular, muted);
-      y = paragraph(`Received amount in words: ${receivedAmountInWords(invoice.amount_paid)}`, margin, y, width, s(7.5));
-
-      if (invoice.payments.length > 0) {
-        y -= s(4);
-        draw("PAYMENTS RECEIVED", margin, y, s(7.5), bold, accent);
-        y -= s(12);
-        // Two receipts per row, preserving every date, method, reference and amount.
-        for (let index = 0; index < invoice.payments.length; index += 2) {
-          const rowBottoms = invoice.payments.slice(index, index + 2).map((payment, column) => paragraph(
-            `${fmtDate(payment.received_at)} | ${payment.payment_method.toUpperCase()} | ${payment.reference ?? "No reference"} | ${pdfAmount(payment.amount)}`,
-            column === 0 ? margin : secondX, y, halfWidth, s(7), regular, muted,
-          ));
-          y = Math.min(...rowBottoms) - s(2);
-        }
-      }
       for (const detail of [invoice.notes ? `Notes: ${invoice.notes}` : null, invoice.mention ? `Mention: ${invoice.mention}` : null]) {
         if (detail) { y -= s(4); y = paragraph(detail, margin, y, width, s(7.5), regular, muted); }
       }

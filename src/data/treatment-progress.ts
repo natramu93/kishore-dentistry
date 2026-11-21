@@ -63,9 +63,17 @@ export async function getPatientTreatmentProgress(
   const [planned, completed] = await Promise.all([load("planned"), load("completed")]);
   if (planned.error) throw planned.error;
   if (completed.error) throw completed.error;
+  const sheetIds = [...new Set((completed.data ?? []).map((row) => row.case_sheet_id).filter((id): id is string => Boolean(id)))];
+  const remarks = new Map<string, string | null>();
+  if (sheetIds.length) {
+    const sheets = await db.from("case_sheets").select("id, findings")
+      .eq("lead_id", leadId).eq("branch_id", lead.branch_id).in("id", sheetIds);
+    if (sheets.error) throw sheets.error;
+    for (const sheet of sheets.data ?? []) remarks.set(sheet.id, sheet.findings);
+  }
   return {
     planned: { records: (planned.data ?? []).map((row) => ({ ...row, doctor: row.doctor_name ? { full_name: row.doctor_name } : null })), total: planned.count },
-    completed: { records: (completed.data ?? []).map((row) => ({ ...row, doctor: row.doctor_name ? { full_name: row.doctor_name } : null })), total: completed.count },
+    completed: { records: (completed.data ?? []).map((row) => ({ ...row, visit_remarks: row.case_sheet_id ? remarks.get(row.case_sheet_id) ?? null : null, doctor: row.doctor_name ? { full_name: row.doctor_name } : null })), total: completed.count },
   };
 }
 

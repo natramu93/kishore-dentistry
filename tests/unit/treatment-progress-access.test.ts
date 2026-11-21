@@ -27,6 +27,23 @@ function chain(result: { data: unknown; error: unknown; count?: number }) {
 beforeEach(() => { vi.clearAllMocks(); mocks.comments.mockResolvedValue([]); mocks.attachments.mockResolvedValue([]); });
 
 describe("patient treatment progress access", () => {
+  it("loads visit remarks once for shared case sheets with patient and branch scope", async () => {
+    const lead = chain({ data: { branch_id: branchId, assignee_id: userId }, error: null });
+    const planned = chain({ data: [], error: null, count: 0 });
+    const completed = chain({ data: [
+      { id: "one", case_sheet_id: "shared-sheet", notes: "Treatment description", doctor_name: "Dr Test" },
+      { id: "two", case_sheet_id: "shared-sheet", notes: "Another description", doctor_name: "Dr Test" },
+    ], error: null, count: 2 });
+    const sheets = chain({ data: [], error: null });
+    sheets.in.mockResolvedValue({ data: [{ id: "shared-sheet", findings: "Doctor's clinical comment" }], error: null });
+    mocks.from.mockReturnValueOnce(lead).mockReturnValueOnce(planned).mockReturnValueOnce(completed).mockReturnValueOnce(sheets);
+    const result = await getPatientTreatmentProgress(context("operations"), leadId);
+    expect(sheets.select).toHaveBeenCalledWith("id, findings");
+    expect(sheets.eq).toHaveBeenCalledWith("lead_id", leadId);
+    expect(sheets.eq).toHaveBeenCalledWith("branch_id", branchId);
+    expect(sheets.in).toHaveBeenCalledExactlyOnceWith("id", ["shared-sheet"]);
+    expect(result.completed.records.map((row) => row.visit_remarks)).toEqual(["Doctor's clinical comment", "Doctor's clinical comment"]);
+  });
   const treatmentId = "10000000-0000-4000-8000-000000000004";
   const detailRow = { id: treatmentId, case_sheet_id: "sheet", notes: "Clinical note", doctor: { full_name: "Dr Test" },
     invoice_items: [{ active_billing: true }],

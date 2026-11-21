@@ -15,7 +15,6 @@ export function ConsultationInvoiceForm({ leadId }: { leadId: string }) {
   const [amount, setAmount] = useState("200");
   const [notes, setNotes] = useState("");
   const [consultingDoctor, setConsultingDoctor] = useState("");
-  const [referringDoctor, setReferringDoctor] = useState("");
   const [pending, startTransition] = useTransition();
 
   function submit() {
@@ -25,7 +24,6 @@ export function ConsultationInvoiceForm({ leadId }: { leadId: string }) {
         amount,
         notes,
         consulting_doctor_name: consultingDoctor,
-        referring_doctor_name: referringDoctor,
       });
       if (result && !result.ok) toast.error(result.error);
     });
@@ -51,11 +49,6 @@ export function ConsultationInvoiceForm({ leadId }: { leadId: string }) {
           <div className="space-y-1.5">
             <Label htmlFor={`${id}-consulting-doctor`}>Consulting doctor</Label>
             <Input id={`${id}-consulting-doctor`} required maxLength={200} value={consultingDoctor} onChange={(event) => setConsultingDoctor(event.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor={`${id}-referring-doctor`}>Referring doctor</Label>
-            <Input id={`${id}-referring-doctor`} required maxLength={200} value={referringDoctor} onChange={(event) => setReferringDoctor(event.target.value)} />
-            <Button type="button" size="sm" variant="outline" onClick={() => setReferringDoctor("No referring doctor")}>No referring doctor</Button>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor={`${id}-amount`}>Amount (₹)</Label>

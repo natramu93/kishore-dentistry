@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { cache, type ReactNode } from "react";
 import { getAuthContext } from "@/lib/auth/context";
 import { canDelete } from "@/lib/auth/guards";
-import { getLeadRelated, getLeadActivity } from "@/data/leads";
+import { getLeadRelated } from "@/data/leads";
 import { listComments } from "@/data/comments";
 import { listCaseSheetsForLead } from "@/data/case-sheets";
 import { getPatientTreatmentProgress } from "@/data/treatment-progress";
@@ -39,7 +39,6 @@ import { PaginationNav } from "@/components/pagination-nav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { STATUS_LABELS } from "@/lib/leads/transitions";
 import { groupByCategory } from "@/lib/dental";
 import { fmt, fmtDate, formatINR, toClinicInputValue } from "@/lib/tz";
 import { ClipboardPlus } from "lucide-react";
@@ -97,8 +96,7 @@ export default async function PatientDetailPage({
   const invoices = invoiceRows ?? [];
   const callLogs = callLogRows ?? [];
 
-  const [activity, comments, caseSheetResult, assignableUsers, doctors, treatmentTypes, sources, treatmentProgress] = await Promise.all([
-    getLeadActivity(ctx, id),
+  const [comments, caseSheetResult, assignableUsers, doctors, treatmentTypes, sources, treatmentProgress] = await Promise.all([
     listComments(ctx, id),
     listCaseSheetsForLead(ctx, id, { page: Number(queryParams.page) }),
     listAssignableUsers(ctx, lead.branch_id),
@@ -286,7 +284,6 @@ export default async function PatientDetailPage({
         ...(followUps.length ? [{ id: "patient-follow-ups", label: "Past follow-up history" }] : []),
         { id: "patient-notes", label: "Notes" },
         { id: "visit-history", label: "Visit History" },
-        { id: "patient-activity", label: "Activity" },
       ]} />
 
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)]">
@@ -700,36 +697,8 @@ export default async function PatientDetailPage({
           </Card>
         </div>
 
-        <aside className="min-w-0 space-y-4" aria-label="Visit history and activity">
+        <aside className="min-w-0 space-y-4" aria-label="Visit history">
           <VisitHistory leadId={id} completed={treatmentProgress.completed} />
-          <Card id="patient-activity" className="scroll-mt-20 border-l-4 border-l-gold">
-            <CardHeader>
-              <CardTitle className="text-base">Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {activity.length === 0 && (
-                <p className="text-sm text-muted-foreground">No activity yet.</p>
-              )}
-              <ul className="space-y-4">
-                {activity.map((a) => {
-                  const actor = a.actor as { full_name: string } | null;
-                  return (
-                    <li key={a.id} className="relative pl-4 border-l text-sm">
-                      <div className="font-medium">
-                        {a.type === "status_change" && a.to_status
-                          ? `Status → ${STATUS_LABELS[a.to_status]}`
-                          : a.type.replaceAll("_", " ")}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {actor?.full_name ? `${actor.full_name} · ` : ""}
-                        {fmt(a.created_at)}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </CardContent>
-          </Card>
         </aside>
       </div>
     </div>

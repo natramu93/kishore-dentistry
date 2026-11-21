@@ -18,6 +18,7 @@ function record(id: string, status: "planned" | "completed"): TreatmentProgressR
     clinical_status: status, site_scope: "multi_tooth", site_detail: null,
     tooth_number: "16", tooth_numbers: ["16", "26"], surfaces: [],
     notes: status === "planned" ? "Discuss restoration at next visit" : "Restoration recorded",
+    visit_remarks: status === "completed" ? "Doctor comment for this visit" : null,
     treated_at: "2026-09-25T04:30:00Z", performed_at: status === "completed" ? "2026-09-29T04:30:00Z" : null,
     doctor: { full_name: "Dr Test" },
   };
@@ -33,7 +34,8 @@ describe("TreatmentProgressSummary", () => {
     const history = within(screen.getByRole("region", { name: "Visit History" }));
     expect(history.getByText("Dr Test")).toBeInTheDocument();
     expect(history.getByText("25 Sep 2026, 10:00 AM")).toBeInTheDocument();
-    expect(history.queryByText("Restoration recorded")).not.toBeInTheDocument();
+    expect(history.getByText("Restoration recorded")).toBeInTheDocument();
+    expect(history.getByText("Doctor comment for this visit")).toBeInTheDocument();
     expect(screen.queryByText(/Across all recorded visits/)).toBeNull();
     expect(screen.getAllByRole("button", { name: /^View treatment details: Dental care/ })).toHaveLength(2);
   });

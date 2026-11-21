@@ -21,6 +21,7 @@ export type TreatmentProgressRecord = Pick<Treatment,
   "notes" | "treated_at" | "performed_at"
 > & {
   doctor: { full_name: string } | null;
+  visit_remarks?: string | null;
   planned_treatment_id?: string | null;
   remaining_tooth_numbers?: string[];
 };

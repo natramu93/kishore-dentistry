@@ -43,6 +43,21 @@ function expectSingleA4(pdf: PDFDocument) {
 }
 
 describe("downloadable invoice PDF", () => {
+  it("allows a settled opening-balance invoice to be downloaded for WhatsApp sharing", async () => {
+    vi.mocked(getInvoice).mockResolvedValue({ id: "opening-balance", invoice_number: "OLD-001", invoice_kind: "opening_balance", code_enforced: false,
+      invoice_date: "2026-11-14", created_at: "2026-11-14T09:00:00Z", status: "paid", issuer_name: "Synthetic Dentistry", branch: null,
+      lead: { name: "Synthetic Patient" }, items: [{ id: "old-item", description: "Due carry forward from old system", quantity: 1, unit_price: 500, amount: 500 }],
+      subtotal: 500, discount_amount: 0, tax_rate: 0, tax_amount: 0, total: 500, amount_paid: 500, balance_due: 0,
+      patient_balance: { amount_paid: 500, invoice_due: 0, earlier_due: 0, later_due: 0, overall_due: 0, earlier_invoice_count: 0 },
+      payments: [{ amount: 500, payment_method: "cash", received_at: "2026-11-15T09:00:00Z", reference: "PRIVATE-RECEIPT" }],
+    } as unknown as NonNullable<Awaited<ReturnType<typeof getInvoice>>>);
+    const response = await GET(new Request("http://localhost/api/invoices/opening-balance/pdf"), { params: Promise.resolve({ id: "opening-balance" }) });
+    expect(response.status).toBe(200);
+    const pdf = await PDFDocument.load(await response.arrayBuffer());
+    expectSingleA4(pdf);
+    expect(pageText(pdf, pdf.getPage(0))).toContain("Due carry forward from old system");
+    expect(pageText(pdf, pdf.getPage(0))).not.toContain("PRIVATE-RECEIPT");
+  });
   it("does not generate a payable document for voided invoices", async () => {
     vi.mocked(getInvoice).mockResolvedValueOnce({ id: "voided", code_enforced: true, status: "cancelled" } as
       NonNullable<Awaited<ReturnType<typeof getInvoice>>>);
@@ -50,7 +65,7 @@ describe("downloadable invoice PDF", () => {
     expect(response.status).toBe(404);
   });
 
-  it("keeps the selected date, doctors, teeth, words and all 70 receipts on one A4 page", async () => {
+  it("keeps date, consulting doctor and teeth but hides referring doctor and all receipts", async () => {
     vi.mocked(getInvoice).mockResolvedValue({ id: "invoice-1", invoice_number: "TEST-001", code_enforced: true,
       invoice_date: "2026-08-01", created_at: "2026-10-01T00:00:00Z", issued_at: "2026-10-01T00:00:00Z",
       consulting_doctor_name: "Dr. Test Doctor", referring_doctor_name: "Dr. Referrer", status: "sent", issuer_name: "Test Dentistry", issuer_address: null,
@@ -87,17 +102,17 @@ describe("downloadable invoice PDF", () => {
       }).join(" ");
     expect(text).toContain("Date: 1 Aug 2026");
     expect(text).toContain("Consulting doctor: Dr. Test Doctor");
-    expect(text).toContain("Referring doctor: Dr. Referrer");
+    expect(text).not.toContain("Referring doctor");
     expect(text).toContain("Teeth (IS 8815): 18, 17, 16");
-    expect(text).toContain("Received amount in words: Four Hundred Rupees Only");
+    expect(text).not.toContain("Received amount in words");
     expect(text).toContain("PATIENT OUTSTANDING BALANCE");
     expect(text).toContain("Earlier unpaid bills (2)");
     expect(text).toContain("INR 1,250.00");
     expect(text).toContain("Overall patient due");
     expect(text).toContain("INR 1,850.00");
-    expect(text).toContain("REF-69");
-    for (let index = 0; index < 70; index++) expect(text).toContain(`REF-${index}`);
-    for (const method of ["UPI", "CASH", "CARD", "NEFT"]) expect(text).toContain(method);
+    expect(text).not.toContain("Amount received");
+    expect(text).not.toContain("REF-");
+    expect(text).not.toContain("Record payments against their original invoice");
   });
 
   it("uses compact typography to keep a full 13-line invoice and letterhead on one A4 page", async () => {
@@ -159,7 +174,8 @@ describe("downloadable invoice PDF", () => {
       expect(text).toContain(`Treatment ${index}`);
       expect(text).toContain(`LINE-${index}-END`);
     }
-    for (const detail of ["FINAL-PAYMENT", "FINAL-NOTE", "FINAL-MENTION", "Newer unpaid bills", "Overall patient due", "Surfaces: mesial, occlusal"]) expect(text).toContain(detail);
+    for (const detail of ["FINAL-NOTE", "FINAL-MENTION", "Newer unpaid bills", "Overall patient due", "Surfaces: mesial, occlusal"]) expect(text).toContain(detail);
+    expect(text).not.toContain("FINAL-PAYMENT");
     const fontSizes = [...pageOperators(pdf, pdf.getPage(0)).matchAll(/\/[^\s]+ ([\d.]+) Tf/g)].map((match) => Number(match[1]));
     expect(Math.max(...fontSizes)).toBeLessThan(16);
     if (process.env.INVOICE_PDF_PREVIEW_DIR) writeFileSync(path.join(process.env.INVOICE_PDF_PREVIEW_DIR, `compressed-${count}-line-invoice.pdf`), Buffer.from(bytes));
@@ -183,6 +199,7 @@ describe("downloadable invoice PDF", () => {
     const pdf = await PDFDocument.load(await response.arrayBuffer());
     expectSingleA4(pdf);
     const text = pageText(pdf, pdf.getPage(0));
-    for (const detail of ["ADDRESS-END", "PATIENT-END", "REFERRER-END", "CONSULTANT-END", "General consultation", "Zero Rupees Only", "INR 0.00"]) expect(text).toContain(detail);
+    for (const detail of ["ADDRESS-END", "PATIENT-END", "CONSULTANT-END", "General consultation", "INR 0.00"]) expect(text).toContain(detail);
+    expect(text).not.toContain("REFERRER-END");
   });
 });

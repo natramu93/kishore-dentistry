@@ -20,6 +20,10 @@ beforeEach(() => {
 });
 
 describe("zero invoice action validation", () => {
+  it("creates an invoice with only the consulting doctor and keeps the database compatibility default", async () => {
+    expect(await createInvoiceAction({ lead_id: leadId, consulting_doctor_name: "Dr. Consultant", items: [{ treatment_type_id: typeId, quantity: 1, unit_price: 200 }] })).toEqual({ ok: true, id: invoiceId });
+    expect(invoices.createInvoice).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ referring_doctor_name: "No referring doctor" }));
+  });
   it("confirms zero received using the saved ledger balance without recording a payment", async () => {
     const balance = { amount_paid: 0, invoice_due: 800, earlier_due: 200, later_due: 0, overall_due: 1000, earlier_invoice_count: 1 };
     vi.mocked(invoices.confirmInvoiceCarryForward).mockResolvedValueOnce(balance);

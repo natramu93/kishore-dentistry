@@ -3,7 +3,7 @@ import "server-only";
 import { db } from "./db";
 import { throwMappedDatabaseError } from "./helpers";
 import { invoiceLineDetailsSchema } from "@/lib/invoice-lines";
-import { paymentReceiptSchema, receiptDateSchema } from "@/lib/invoice-receipts";
+import { paymentDiscountSchema, paymentReceiptSchema, receiptDateSchema, type PaymentDiscount } from "@/lib/invoice-receipts";
 import { clinicToday } from "@/lib/tz";
 import { patientDisplayName, type PatientTitle } from "@/lib/patient-demographics";
 import type { PatientInvoiceBalance } from "@/lib/patient-invoice-balance";
@@ -449,16 +449,28 @@ export async function confirmInvoiceCarryForward(ctx: AuthContext, id: string): 
 }
 
 export async function recordInvoicePayments(ctx: AuthContext, id: string,
-  receipts: { amount: number; method: InvoicePaymentMethod; reference?: string; notes?: string }[], requestKey: string, receiptDate?: string) {
+  receipts: { amount: number; method: InvoicePaymentMethod; reference?: string; notes?: string }[], requestKey: string, receiptDate?: string, discount?: PaymentDiscount) {
   const invoice = await writablePaymentInvoice(ctx, id);
   assertUuid(requestKey, "Payment request");
-  if (!receipts.length || receipts.length > 10) throw new ValidationError("Record between one and ten payments");
+  if ((!receipts.length && !discount) || receipts.length > 10) throw new ValidationError("Add a payment or a discount (up to ten payment methods)");
   const clean = receipts.map((receipt) => {
     const parsed = paymentReceiptSchema.safeParse(receipt);
     if (!parsed.success) throw new ValidationError(parsed.error.issues[0]?.message ?? "Invalid payment");
     return parsed.data;
   });
   // The RPC locks the invoice, validates the combined amount, and handles retries.
+  if (discount) {
+    const parsed = paymentDiscountSchema.safeParse(discount);
+    if (!parsed.success) throw new ValidationError(parsed.error.issues[0]?.message ?? "Invalid payment discount");
+    const result = await db.rpc("record_invoice_payment_with_discount", {
+      p_invoice_id: invoice.id, p_receipts: clean as Json, p_request_key: requestKey, p_actor: ctx.userId,
+      p_receipt_date: validatedReceiptDate(receiptDate ?? clinicToday())!,
+      p_discount: parsed.data.amount, p_given_by: parsed.data.given_by, p_reason: parsed.data.reason,
+      p_expected_version: parsed.data.expected_version,
+    });
+    if (result.error) throwMappedDatabaseError(result.error, "Payment discount");
+    return result.data;
+  }
   const result = await db.rpc("record_invoice_payment_batch_with_date", {
     p_invoice_id: invoice.id, p_receipts: clean as Json, p_request_key: requestKey, p_actor: ctx.userId,
     p_receipt_date: validatedReceiptDate(receiptDate),

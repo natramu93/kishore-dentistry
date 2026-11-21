@@ -20,6 +20,38 @@ afterEach(() => {
 });
 
 describe("record payment form", () => {
+  it("saves a payment-time discount with the adjusted receipt in a single request", async () => {
+    render(<RecordPaymentForm invoiceId="invoice-1" balanceDue={1180} invoiceVersion={4} taxRate={18} availableDiscount={1000} />);
+    fireEvent.click(screen.getByText("Discount at payment (optional)"));
+    fireEvent.change(screen.getByLabelText("Additional discount before tax (₹)"), { target: { value: "100" } });
+    expect(screen.getByLabelText("Payment amount (₹)")).toHaveValue(1062);
+    fireEvent.change(screen.getByLabelText("Discount approved by"), { target: { value: "Center head" } });
+    fireEvent.change(screen.getByLabelText("Discount reason"), { target: { value: "Approved concession" } });
+    fireEvent.change(screen.getByLabelText("Payment method"), { target: { value: "upi" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save discount and payment" }));
+    await waitFor(() => expect(recordInvoicePaymentsAction).toHaveBeenCalledWith("invoice-1", expect.objectContaining({
+      receipts: [{ amount: "1062.00", method: "upi", reference: "" }],
+      discount: { amount: 100, given_by: "Center head", reason: "Approved concession", expected_version: 4 },
+    })));
+  });
+  it("fully waives an outstanding balance without fabricating a receipt", async () => {
+    render(<RecordPaymentForm invoiceId="invoice-1" balanceDue={100} invoiceVersion={2} availableDiscount={100} />);
+    fireEvent.click(screen.getByText("Discount at payment (optional)"));
+    fireEvent.change(screen.getByLabelText("Additional discount before tax (₹)"), { target: { value: "100" } });
+    fireEvent.change(screen.getByLabelText("Discount approved by"), { target: { value: "Head" } });
+    fireEvent.change(screen.getByLabelText("Discount reason"), { target: { value: "Complimentary" } });
+    expect(screen.getByLabelText("Payment amount (₹)")).toHaveValue(0);
+    expect(screen.getByLabelText("Payment method")).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Save discount and payment" }));
+    await waitFor(() => expect(recordInvoicePaymentsAction).toHaveBeenCalledWith("invoice-1", expect.objectContaining({ receipts: [], discount: expect.objectContaining({ amount: 100 }) })));
+    expect(confirmInvoiceCarryForwardAction).not.toHaveBeenCalled();
+  });
+  it("does not change a manually entered partial receipt when applying a discount", () => {
+    render(<RecordPaymentForm invoiceId="invoice-1" balanceDue={150} invoiceVersion={2} availableDiscount={150} />);
+    fireEvent.change(screen.getByLabelText("Payment amount (₹)"), { target: { value: "50" } });
+    fireEvent.change(screen.getByLabelText("Additional discount before tax (₹)"), { target: { value: "10" } });
+    expect(screen.getByLabelText("Payment amount (₹)")).toHaveValue(50);
+  });
   it("saves independent remarks on each split receipt", async () => {
     render(<RecordPaymentForm invoiceId="invoice-1" balanceDue={150} />);
     fireEvent.change(screen.getByLabelText("Payment amount (₹)"), { target: { value: "50" } });

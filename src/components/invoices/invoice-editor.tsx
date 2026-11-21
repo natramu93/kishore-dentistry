@@ -124,7 +124,6 @@ export function InvoiceEditor({
   const [mention, setMention] = useState(initialMention);
   const [invoiceDate, setInvoiceDate] = useState(() => initialInvoiceDate ?? clinicToday());
   const [consultingDoctor, setConsultingDoctor] = useState("");
-  const [referringDoctor, setReferringDoctor] = useState("");
   const [dirty, setDirty] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -264,8 +263,8 @@ export function InvoiceEditor({
       entryRef.current?.scrollIntoView?.({ block: "nearest" });
       return;
     }
-    if (mode === "create" && (!consultingDoctor.trim() || !referringDoctor.trim())) {
-      toast.error("Enter both doctor details; choose No referring doctor for a walk-in.");
+    if (mode === "create" && !consultingDoctor.trim()) {
+      toast.error("Enter the consulting doctor.");
       return;
     }
     if (!items.length) {
@@ -307,7 +306,6 @@ export function InvoiceEditor({
           lead_id: leadId,
           invoice_date: invoiceDate,
           consulting_doctor_name: consultingDoctor,
-          referring_doctor_name: referringDoctor,
           tax_rate: taxRate,
           discount_amount: safeDiscount,
           discount_given_by: discountGivenBy,
@@ -370,13 +368,6 @@ export function InvoiceEditor({
               <SuggestionInput id={`${idPrefix}-consulting-doctor`} value={consultingDoctor} options={doctorNames.map((name) => ({ value: name, label: name }))}
                 required maxLength={200} placeholder="Choose or enter doctor name"
                 onValueChange={(name) => { setDirty(true); setConsultingDoctor(name); }} />
-            </div>
-            <div className="min-w-0 space-y-1.5">
-              <Label htmlFor={`${idPrefix}-referring-doctor`}>Referring doctor</Label>
-              <SuggestionInput id={`${idPrefix}-referring-doctor`} value={referringDoctor} options={doctorNames.map((name) => ({ value: name, label: name }))}
-                required maxLength={200} placeholder="Choose or enter referring doctor"
-                onValueChange={(name) => { setDirty(true); setReferringDoctor(name); }} />
-              <Button type="button" variant="outline" size="sm" onClick={() => { setDirty(true); setReferringDoctor("No referring doctor"); }}>No referring doctor</Button>
             </div>
             </>}
           </div>
@@ -456,7 +447,7 @@ export function InvoiceEditor({
                   </summary>
                   <div className="mt-3 space-y-3">
                     {!draft.treatment_id && <ToothSelector label="Teeth for this line" value={draft.tooth_numbers ?? []}
-                      onChange={(teeth) => patchDraft({ tooth_numbers: teeth })} disabled={pending} />}
+                      onChange={(teeth) => patchDraft({ tooth_numbers: teeth, quantity: String(Math.max(1, teeth.length)) })} disabled={pending} />}
                     <div className="space-y-1.5">
                       <Label htmlFor={`${idPrefix}-line-note`}>Line note</Label>
                       <Textarea id={`${idPrefix}-line-note`} value={draft.line_note ?? ""} maxLength={1000}

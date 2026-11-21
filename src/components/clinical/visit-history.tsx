@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fmt } from "@/lib/tz";
+import { formatClinicalSite } from "@/lib/clinical";
 import type { TreatmentProgressGroup } from "@/lib/treatment-progress";
 import { TreatmentDetailsDialog } from "./treatment-details-dialog";
 
@@ -23,6 +24,9 @@ export function VisitHistory({ leadId, completed }: { leadId: string; completed:
                     <TreatmentDetailsDialog leadId={leadId} treatmentId={record.id} name={description}
                       triggerLabel={`View treatment details: ${description}, ${record.doctor?.full_name ?? "Doctor not recorded"}, ${fmt(record.treated_at)}`}>
                       <span className="block break-words font-medium">{description}</span>
+                      <span className="mt-1 block break-words text-xs text-muted-foreground">{formatClinicalSite(record)}</span>
+                      {record.notes && <span className="mt-2 block whitespace-pre-wrap break-words text-sm">{record.notes}</span>}
+                      {record.visit_remarks && record.visit_remarks.trim() !== record.notes?.trim() && <span className="mt-2 block whitespace-pre-wrap break-words text-sm">{record.visit_remarks}</span>}
                       <span className="mt-1 block break-words text-xs text-muted-foreground">{record.doctor?.full_name ?? "Doctor not recorded"}</span>
                       <time dateTime={record.treated_at} className="block text-xs text-muted-foreground">{fmt(record.treated_at)}</time>
                     </TreatmentDetailsDialog>

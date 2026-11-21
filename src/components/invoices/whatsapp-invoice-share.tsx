@@ -47,11 +47,17 @@ export function WhatsAppInvoiceShare({
     : "https://web.whatsapp.com/";
 
   async function shareInvoice() {
-    const supportsFileShare = typeof navigator !== "undefined"
+    let supportsFileShare = false;
+    try {
+      supportsFileShare = typeof navigator !== "undefined"
       && typeof navigator.share === "function"
       && typeof navigator.canShare === "function"
       && typeof File !== "undefined"
       && navigator.canShare({ files: [new File([], "invoice.pdf", { type: "application/pdf" })] });
+    } catch {
+      // Some browsers expose the API but reject capability probes.
+      supportsFileShare = false;
+    }
 
     // Open the signed-in browser's WhatsApp Web tab immediately when the
     // platform cannot hand off files natively; this avoids popup blocking.

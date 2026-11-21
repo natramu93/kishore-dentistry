@@ -80,7 +80,7 @@ export default async function InvoiceDetailPage({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {!voided && (invoice.code_enforced || invoice.invoice_kind === "consultation") && (
+          {!voided && (
             <>
               <WhatsAppInvoiceShare
                 invoiceId={invoice.id}
@@ -119,13 +119,12 @@ export default async function InvoiceDetailPage({
       <Card>
         <CardContent className="pt-6">
           {isOpeningBalance ? <p className="mb-4 text-sm text-muted-foreground">Balance carried forward from the old system. This is not a new treatment bill.</p> : <div className="mb-4 space-y-1 text-sm">
-            <p>Referring doctor: {invoice.referring_doctor_name || "Not recorded"}</p>
             <p>Consulting doctor: {invoice.consulting_doctor_name || "Not recorded"}</p>
           </div>}
           {!canCollect && (
             <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:bg-amber-950/20 dark:text-amber-100">
               This historical invoice predates coded digital case sheets. It remains readable,
-              but editing, sending, payment changes, and print generation are locked.
+              but editing and payment changes are locked. It can still be printed or shared.
             </div>
           )}
           <Table aria-label={`Line items for invoice ${invoice.invoice_number}`}>
@@ -216,7 +215,8 @@ export default async function InvoiceDetailPage({
           {invoice.status !== "cancelled" && invoice.balance_due > 0 && canCollect && (
             <div className="mt-6 border-t pt-4">
               <h2 className="mb-3 font-semibold">Record a payment</h2>
-              <RecordPaymentForm key={invoice.version} invoiceId={invoice.id} balanceDue={invoice.balance_due} />
+              <RecordPaymentForm key={invoice.version} invoiceId={invoice.id} balanceDue={invoice.balance_due}
+                invoiceVersion={invoice.version} taxRate={invoice.tax_rate} availableDiscount={invoice.subtotal - invoice.discount_amount} />
             </div>
           )}
           {invoice.notes && (
