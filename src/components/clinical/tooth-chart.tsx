@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 import { describeIndianTooth, isPrimaryIndianTooth } from "@/lib/clinical";
 
@@ -13,7 +12,6 @@ type ToothChartProps = {
   showMidline?: boolean;
   startColumn?: number;
   fit?: boolean;
-  compactColumns?: number;
 };
 
 type ToothKind = "incisor" | "canine" | "premolar" | "molar";
@@ -80,7 +78,6 @@ export function ToothChart({
   showMidline = true,
   startColumn = 1,
   fit = false,
-  compactColumns = 4,
 }: ToothChartProps) {
   const quadrantLength = teeth.length / 2;
   const documented = new Set(documentedTeeth);
@@ -90,26 +87,34 @@ export function ToothChart({
 
   return (
     <div
-      className={cn("grid min-w-0 gap-0.5", fit && "[--tooth-cols:4] @min-[15rem]/matrix:[--tooth-cols:var(--compact-cols)] @min-[50rem]/matrix:[--tooth-cols:8]")}
-      style={fit ? { gridTemplateColumns: "repeat(var(--tooth-cols), minmax(0, 1fr))", "--compact-cols": compactColumns } as CSSProperties
-        : { gridTemplateColumns: `repeat(${columns ?? teeth.length}, minmax(2.75rem, 1fr))` }}
+      className={cn("grid min-w-0 gap-0.5", fit && "@container/tooth-row gap-0")}
+      // Keep every arch on ONE line at every width, including narrow invoice panels.
+      style={{ gridTemplateColumns: `repeat(${columns ?? teeth.length}, minmax(${fit ? "0" : "2.75rem"}, 1fr))` }}
     >
       {teeth.map((tooth, index) => {
         const isSelected = selectedTeeth.has(tooth);
         return (
           <button
             key={tooth}
-            style={!fit && index === 0 && startColumn > 1 ? { gridColumnStart: startColumn } : undefined}
+            style={index === 0 && startColumn > 1 ? { gridColumnStart: startColumn } : undefined}
             type="button"
             disabled={selectableTeeth !== undefined && !selectableTeeth.includes(tooth)}
             aria-label={`${tooth}, ${describeIndianTooth(tooth)}${documented.has(tooth) ? ", examination recorded" : ""}`}
             aria-pressed={isSelected}
             title={`Select Indian Standard tooth ${tooth}`}
             onClick={() => onSelect(tooth)}
+            onKeyDown={fit ? (event) => {
+              if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+              event.preventDefault();
+              const buttons = Array.from(event.currentTarget.parentElement!.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"));
+              const current = buttons.indexOf(event.currentTarget);
+              const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1
+                : Math.max(0, Math.min(buttons.length - 1, current + (event.key === "ArrowLeft" ? -1 : 1)));
+              buttons[next]?.focus();
+            } : undefined}
             className={cn(
               "group relative flex min-h-24 min-w-11 flex-col items-center justify-end gap-1 rounded-md border border-transparent px-0.5 py-1 text-slate-600 outline-none transition-colors hover:border-primary/60 hover:bg-primary/5 hover:text-primary focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-25 disabled:pointer-events-none dark:text-slate-300",
-              fit && "min-h-20 [&_svg]:h-12 @min-[50rem]/matrix:min-h-24 @min-[50rem]/matrix:[&_svg]:h-16",
-              fit && index === 0 && startColumn > 1 && "@min-[50rem]/matrix:col-start-4",
+              fit && "min-h-[clamp(3rem,10cqw,4.75rem)] min-w-0 gap-0.5 rounded-sm px-0 py-0.5 [&_svg]:h-[clamp(1.5rem,6cqw,3.5rem)] [&_svg]:w-full [&_svg]:max-w-8",
               showMidline && index === quadrantLength && "border-l-border",
               isSelected && "border-primary bg-primary/10 text-primary ring-2 ring-primary/25",
             )}
@@ -117,11 +122,11 @@ export function ToothChart({
             {documented.has(tooth) && (
               <span
                 aria-hidden="true"
-                className="absolute top-1 right-1 size-2 rounded-full bg-emerald-500 ring-2 ring-background"
+                className={cn("absolute top-1 right-1 size-2 rounded-full bg-emerald-500 ring-2 ring-background", fit && "right-0.5 size-1")}
               />
             )}
             <ToothImage tooth={tooth} arch={arch} />
-            <span className="text-xs font-semibold tabular-nums text-foreground">{tooth}</span>
+            <span className={cn("text-xs font-semibold tabular-nums text-foreground", fit && "text-[clamp(0.5rem,2.8cqw,0.75rem)] leading-none")}>{tooth}</span>
           </button>
         );
       })}

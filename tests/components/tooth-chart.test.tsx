@@ -6,6 +6,21 @@ import { INDIAN_PERMANENT_TEETH, INDIAN_PRIMARY_TEETH } from "@/lib/clinical";
 afterEach(cleanup);
 
 describe("ToothChart", () => {
+  it("keeps a compressed arch on a fixed line and supports arrow-key navigation past disabled teeth", () => {
+    const onSelect = vi.fn();
+    render(<ToothChart teeth={["18", "17", "16", "15"]} selected={[]} arch="upper" onSelect={onSelect}
+      columns={16} selectableTeeth={["18", "16", "15"]} fit />);
+    const first = screen.getByRole("button", { name: /^18,/ });
+    first.focus();
+    fireEvent.keyDown(first, { key: "ArrowRight" });
+    expect(screen.getByRole("button", { name: /^16,/ })).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: "End" });
+    expect(screen.getByRole("button", { name: /^15,/ })).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: "Home" });
+    expect(first).toHaveFocus();
+    expect(first.parentElement).toHaveStyle({ gridTemplateColumns: "repeat(16, minmax(0, 1fr))" });
+    expect(onSelect).not.toHaveBeenCalled();
+  });
   it("shows a selectable image and Indian Standard label for every permanent upper tooth", () => {
     const onSelect = vi.fn();
     const upperTeeth = INDIAN_PERMANENT_TEETH.slice(0, 16);

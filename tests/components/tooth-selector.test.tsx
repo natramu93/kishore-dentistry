@@ -17,6 +17,15 @@ describe("ToothSelector", () => {
     const chart = screen.getByRole("group", { name: /Indian Standard dental chart/ });
     const rows = within(chart).getAllByRole("group");
     expect(rows.map((row) => row.getAttribute("aria-label"))).toEqual(["Upper primary teeth", "Upper permanent teeth", "Lower permanent teeth", "Lower primary teeth"]);
+    // Each arch has ONE fixed 16-column grid, not responsive quadrant sub-grids.
+    // CSS layout is additionally checked in the real browser at mobile widths.
+    expect(rows.map((row) => {
+      const buttons = within(row).getAllByRole("button", { name: /^\d+,/ });
+      expect(new Set(buttons.map((button) => button.parentElement)).size).toBe(1);
+      expect(buttons[0].parentElement).toHaveStyle({ gridTemplateColumns: "repeat(16, minmax(0, 1fr))" });
+      return buttons.length;
+    })).toEqual([10, 16, 16, 10]);
+    expect(within(rows[0]).getAllByRole("button", { name: /^\d+,/ })[0]).toHaveStyle({ gridColumnStart: "4" });
     expect(within(chart).getAllByRole("button", { name: /^\d+,/ })).toHaveLength(52);
     expect(container.querySelectorAll("svg[data-tooth-kind]")).toHaveLength(52);
     expect(within(rows[0]).getAllByRole("button", { name: /^\d+,/ }).map((button) => button.textContent)).toEqual(["55", "54", "53", "52", "51", "61", "62", "63", "64", "65"]);
@@ -86,9 +95,10 @@ describe("ToothSelector", () => {
     expect(screen.getByRole("button", { name: /^11,/ })).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("opens primary teeth for an existing primary selection and respects disabled", () => {
+  it("retains the four-row layout for an existing primary selection and respects disabled", () => {
     const onChange = vi.fn();
     render(<ToothSelector value={["51"]} onChange={onChange} disabled />);
+    expect(screen.getAllByRole("button", { name: /^\d+,/ })).toHaveLength(52);
     expect(screen.getByRole("button", { name: /^51,/ })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: /^51,/ })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: /^51,/ }));
