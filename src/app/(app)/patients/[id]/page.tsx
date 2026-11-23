@@ -8,6 +8,8 @@ import { getLeadRelated } from "@/data/leads";
 import { listComments } from "@/data/comments";
 import { listCaseSheetsForLead } from "@/data/case-sheets";
 import { getPatientTreatmentProgress } from "@/data/treatment-progress";
+import { listLegacyPatientBills } from "@/data/legacy-patient-bills";
+import { LegacyBillHistory } from "@/components/patients/legacy-bill-history";
 import { TreatmentProgressSummary } from "@/components/clinical/treatment-progress-summary";
 import { VisitHistory } from "@/components/clinical/visit-history";
 import { CaseSheetEditLink } from "@/components/clinical/case-sheet-edit-link";
@@ -96,7 +98,7 @@ export default async function PatientDetailPage({
   const invoices = invoiceRows ?? [];
   const callLogs = callLogRows ?? [];
 
-  const [comments, caseSheetResult, assignableUsers, doctors, treatmentTypes, sources, treatmentProgress] = await Promise.all([
+  const [comments, caseSheetResult, assignableUsers, doctors, treatmentTypes, sources, treatmentProgress, legacyBills] = await Promise.all([
     listComments(ctx, id),
     listCaseSheetsForLead(ctx, id, { page: Number(queryParams.page) }),
     listAssignableUsers(ctx, lead.branch_id),
@@ -104,6 +106,7 @@ export default async function PatientDetailPage({
     listTreatmentTypes(ctx, { branchId: lead.branch_id }),
     listLeadSources(ctx),
     getPatientTreatmentProgress(ctx, id),
+    listLegacyPatientBills(ctx, id, Number(queryParams.legacyPage)),
   ]);
   const {
     caseSheets,
@@ -281,6 +284,7 @@ export default async function PatientDetailPage({
         { id: "patient-appointments", label: "Appointments" },
         { id: "patient-clinical", label: "Clinical" },
         { id: "patient-invoices", label: "Invoices" },
+        ...(legacyBills.total ? [{ id: "legacy-bill-history", label: "Historical bills" }] : []),
         ...(followUps.length ? [{ id: "patient-follow-ups", label: "Past follow-up history" }] : []),
         { id: "patient-notes", label: "Notes" },
         { id: "visit-history", label: "Visit History" },
@@ -658,6 +662,7 @@ export default async function PatientDetailPage({
               ))}
             </CardContent>
           </Card>
+          <LegacyBillHistory history={legacyBills} pathname={`/patients/${id}`} query={queryParams} />
 
           {/* Calls linked by the provider webhook */}
           {callLogs.length > 0 && (

@@ -640,9 +640,26 @@ type OneFK<Name extends string, Col extends string, Ref extends string> = {
   referencedColumns: ["id"];
 };
 
+export type LegacyPatientBill = {
+  branch_id: string;
+  lead_id: string;
+  bill_number: string;
+  billed_at: string;
+  legacy_patient_ref: string;
+  source_export: "B24" | "B25" | "B26";
+  gross_paise: number;
+  discount_paise: number;
+  tax_paise: number;
+  net_paise: number;
+  service_names: string[];
+  service_lines: Json;
+  imported_at: string;
+};
+
 export type Database = {
   crm: {
     Tables: {
+      legacy_patient_bills: TableDef<LegacyPatientBill, Exclude<keyof LegacyPatientBill, "imported_at">, "imported_at">;
       branches: TableDef<Branch, "name" | "code", "id" | "created_at" | "updated_at">;
       profiles: TableDef<Profile, "id", "created_at" | "updated_at">;
       user_branches: TableDef<

@@ -5,6 +5,8 @@ import { ArrowLeft } from "lucide-react";
 import { getAuthContext } from "@/lib/auth/context";
 import { getMyPatientHistory } from "@/data/doctor-portal";
 import { getPatientTreatmentProgress } from "@/data/treatment-progress";
+import { listLegacyPatientBills } from "@/data/legacy-patient-bills";
+import { LegacyBillHistory } from "@/components/patients/legacy-bill-history";
 import { TreatmentProgressSummary } from "@/components/clinical/treatment-progress-summary";
 import { VisitHistory } from "@/components/clinical/visit-history";
 import { CaseSheetEditLink } from "@/components/clinical/case-sheet-edit-link";
@@ -62,7 +64,10 @@ export default async function MyPatientHistoryPage({
     caseSheetPageSize,
   } = history;
   const branch = lead.branch as { name: string } | null;
-  const treatmentProgress = await getPatientTreatmentProgress(ctx, id);
+  const [treatmentProgress, legacyBills] = await Promise.all([
+    getPatientTreatmentProgress(ctx, id),
+    listLegacyPatientBills(ctx, id, Number(queryParams.legacyPage)),
+  ]);
   // This authenticated Server Component renders per request; the DB rechecks on save.
   // eslint-disable-next-line react-hooks/purity
   const pageRenderedAt = Date.now();
@@ -96,6 +101,7 @@ export default async function MyPatientHistoryPage({
         { id: "patient-medical-history", label: "Medical history" },
         { id: "patient-clinical", label: "Treatment progress" },
         { id: "visit-history", label: "Visit History" },
+        ...(legacyBills.total ? [{ id: "legacy-bill-history", label: "Previous services" }] : []),
         ...(currentToothAssessments.length > 0 ? [{ id: "patient-teeth", label: "Tooth chart" }] : []),
         { id: "patient-visit-history", label: "Visits & files" },
       ]} />
@@ -138,6 +144,7 @@ export default async function MyPatientHistoryPage({
         </div>
         <VisitHistory leadId={id} completed={treatmentProgress.completed} />
       </div>
+      <LegacyBillHistory history={legacyBills} pathname={`/my-patients/${id}`} query={queryParams} clinicalOnly />
 
       {currentToothAssessments.length > 0 && (
         <section id="patient-teeth" aria-labelledby="current-tooth-summary" className="scroll-mt-20 space-y-3">

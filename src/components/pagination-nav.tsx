@@ -7,7 +7,8 @@ function pageHref(
   pathname: string,
   searchParams: SearchParams,
   page: number,
-  pageParam: string
+  pageParam: string,
+  anchor?: string,
 ): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(searchParams)) {
@@ -15,7 +16,7 @@ function pageHref(
   }
   if (page > 1) params.set(pageParam, String(page));
   const query = params.toString();
-  return query ? `${pathname}?${query}` : pathname;
+  return (query ? `${pathname}?${query}` : pathname) + (anchor ? `#${anchor}` : "");
 }
 
 export function PaginationNav({
@@ -25,6 +26,7 @@ export function PaginationNav({
   pageSize,
   total,
   pageParam = "page",
+  anchor,
 }: {
   pathname: string;
   searchParams: SearchParams;
@@ -32,6 +34,7 @@ export function PaginationNav({
   pageSize: number;
   total: number;
   pageParam?: string;
+  anchor?: string;
 }) {
   if (total === 0) return null;
 
@@ -57,7 +60,7 @@ export function PaginationNav({
         >
           {safePage > 1 ? (
             <Link
-              href={pageHref(pathname, searchParams, safePage - 1, pageParam)}
+              href={pageHref(pathname, searchParams, safePage - 1, pageParam, anchor)}
               rel="prev"
             >
               Previous
@@ -77,7 +80,7 @@ export function PaginationNav({
         >
           {safePage < pageCount ? (
             <Link
-              href={pageHref(pathname, searchParams, safePage + 1, pageParam)}
+              href={pageHref(pathname, searchParams, safePage + 1, pageParam, anchor)}
               rel="next"
             >
               Next
