@@ -92,14 +92,13 @@ export default async function InvoicesPage({
         {PAYMENT_METHODS.filter((method) => !options.paymentMethod || options.paymentMethod === method).map((method) => <FinanceDetailCard key={method} label={PAYMENT_LABELS[method]}
           amount={invoiceResult.collections[method]} source="invoices" filters={{ ...financeFilters, method }} />)}
       </section>}
-      {/* Patient search and invoice filters */}
       <form className="flex flex-wrap gap-2 items-end" action="/invoices" method="get">
         <input type="hidden" name="sort" value={options.sort} /><input type="hidden" name="order" value={options.descending ? "desc" : "asc"} />
         {patient && <input type="hidden" name="lead" value={patient.id} />}
-        <div className="w-full space-y-1 sm:w-64">
-          <label htmlFor="invoice-patient-search" className="text-xs text-muted-foreground">Patient name or mobile number</label>
-          <Input id="invoice-patient-search" name="q" type="search" defaultValue={options.search ?? ""}
-            placeholder="Search patients" maxLength={120} autoComplete="off" />
+        <div className="w-full space-y-1 sm:w-72">
+          <label htmlFor="invoice-search" className="text-xs text-muted-foreground">Invoice number, patient name, or mobile</label>
+          <Input id="invoice-search" name="q" type="search" defaultValue={options.search ?? ""}
+            placeholder="Search invoices" maxLength={120} autoComplete="off" />
         </div>
         <InvoiceDateFilters key={`${dateFilter.mode}:${params.from}:${params.to}`} mode={dateFilter.mode} from={params.from ?? clinicToday()} to={params.to ?? clinicToday()} />
         {(ctx.role === "admin" || branches.length > 1) && (

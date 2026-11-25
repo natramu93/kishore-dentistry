@@ -45,7 +45,7 @@ const MAX_INVOICE_TOTAL = 9_999_999_999.99;
 export type InvoiceWithRefs = Invoice & {
   amount_paid: number;
   balance_due: number;
-  lead: { id: string; name: string; mobile: string; email: string | null } | null;
+  lead: { id: string; name: string; mobile: string | null; email: string | null } | null;
   branch: {
     name: string;
     code: string;
@@ -62,7 +62,7 @@ type InvoiceScopeRow = Invoice & {
     id: string;
     name: string;
     title: PatientTitle | null;
-    mobile: string;
+    mobile: string | null;
     email: string | null;
     assignee_id: string | null;
   } | null;

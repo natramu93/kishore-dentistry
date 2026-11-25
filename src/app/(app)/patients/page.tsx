@@ -150,15 +150,15 @@ export default async function PatientsPage({
                 <Link href={`/patients/${l.id}`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab" className="font-medium hover:underline">
                   {patientDisplayName(l)}
                 </Link>
-                <a
+                {l.mobile && <a
                   href={`tel:${l.mobile}`}
                   className="mt-1 block text-xs text-muted-foreground underline-offset-2 hover:underline sm:hidden"
                 >
                   {l.mobile}
-                </a>
+                </a>}
               </TableCell>
               <TableCell className="hidden text-muted-foreground sm:table-cell">
-                <a href={`tel:${l.mobile}`} className="underline-offset-2 hover:underline">{l.mobile}</a>
+                {l.mobile ? <a href={`tel:${l.mobile}`} className="underline-offset-2 hover:underline">{l.mobile}</a> : "Not recorded"}
               </TableCell>
               <TableCell><LeadStatusBadge status={l.status} /></TableCell>
               <TableCell className="hidden text-muted-foreground lg:table-cell">{l.interest?.name ?? "—"}</TableCell>

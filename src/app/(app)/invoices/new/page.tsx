@@ -54,7 +54,7 @@ export default async function NewInvoicePage({
               <div className="min-w-0">
                 <p className="truncate font-medium">{patientDisplayName(lead)}</p>
                 <p className="text-sm text-muted-foreground">
-                  {lead.mobile} · {lead.branch?.name ?? "Center not set"} · Added {fmtDate(lead.created_at)}
+                  {lead.mobile && `${lead.mobile} · `}{lead.branch?.name ?? "Center not set"} · Added {fmtDate(lead.created_at)}
                 </p>
               </div>
               <Button asChild size="sm">

@@ -73,4 +73,18 @@ describe("validated patient identity actions", () => {
     expect(await updateLeadAction(leadId, form)).toMatchObject({ ok: true });
     expect(updateLeadDetails).toHaveBeenCalledWith(expect.anything(), leadId, { name: "Test Patient" });
   });
+  it("edits an imported record without overwriting the blank mobile field", async () => {
+    const form = new FormData(); form.set("name", "Test Patient"); form.set("mobile", " ");
+    expect(await updateLeadAction(leadId, form)).toMatchObject({ ok: true });
+    expect(updateLeadDetails).toHaveBeenCalledWith(expect.anything(), leadId, { name: "Test Patient" });
+    form.set("mobile", "9000000024");
+    expect(await updateLeadAction(leadId, form)).toMatchObject({ ok: true });
+    expect(updateLeadDetails).toHaveBeenLastCalledWith(expect.anything(), leadId, { name: "Test Patient", mobile: "9000000024" });
+  });
+
+  it("keeps the mobile requirement for regular patient intake", async () => {
+    const form = input(); form.set("mobile", "");
+    expect(await createLeadAction(form)).toMatchObject({ ok: false });
+    expect(createLead).not.toHaveBeenCalled();
+  });
 });

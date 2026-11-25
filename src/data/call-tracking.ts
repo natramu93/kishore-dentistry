@@ -65,7 +65,7 @@ export type CreatedWebhookEndpoint = WebhookEndpointSummary & {
 };
 
 export type CallLogWithRefs = CallLog & {
-  lead: { id: string; name: string; mobile: string; status: string; assignee_id: string | null } | null;
+  lead: { id: string; name: string; mobile: string | null; status: string; assignee_id: string | null } | null;
   branch: { id: string; name: string; code: string } | null;
 };
 
@@ -95,7 +95,7 @@ export type CallLogDetail = CallLogWithRefs & {
 
 export type ExternalAppointmentWithRefs = ExternalAppointment & {
   branch: { name: string; code: string } | null;
-  lead: { id: string; name: string; mobile: string } | null;
+  lead: { id: string; name: string; mobile: string | null } | null;
 };
 
 export type WebhookEventSummary = Pick<

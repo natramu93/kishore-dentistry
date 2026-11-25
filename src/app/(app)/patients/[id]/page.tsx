@@ -208,7 +208,7 @@ export default async function PatientDetailPage({
                 <PatientIdentityFields initialName={lead.name} initialTitle={lead.title} initialGender={lead.gender} />
                 <div className="space-y-2">
                   <Label htmlFor="edit-mobile">Mobile</Label>
-                  <Input id="edit-mobile" name="mobile" type="tel" inputMode="tel" autoComplete="tel" defaultValue={lead.mobile} required />
+                  <Input id="edit-mobile" name="mobile" type="tel" inputMode="tel" autoComplete="tel" defaultValue={lead.mobile ?? ""} required={lead.mobile !== null} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-email">Email (optional)</Label>
@@ -302,9 +302,9 @@ export default async function PatientDetailPage({
                 <Field
                   label="Mobile"
                   value={
-                    <a href={`tel:${lead.mobile}`} className="underline-offset-2 hover:underline">
+                    lead.mobile ? <a href={`tel:${lead.mobile}`} className="underline-offset-2 hover:underline">
                       {lead.mobile}
-                    </a>
+                    </a> : null
                   }
                 />
                 <Field
@@ -622,10 +622,10 @@ export default async function PatientDetailPage({
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-md bg-muted/40 px-3 py-2 text-sm" aria-label="Patient payment summary">
-                <span>Total invoiced: <strong>{formatINR(invoiceSummary.total_invoiced)}</strong></span>
-                <span>Total paid: <strong>{formatINR(invoiceSummary.amount_paid)}</strong></span>
-                <span>Overall patient due (all bills): <strong>{formatINR(invoiceSummary.balance_due)}</strong></span>
+              <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-md bg-muted/40 px-3 py-2 text-sm" aria-label="CRM invoice and payment totals">
+                <span>CRM invoices: <strong>{formatINR(invoiceSummary.total_invoiced)}</strong></span>
+                <span>Paid on CRM invoices: <strong>{formatINR(invoiceSummary.amount_paid)}</strong></span>
+                <span>Outstanding on CRM invoices: <strong>{formatINR(invoiceSummary.balance_due)}</strong></span>
               </div>
               {invoiceTotal !== null && invoiceTotal > invoices.length && (
                 <p className="text-sm text-muted-foreground">
@@ -660,9 +660,9 @@ export default async function PatientDetailPage({
                   />
                 </div>
               ))}
+              <LegacyBillHistory history={legacyBills} pathname={`/patients/${id}`} query={queryParams} />
             </CardContent>
           </Card>
-          <LegacyBillHistory history={legacyBills} pathname={`/patients/${id}`} query={queryParams} />
 
           {/* Calls linked by the provider webhook */}
           {callLogs.length > 0 && (

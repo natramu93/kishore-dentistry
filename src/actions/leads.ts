@@ -109,6 +109,10 @@ export async function updateLeadAction(
   const parsed = leadSchema
     .omit({ branch_id: true })
     .partial()
+    .extend({ mobile: z.preprocess(
+      (input) => typeof input === "string" && input.trim() === "" ? undefined : input,
+      leadSchema.shape.mobile.optional(),
+    ) })
     .safeParse(Object.fromEntries(formData));
   if (!id.success) return { ok: false, error: "Patient is invalid" };
   if (!parsed.success) {

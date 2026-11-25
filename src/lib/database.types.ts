@@ -189,7 +189,7 @@ export type Lead = Timestamps & {
   title: import("@/lib/patient-demographics").PatientTitle | null;
   gender: import("@/lib/patient-demographics").PatientGender | null;
   email: string | null;
-  mobile: string;
+  mobile: string | null;
   age: number | null;
   dob: string | null;
   status: LeadStatus;
@@ -642,6 +642,7 @@ type OneFK<Name extends string, Col extends string, Ref extends string> = {
 
 export type LegacyPatientBill = {
   branch_id: string;
+  patient_branch_id: string;
   lead_id: string;
   bill_number: string;
   billed_at: string;
@@ -659,7 +660,9 @@ export type LegacyPatientBill = {
 export type Database = {
   crm: {
     Tables: {
-      legacy_patient_bills: TableDef<LegacyPatientBill, Exclude<keyof LegacyPatientBill, "imported_at">, "imported_at">;
+      legacy_patient_bills: TableDef<LegacyPatientBill, Exclude<keyof LegacyPatientBill, "imported_at">, "imported_at", [
+        { foreignKeyName: "legacy_patient_bills_billing_branch_fkey"; columns: ["branch_id"]; isOneToOne: false; referencedRelation: "branches"; referencedColumns: ["id"] },
+      ]>;
       branches: TableDef<Branch, "name" | "code", "id" | "created_at" | "updated_at">;
       profiles: TableDef<Profile, "id", "created_at" | "updated_at">;
       user_branches: TableDef<

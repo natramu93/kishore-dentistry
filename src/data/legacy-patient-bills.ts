@@ -7,8 +7,8 @@ import { AuthorizationError, NotFoundError } from "@/lib/errors";
 import { db } from "./db";
 
 const PAGE_SIZE = 15;
-const serviceFields = "bill_number,billed_at,service_names";
-const billingFields = "bill_number,billed_at,service_names,gross_paise,discount_paise,tax_paise,net_paise,service_lines";
+const serviceFields = "branch_id,bill_number,billed_at,service_names,billing_branch:branches!legacy_patient_bills_billing_branch_fkey(name)";
+const billingFields = `${serviceFields},gross_paise,discount_paise,tax_paise,net_paise,service_lines` as const;
 
 async function authorize(ctx: AuthContext, id: string) {
   const leadId = assertUuid(id, "Patient");
@@ -40,7 +40,10 @@ export async function listLegacyPatientBills(ctx: AuthContext, id: string, pageV
   const read = () => {
     const table = db.from("legacy_patient_bills");
     const query = ctx.role === "doctor" ? table.select(serviceFields, { count: "exact" }) : table.select(billingFields, { count: "exact" });
-    return query.eq("lead_id", leadId).eq("branch_id", branchId).order("billed_at", { ascending: false }).order("bill_number")
+    // Chart access alone does not grant access to a bill issued outside this user's centers.
+    if (ctx.role !== "admin") query.in("branch_id", ctx.branchIds);
+    return query.eq("lead_id", leadId).eq("patient_branch_id", branchId)
+      .order("billed_at", { ascending: false }).order("bill_number").order("branch_id")
       .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
   };
   let result = await read();

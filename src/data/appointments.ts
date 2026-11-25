@@ -31,7 +31,7 @@ export type AppointmentWithRefs = Appointment & {
   lead: {
     id: string;
     name: string;
-    mobile?: string;
+    mobile?: string | null;
     status: string;
     assignee_id: string | null;
   } | null;
@@ -261,6 +261,7 @@ export async function appointmentWhatsAppUrl(
   if (leadError) throw leadError;
   if (!lead) throw new NotFoundError("Patient");
   assertLeadWriteAccess(ctx, lead);
+  if (!lead.mobile) return undefined;
 
   const { data: branch, error: branchError } = await db
     .from("branches")

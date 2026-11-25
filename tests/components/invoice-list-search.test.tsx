@@ -14,10 +14,9 @@ vi.mock("@/data/invoices", () => ({
 }));
 afterEach(cleanup);
 
-it("keeps the invoice patient search in the form, results, next page, and CSV", async () => {
-  const q = "Test Patient";
+it.each(["Test Patient", "90000-01234", "TUP-2026-00042"])("keeps invoice search %s in the form, results, next page, and CSV", async (q) => {
   render(await InvoicesPage({ searchParams: Promise.resolve({ q, dates: "all", balance: "due" }) }));
-  expect(screen.getByRole("searchbox", { name: "Patient name or mobile number" })).toHaveValue(q);
+  expect(screen.getByRole("searchbox", { name: "Invoice number, patient name, or mobile" })).toHaveValue(q);
   expect(listInvoices).toHaveBeenCalledWith(expect.any(Object), expect.objectContaining({ search: q, dueOnly: true }));
   const csv = screen.getByRole("link", { name: /download filtered invoices/i });
   const next = screen.getByRole("link", { name: /next/i });

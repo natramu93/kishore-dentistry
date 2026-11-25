@@ -30,6 +30,11 @@ describe("saved patient title reaches prepared appointment messages", () => {
       .mockReturnValueOnce(query({ name:"Center",appointment_whatsapp_enabled:false }));
     expect(await appointmentWhatsAppUrl(ctx,leadId,"2026-10-14T10:00:00Z")).toBeUndefined();
   });
+  it("does not open WhatsApp for an imported patient without a mobile", async () => {
+    mocks.from.mockReturnValueOnce(query({ id:leadId,branch_id:branchId,assignee_id:userId,name:"Test",title:null,mobile:null }));
+    expect(await appointmentWhatsAppUrl(ctx,leadId,"2026-10-14T10:00:00Z")).toBeUndefined();
+    expect(mocks.from).toHaveBeenCalledTimes(1);
+  });
   it("retains patient access restrictions before reading branch/message details", async () => {
     mocks.from.mockReturnValueOnce(query({ id:leadId,branch_id:branchId,assignee_id:"another-user",name:"Test",title:"Mr",mobile:"9000000000" }));
     await expect(appointmentWhatsAppUrl(ctx,leadId,"2026-10-14T10:00:00Z")).rejects.toThrow();

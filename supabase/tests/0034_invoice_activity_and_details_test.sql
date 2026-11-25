@@ -73,6 +73,25 @@ begin
     or exists(select 1 from jsonb_array_elements(v_details->'rows') r where (r->>'date')::date<>v_today) then
     raise exception 'invoice summary drilldown does not reconcile';
   end if;
+  v_result:=crm.get_invoice_activity(v_front,v_filters||jsonb_build_object('search',' '||lower(v_old.invoice_number)||' '),1,100,'number',false);
+  if (v_result->>'total')::int<>1 or v_result#>>'{invoices,0,id}' is distinct from v_old.id::text
+    or (v_result#>>'{collections,amount}')::numeric<>80 then
+    raise exception 'case-insensitive invoice-number search did not preserve the date and receipt filters';
+  end if;
+  v_result:=crm.get_invoice_activity(v_front,v_filters||jsonb_build_object('search',right(v_today_bill.invoice_number,5)),1,100,'number',false);
+  if (v_result->>'total')::int<>1 or v_result#>>'{invoices,0,id}' is distinct from v_today_bill.id::text then
+    raise exception 'partial invoice-number search failed';
+  end if;
+  v_details:=crm.get_finance_details(v_front,v_filters||jsonb_build_object('search',v_old.invoice_number),'invoices','receipts',1,100);
+  if (v_details->>'amount')::numeric<>80 or (v_details->>'total')::int<>2 then
+    raise exception 'invoice-number search was not shared with receipt details';
+  end if;
+  v_result:=crm.get_invoice_activity(v_front,(v_filters-'patient')||jsonb_build_object('search',v_foreign.invoice_number),1,100,'number',false);
+  if (v_result->>'total')::int<>0 then raise exception 'invoice-number search bypassed patient access'; end if;
+  v_result:=crm.get_invoice_activity(v_front,v_filters||'{"search":"activity a patient"}',1,100,'number',false);
+  if (v_result->>'total')::int<>2 then raise exception 'patient-name search no longer matches invoices'; end if;
+  v_result:=crm.get_invoice_activity(v_front,v_filters||'{"search":"90000-00034"}',1,100,'number',false);
+  if (v_result->>'total')::int<>2 then raise exception 'formatted mobile search no longer matches invoices'; end if;
   v_result:=crm.get_invoice_activity(v_front,v_filters||'{"method":"cash"}',1,100,'total',true);
   if (v_result->>'total')::int<>1 or (v_result#>>'{collections,cash}')::numeric<>30 then
     raise exception 'payment method is not constrained by receipt day';

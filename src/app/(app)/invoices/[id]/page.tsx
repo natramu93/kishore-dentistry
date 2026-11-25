@@ -188,6 +188,11 @@ export default async function InvoiceDetailPage({
           {invoice.payments.length > 0 && (
             <div className="mt-6 space-y-2 border-t pt-4">
               <h2 className="font-semibold">{voided ? "Original receipts (excluded from totals)" : "Payment history"}</h2>
+              {invoice.lead && <p className="text-sm text-muted-foreground">
+                These receipts are for this invoice. <Link href={`/patients/${invoice.lead.id}#patient-invoices`} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">
+                  View the patient’s invoices and historical bills<span className="sr-only"> (opens in a new tab)</span>
+                </Link>
+              </p>}
               <Table aria-label={`Payments for invoice ${invoice.invoice_number}`}>
                 <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Method</TableHead><TableHead>Reference</TableHead><TableHead>Remarks</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
                 <TableBody>{invoice.payments.map((payment) => (
