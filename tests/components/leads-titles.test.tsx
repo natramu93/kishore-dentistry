@@ -6,7 +6,7 @@ vi.mock("@/data/branches", () => ({ listMyBranches:vi.fn().mockResolvedValue([])
 vi.mock("@/data/catalogs", () => ({ listLeadSources:vi.fn().mockResolvedValue([]) }));
 vi.mock("@/data/leads", () => ({ listLeads:vi.fn().mockResolvedValue({ total:7,page:1,pageSize:25,leads:[
   ...["Mr","Ms","Mrs","Baby","Master",null].map((title,index) => ({ id:`lead-${index}`,name:`Test Patient ${index}`,title,mobile:"9000000000",status:"open",branch:null,source:null,assignee:null,interest:null,created_at:"2026-10-14T00:00:00Z" })),
-  { id:"legacy",name:"Mrs.TEST PATIENT",title:"Mrs",mobile:"9000000000",status:"open",branch:null,source:null,assignee:null,interest:null,created_at:"2026-10-14T00:00:00Z" },
+  { id:"legacy",name:"Mrs . TEST PATIENT",title:"Mrs",mobile:"9000000000",status:"open",branch:null,source:null,assignee:null,interest:null,created_at:"2026-10-14T00:00:00Z" },
 ] }) }));
 afterEach(cleanup);
 describe("CRM patient titles", () => {

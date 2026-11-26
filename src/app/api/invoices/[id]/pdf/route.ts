@@ -140,8 +140,10 @@ export async function GET(
       // Compact letterhead: address/contact information beside the logo, with
       // invoice metadata in its own column rather than stacked underneath.
       const metaX = 426;
-      const brandX = margin + s(42);
-      if (render) page.drawImage(logo, { x: margin, y: top - s(32), width: s(34), height: s(34) });
+      const logoDimensions = logo.scale(s(46) / logo.width);
+      const logoY = top + s(5) - logoDimensions.height;
+      const brandX = margin + logoDimensions.width + s(8);
+      if (render) page.drawImage(logo, { x: margin, y: logoY, ...logoDimensions });
       let brandY = paragraph(issuerName, brandX, top, metaX - brandX - 16, s(12), bold, accent);
       for (const detail of [
         issuerAddress,
@@ -155,7 +157,7 @@ export async function GET(
       for (const detail of [invoice.invoice_number, `Date: ${fmtDate(invoice.invoice_date ?? invoice.issued_at ?? invoice.created_at)}`, `Status: ${invoice.status}`]) {
         metaY = paragraph(detail, metaX, metaY, page.getWidth() - margin - metaX, s(7.5), regular, muted);
       }
-      let y = Math.min(brandY, metaY, top - s(34)) - s(4);
+      let y = Math.min(brandY, metaY, logoY - s(2)) - s(4);
       rule(y, margin, width, accent);
       y -= s(14);
 

@@ -17,6 +17,7 @@ import { clinicToday, fmtDate, formatINR } from "@/lib/tz";
 import { invoiceFinanceFilters } from "@/lib/finance-activity";
 import { FinanceDetailCard } from "@/components/invoices/finance-detail-card";
 import { PAYMENT_METHODS, PAYMENT_LABELS } from "@/lib/reports/collections";
+import { patientDisplayName } from "@/lib/patient-demographics";
 
 export const metadata = { title: "Invoices — Dr. Kishor's Dentistry CRM" };
 
@@ -75,7 +76,7 @@ export default async function InvoicesPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Invoices</h1>
-          {patient && <p className="text-sm">For <Link className="underline underline-offset-4" href={`/patients/${patient.id}#patient-invoices`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab">{patient.name}</Link></p>}
+          {patient && <p className="text-sm">For <Link className="underline underline-offset-4" href={`/patients/${patient.id}#patient-invoices`} target="_blank" rel="noopener noreferrer" title="Opens in a new tab">{patientDisplayName(patient)}</Link></p>}
           <p className="text-sm text-muted-foreground">
             {total} invoice{total === 1 ? "" : "s"} · {formatINR(invoiceResult.collections.amount)} received in range · {formatINR(dueTotalOnPage)} outstanding on this page
           </p>

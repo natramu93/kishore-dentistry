@@ -69,7 +69,7 @@ describe("downloadable invoice PDF", () => {
     vi.mocked(getInvoice).mockResolvedValue({ id: "invoice-1", invoice_number: "TEST-001", code_enforced: true,
       invoice_date: "2026-08-01", created_at: "2026-10-01T00:00:00Z", issued_at: "2026-10-01T00:00:00Z",
       consulting_doctor_name: "Dr. Test Doctor", referring_doctor_name: "Dr. Referrer", status: "sent", issuer_name: "Test Dentistry", issuer_address: null,
-      issuer_phone: null, issuer_email: null, issuer_gst_number: null, branch: null, lead: { name: "Synthetic Patient" },
+      issuer_phone: null, issuer_email: null, issuer_gst_number: null, branch: null, lead: { name: "Ms. Synthetic Patient" },
       items: [{ id: "line-1", description: "Filling", tooth_numbers: ["18", "17", "16"], quantity: 1, unit_price: 1000, amount: 1000 }],
       subtotal: 1000, discount_amount: 0, tax_rate: 0, tax_amount: 0, total: 1000, amount_paid: 400, balance_due: 600,
       patient_balance: { amount_paid: 400, invoice_due: 600, earlier_due: 1250, later_due: 0, overall_due: 1850, earlier_invoice_count: 2 },
@@ -92,6 +92,8 @@ describe("downloadable invoice PDF", () => {
       expect(content).toContain("Test Dentistry");
       expect(content).toContain("TEST-001");
       expect(content).toContain("Date: 1 Aug 2026");
+      expect(content).toContain("Patient: Ms. Synthetic Patient");
+      expect(pageOperators(pdf, page)).toMatch(/46 0 0 46 0 0 cm\s+1 0 0 1 0 0 cm\s+\/Image-\d+ Do/);
       expect(content).toContain(`Page ${index + 1} of ${pdf.getPageCount()}`);
       expect(page.getSize()).toEqual({ width: 595.28, height: 841.89 });
     }

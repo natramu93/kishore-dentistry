@@ -28,7 +28,7 @@ export function patientDisplayName(patient: { name: string; title?: string | nul
   // Legacy intake sometimes included the title in the name itself. Prefer a
   // separately saved title and display only one prefix; never rewrite the name.
   // A standalone word such as "Baby" is a name, not an empty name with a prefix.
-  const embedded = /^(Mr|Mrs|Ms|Baby|Master)(?:\.\s*|\s+)(?=\S)/i.exec(name);
+  const embedded = /^(Mr|Mrs|Ms|Baby|Master)(?:\s*\.\s*|\s+)(?=\S)/i.exec(name);
   const title = patientTitleLabel(patient.title) || patientTitleLabel(embedded?.[1]);
   if (title && patientTitleLabel(name) === title) return title;
   const plainName = embedded ? name.slice(embedded[0].length) : name;

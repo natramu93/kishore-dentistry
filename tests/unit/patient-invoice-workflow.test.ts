@@ -30,6 +30,19 @@ beforeEach(() => {
 });
 
 describe("patient invoice history", () => {
+  it("displays patient titles in invoice rows without duplicating legacy prefixes or guessing missing titles", async () => {
+    const patients = [
+      { id: "patient-1", name: "TEST PATIENT", title: "Ms" },
+      { id: "patient-2", name: "MR . TEST PATIENT", title: "Mr" },
+      { id: "patient-3", name: "OTHER PATIENT", title: null },
+    ];
+    const invoices = patients.map((lead, index) => ({ id: `invoice-${index}`, branch_id: branchId,
+      amount_paid: 0, balance_due: 0, received_in_range: 0, lead: { ...lead, assignee_id: userId } }));
+    mocks.rpc.mockResolvedValueOnce({ data: { invoices, total: invoices.length, collections: emptyCollections }, error: null });
+    const result = await listInvoices(context());
+    expect(result.invoices.map((invoice) => invoice.lead?.name)).toEqual(["Ms. Test Patient", "Mr. Test Patient", "Other Patient"]);
+  });
+
   it("searches the linked patient by name without removing Front Office scope or date filters", async () => {
     const query = chain({ data: [], error: null, count: 0 });
     mocks.from.mockReturnValue(query);

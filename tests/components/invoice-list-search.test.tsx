@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, expect, it, vi } from "vitest";
 import InvoicesPage from "@/app/(app)/invoices/page";
 import { listInvoices } from "@/data/invoices";
+import { getLead } from "@/data/leads";
 import { financeDetailsAction } from "@/actions/finance-details";
 
 vi.mock("@/lib/auth/context", () => ({ getAuthContext: vi.fn().mockResolvedValue({ role: "admin" }) }));
@@ -13,6 +14,13 @@ vi.mock("@/data/invoices", () => ({
     collections: { amount: 0, upi: 0, cash: 0, card: 0, neft: 0 } }),
 }));
 afterEach(cleanup);
+
+it("shows the titled patient name in the filtered invoice heading", async () => {
+  const patientId = "20000000-0000-4000-8000-000000000001";
+  vi.mocked(getLead).mockResolvedValueOnce({ id: patientId, name: "TEST PATIENT", title: "Ms" } as NonNullable<Awaited<ReturnType<typeof getLead>>>);
+  render(await InvoicesPage({ searchParams: Promise.resolve({ lead: patientId }) }));
+  expect(screen.getByRole("link", { name: "Ms. Test Patient" })).toHaveAttribute("href", `/patients/${patientId}#patient-invoices`);
+});
 
 it.each(["Test Patient", "90000-01234", "TUP-2026-00042"])("keeps invoice search %s in the form, results, next page, and CSV", async (q) => {
   render(await InvoicesPage({ searchParams: Promise.resolve({ q, dates: "all", balance: "due" }) }));
