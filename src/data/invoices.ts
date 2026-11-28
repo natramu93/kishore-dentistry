@@ -354,7 +354,8 @@ async function readInvoicePatientBalance(ctx: AuthContext, invoiceId: string): P
 
 export async function getInvoice(
   ctx: AuthContext,
-  id: string
+  id: string,
+  { allPayments = false }: { allPayments?: boolean } = {},
 ): Promise<(InvoiceWithRefs & { items: InvoiceItem[]; payments: InvoicePayment[]; patient_balance: PatientInvoiceBalance }) | null> {
   const invoice = await loadInvoiceScope(id);
   if (!invoice) return null;
@@ -374,16 +375,29 @@ export async function getInvoice(
     .order("created_at")
     .limit(100);
   if (itemsResult.error) throw itemsResult.error;
-  const paymentsResult = await db
+  const receiptPageSize = 500;
+  const receiptQuery = (count?: "exact") => db
     .from("invoice_payments")
-    .select("*")
+    .select("*", { count })
     .eq("invoice_id", invoice.id)
     .order("received_at", { ascending: false })
-    .limit(500);
+    .order("id", { ascending: false });
+  const paymentsResult = await receiptQuery(allPayments ? "exact" : undefined).limit(receiptPageSize);
   if (paymentsResult.error) throw paymentsResult.error;
+  if (allPayments && paymentsResult.count == null) throw new Error("Could not verify the complete invoice payment history");
+  const payments = [...(paymentsResult.data ?? [])];
+  // The regular page only previews recent receipts; generated invoices include
+  // the whole ledger for this invoice, including receipts past the first batch.
+  while (allPayments && payments.length < (paymentsResult.count ?? 0)) {
+    const start = payments.length;
+    const next = await receiptQuery().range(start, start + receiptPageSize - 1);
+    if (next.error) throw next.error;
+    if (!next.data?.length) throw new Error("Could not read the complete invoice payment history");
+    payments.push(...next.data);
+  }
   const patient_balance = await readInvoicePatientBalance(ctx, invoice.id);
   return { ...toInvoiceDto(invoice), amount_paid: patient_balance.amount_paid, balance_due: patient_balance.invoice_due,
-    items: itemsResult.data, payments: paymentsResult.data ?? [], patient_balance };
+    items: itemsResult.data, payments, patient_balance };
 }
 
 export async function getPatientInvoiceSummary(ctx: AuthContext, leadId: string) {

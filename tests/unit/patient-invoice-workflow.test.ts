@@ -99,6 +99,36 @@ describe("patient invoice history", () => {
     expect(result?.lead?.name).toBe("Mr. Test Patient");
     expect(mocks.rpc).toHaveBeenCalledWith("get_invoice_patient_balance",{ p_invoice_id:invoiceId,p_actor:userId });
   });
+
+  it("loads receipts beyond the preview limit for a generated invoice, scoped to its own ID", async () => {
+    const invoiceId = "20000000-0000-4000-8000-000000000004";
+    const firstBatch = chain({ data: Array.from({ length: 500 }, (_, index) => ({ id: `receipt-${index}` })), error: null, count: 501 });
+    const lastBatch = chain({ data: [{ id: "last-receipt" }], error: null });
+    mocks.from.mockReturnValueOnce(chain({ data: { id: invoiceId, branch_id: branchId, lead: { id: leadId, name: "Test Patient", assignee_id: userId } }, error: null }))
+      .mockReturnValueOnce(chain({ data: [], error: null })).mockReturnValueOnce(firstBatch).mockReturnValueOnce(lastBatch);
+    mocks.rpc.mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { amount_paid: 501, invoice_due: 0 }, error: null }) });
+    const result = await getInvoice(context(), invoiceId, { allPayments: true });
+    expect(result?.payments).toHaveLength(501);
+    expect(result?.payments.at(-1)).toEqual({ id: "last-receipt" });
+    expect(firstBatch.select).toHaveBeenCalledWith("*", { count: "exact" });
+    expect(firstBatch.limit).toHaveBeenCalledWith(500);
+    expect(lastBatch.range).toHaveBeenCalledWith(500, 999);
+    for (const batch of [firstBatch, lastBatch]) {
+      expect(batch.eq).toHaveBeenCalledWith("invoice_id", invoiceId);
+      expect(batch.order).toHaveBeenNthCalledWith(1, "received_at", { ascending: false });
+      expect(batch.order).toHaveBeenNthCalledWith(2, "id", { ascending: false });
+    }
+  });
+
+  it("does not read receipts for doctor accounts or for invoices outside the viewer's center", async () => {
+    const invoiceId = "20000000-0000-4000-8000-000000000004";
+    const invoice = { id: invoiceId, branch_id: branchId, lead: { assignee_id: userId } };
+    mocks.from.mockReturnValue(chain({ data: invoice, error: null }));
+    await expect(getInvoice(context("doctor"), invoiceId, { allPayments: true })).resolves.toBeNull();
+    await expect(getInvoice({ ...context("operations"), branchIds: [] }, invoiceId, { allPayments: true })).resolves.toBeNull();
+    expect(mocks.from.mock.calls).toEqual([["invoices"], ["invoices"]]);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
   it("filters billing dates inclusively without changing patient history defaults", async () => {
     const query = chain({ data: [], error: null, count: 0 });
     mocks.from.mockReturnValue(query);

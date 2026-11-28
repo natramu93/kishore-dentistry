@@ -8,6 +8,7 @@ import { fmtDate, formatINR } from "@/lib/tz";
 import { TIRUPUR_CLINIC } from "@/lib/clinic";
 import { NotFoundError, PublicError } from "@/lib/errors";
 import { invoiceLineToothLabel } from "@/lib/invoice-lines";
+import { PAYMENT_METHODS, receivedAmountInWords } from "@/lib/invoice-receipts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,7 +48,7 @@ export async function GET(
       windowMs: 60_000,
     });
     const { id } = await context.params;
-    const invoice = await getInvoice(ctx, id);
+    const invoice = await getInvoice(ctx, id, { allPayments: true });
     if (!invoice || invoice.status === "cancelled") {
       throw new NotFoundError("Invoice");
     }
@@ -114,6 +115,12 @@ export async function GET(
         : `${TIRUPUR_CLINIC.brandName}${invoice.branch?.name ? ` - ${invoice.branch.name}` : ""}`);
     const issuerAddress = invoice.issuer_address ?? invoice.branch?.address;
     const issuerPhone = invoice.issuer_phone ?? invoice.branch?.phone;
+    const receipts = invoice.payments.map((payment) => ({
+      date: fmtDate(payment.received_at),
+      method: PAYMENT_METHODS.find(({ value }) => value === payment.payment_method)?.label ?? payment.payment_method,
+      amount: pdfAmount(Number(payment.amount)),
+    }));
+    const received = invoice.payments.reduce((paise, payment) => paise + Math.round(Number(payment.amount) * 100), 0) / 100;
 
     const layout = (scale: number, render: boolean): number => {
       const s = (value: number) => value * scale;
@@ -229,6 +236,46 @@ export async function GET(
         { label: "Balance due", amount: invoice.balance_due, strong: true },
       ], secondX);
       y = Math.min(accountY, totalsY) - s(3);
+
+      y -= s(7);
+      draw("PAYMENTS FOR THIS INVOICE", margin, y, s(8), bold, accent);
+      y -= s(12);
+      if (receipts.length === 0) {
+        const message = invoice.status === "paid" && invoice.amount_paid > 0
+          ? "This invoice is marked paid, but no individual receipts were recorded."
+          : "No payments recorded for this invoice.";
+        y = paragraph(message, margin, y, width, s(7.5), regular, muted);
+      } else {
+        // A long split-payment history reads down each column and stays in the
+        // same A4 fit calculation as the billed items. Do not print internal remarks or references.
+        const columnCount = receipts.length > 16 ? 2 : 1;
+        const columnWidth = columnCount === 1 ? width : halfWidth;
+        const rowsPerColumn = Math.ceil(receipts.length / columnCount);
+        const tableTop = y;
+        for (let column = 0; column < columnCount; column++) {
+          const x = column === 0 ? margin : secondX;
+          const methodX = x + columnWidth * 0.45;
+          draw("Receipt date", x, tableTop, s(7.2), bold, muted);
+          draw("Method", methodX, tableTop, s(7.2), bold, muted);
+          right("Amount (INR)", x + columnWidth, tableTop, columnWidth * 0.3, s(7.2), bold, muted);
+          rule(tableTop - s(3), x, columnWidth);
+          const first = column * rowsPerColumn;
+          let rowY = tableTop - s(11);
+          for (let index = first; index < Math.min(first + rowsPerColumn, receipts.length); index++) {
+            const receipt = receipts[index];
+            draw(receipt.date, x, rowY, s(7.5));
+            draw(receipt.method, methodX, rowY, s(7.5));
+            right(receipt.amount, x + columnWidth, rowY, columnWidth * 0.3, s(7.5));
+            rowY -= s(9);
+          }
+        }
+        y = tableTop - s(11 + rowsPerColumn * 9);
+        rule(y + s(4));
+        draw("Amount received on this invoice", margin, y - s(6), s(8), bold);
+        right(pdfAmount(received), margin + width, y - s(6), 100, s(8), bold);
+        y = paragraph(`Received amount in words: ${receivedAmountInWords(received)}`, margin, y - s(17), width, s(7.5), regular, muted);
+      }
+
       for (const detail of [invoice.notes ? `Notes: ${invoice.notes}` : null, invoice.mention ? `Mention: ${invoice.mention}` : null]) {
         if (detail) { y -= s(4); y = paragraph(detail, margin, y, width, s(7.5), regular, muted); }
       }

@@ -43,20 +43,26 @@ function expectSingleA4(pdf: PDFDocument) {
 }
 
 describe("downloadable invoice PDF", () => {
-  it("allows a settled opening-balance invoice to be downloaded for WhatsApp sharing", async () => {
+  it.each([true, false])("shares a settled opening-balance invoice with recorded receipts only (has receipt: %s)", async (hasReceipt) => {
     vi.mocked(getInvoice).mockResolvedValue({ id: "opening-balance", invoice_number: "OLD-001", invoice_kind: "opening_balance", code_enforced: false,
       invoice_date: "2026-11-14", created_at: "2026-11-14T09:00:00Z", status: "paid", issuer_name: "Synthetic Dentistry", branch: null,
       lead: { name: "Synthetic Patient" }, items: [{ id: "old-item", description: "Due carry forward from old system", quantity: 1, unit_price: 500, amount: 500 }],
       subtotal: 500, discount_amount: 0, tax_rate: 0, tax_amount: 0, total: 500, amount_paid: 500, balance_due: 0,
       patient_balance: { amount_paid: 500, invoice_due: 0, earlier_due: 0, later_due: 0, overall_due: 0, earlier_invoice_count: 0 },
-      payments: [{ amount: 500, payment_method: "cash", received_at: "2026-11-15T09:00:00Z", reference: "PRIVATE-RECEIPT" }],
+      payments: hasReceipt ? [{ amount: 500, payment_method: "cash", received_at: "2026-11-15T09:00:00Z", reference: "PRIVATE-RECEIPT" }] : [],
     } as unknown as NonNullable<Awaited<ReturnType<typeof getInvoice>>>);
     const response = await GET(new Request("http://localhost/api/invoices/opening-balance/pdf"), { params: Promise.resolve({ id: "opening-balance" }) });
     expect(response.status).toBe(200);
     const pdf = await PDFDocument.load(await response.arrayBuffer());
     expectSingleA4(pdf);
-    expect(pageText(pdf, pdf.getPage(0))).toContain("Due carry forward from old system");
-    expect(pageText(pdf, pdf.getPage(0))).not.toContain("PRIVATE-RECEIPT");
+    const text = pageText(pdf, pdf.getPage(0));
+    expect(text).toContain("Due carry forward from old system");
+    expect(text).not.toContain("PRIVATE-RECEIPT");
+    if (hasReceipt) expect(text).toContain("15 Nov 2026 Cash INR 500.00");
+    else {
+      expect(text).toContain("This invoice is marked paid, but no individual receipts were recorded.");
+      expect(text).not.toContain("Receipt date");
+    }
   });
   it("does not generate a payable document for voided invoices", async () => {
     vi.mocked(getInvoice).mockResolvedValueOnce({ id: "voided", code_enforced: true, status: "cancelled" } as
@@ -65,7 +71,7 @@ describe("downloadable invoice PDF", () => {
     expect(response.status).toBe(404);
   });
 
-  it("keeps date, consulting doctor and teeth but hides referring doctor and all receipts", async () => {
+  it("prints every split receipt for this invoice without disclosing references or staff remarks", async () => {
     vi.mocked(getInvoice).mockResolvedValue({ id: "invoice-1", invoice_number: "TEST-001", code_enforced: true,
       invoice_date: "2026-08-01", created_at: "2026-10-01T00:00:00Z", issued_at: "2026-10-01T00:00:00Z",
       consulting_doctor_name: "Dr. Test Doctor", referring_doctor_name: "Dr. Referrer", status: "sent", issuer_name: "Test Dentistry", issuer_address: null,
@@ -73,10 +79,16 @@ describe("downloadable invoice PDF", () => {
       items: [{ id: "line-1", description: "Filling", tooth_numbers: ["18", "17", "16"], quantity: 1, unit_price: 1000, amount: 1000 }],
       subtotal: 1000, discount_amount: 0, tax_rate: 0, tax_amount: 0, total: 1000, amount_paid: 400, balance_due: 600,
       patient_balance: { amount_paid: 400, invoice_due: 600, earlier_due: 1250, later_due: 0, overall_due: 1850, earlier_invoice_count: 2 },
-      payments: Array.from({ length: 70 }, (_, i) => ({ amount: 5, payment_method: ["upi", "cash", "card", "neft"][i % 4], received_at: "2026-10-01T00:00:00Z", reference: `REF-${i}` })),
+      payments: Array.from({ length: 70 }, (_, i) => ({
+        amount: i === 68 ? 20 : i === 69 ? 40 : 5,
+        payment_method: ["upi", "cash", "card", "neft"][i % 4],
+        received_at: i === 0 ? "2026-10-01T23:30:00Z" : "2026-10-01T00:00:00Z",
+        reference: `REF-${i}`, notes: "STAFF-ONLY-REMARK",
+      })),
     } as unknown as NonNullable<Awaited<ReturnType<typeof getInvoice>>>);
     const result = await GET(new Request("http://localhost/api/invoices/invoice-1/pdf"), { params: Promise.resolve({ id: "invoice-1" }) });
     expect(result.status).toBe(200);
+    expect(getInvoice).toHaveBeenLastCalledWith({ userId: "staff-1" }, "invoice-1", { allPayments: true });
     expect(result.headers.get("Cache-Control")).toContain("no-store");
     expect(result.headers.get("Content-Disposition")).toMatch(/^attachment;/);
     expect(result.headers.get("Content-Security-Policy")).toContain("sandbox");
@@ -106,14 +118,20 @@ describe("downloadable invoice PDF", () => {
     expect(text).toContain("Consulting doctor: Dr. Test Doctor");
     expect(text).not.toContain("Referring doctor");
     expect(text).toContain("Teeth (IS 8815): 18, 17, 16");
-    expect(text).not.toContain("Received amount in words");
+    expect(text).toContain("PAYMENTS FOR THIS INVOICE");
+    expect(text).toContain("2 Oct 2026 UPI INR 5.00");
+    expect(text).toContain("1 Oct 2026 Cash INR 40.00");
+    for (const method of ["UPI", "Cash", "Card", "NEFT"]) expect(text).toContain(` ${method} INR `);
+    expect(text.match(/Oct 2026 (?:UPI|Cash|Card|NEFT) INR /g)).toHaveLength(70);
+    expect(text).toContain("Amount received on this invoice INR 400.00");
+    expect(text).toContain("Received amount in words: Four Hundred Rupees Only");
     expect(text).toContain("PATIENT OUTSTANDING BALANCE");
     expect(text).toContain("Earlier unpaid bills (2)");
     expect(text).toContain("INR 1,250.00");
     expect(text).toContain("Overall patient due");
     expect(text).toContain("INR 1,850.00");
-    expect(text).not.toContain("Amount received");
     expect(text).not.toContain("REF-");
+    expect(text).not.toContain("STAFF-ONLY-REMARK");
     expect(text).not.toContain("Record payments against their original invoice");
   });
 
@@ -127,8 +145,13 @@ describe("downloadable invoice PDF", () => {
       consulting_doctor_name: "Dr. Preview", referring_doctor_name: "No referring doctor",
       items: Array.from({ length: 13 }, (_, index) => ({ id: `line-${index}`, description: `Restoration treatment ${index + 1}`,
         tooth_numbers: ["18", "17", "16"], quantity: 1, unit_price: 1000, amount: 1000, line_note: "Synthetic visit note for printing." })),
-      subtotal: 13000, discount_amount: 0, tax_rate: 0, tax_amount: 0, total: 13000, amount_paid: 0, balance_due: 13000,
-      patient_balance: { amount_paid: 0, invoice_due: 13000, earlier_due: 0, later_due: 0, overall_due: 13000, earlier_invoice_count: 0 }, payments: [],
+      subtotal: 13000, discount_amount: 0, tax_rate: 0, tax_amount: 0, total: 13000, amount_paid: 3000, balance_due: 10000,
+      patient_balance: { amount_paid: 3000, invoice_due: 10000, earlier_due: 0, later_due: 0, overall_due: 10000, earlier_invoice_count: 0 },
+      payments: [
+        { amount: 1500, payment_method: "upi", received_at: "2026-10-27T09:00:00Z" },
+        { amount: 1000, payment_method: "card", received_at: "2026-10-27T08:55:00Z" },
+        { amount: 500, payment_method: "cash", received_at: "2026-10-27T08:50:00Z" },
+      ],
     } as unknown as NonNullable<Awaited<ReturnType<typeof getInvoice>>>;
     vi.mocked(getInvoice).mockResolvedValue(invoice);
     const response = await GET(new Request("http://localhost/invoice?inline=1"), { params: Promise.resolve({ id: "synthetic-invoice" }) });
@@ -144,6 +167,7 @@ describe("downloadable invoice PDF", () => {
       expect(pageText(pdf, page)).toContain("GSTIN: 33AAKCD3028Q1ZD");
       expect(pageText(pdf, page)).toContain("PREVIEW-013");
       expect(pageText(pdf, page)).toContain("Phone: 9361135459");
+      expect(pageText(pdf, page)).toContain("Amount received on this invoice INR 3,000.00");
     }
     expect(pageText(pdf, pdf.getPage(0))).toContain("Treatment / teeth / notes");
     expect(pdf.getPages().map((page) => pageText(pdf, page)).join(" ")).toContain("Restoration treatment 13");
@@ -172,6 +196,7 @@ describe("downloadable invoice PDF", () => {
     const pdf = await PDFDocument.load(bytes);
     expectSingleA4(pdf);
     const text = pageText(pdf, pdf.getPage(0));
+    expect(text).toContain("27 Oct 2026 NEFT INR 400.00");
     for (let index = 1; index <= count; index++) {
       expect(text).toContain(`Treatment ${index}`);
       expect(text).toContain(`LINE-${index}-END`);
